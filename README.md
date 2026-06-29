@@ -18,6 +18,8 @@ Phase 3 adds meeting context files. Uploaded files are parsed into summaries and
 
 Phase 4 adds a debate engine and structured decision output. Meetings now run through explicit debate rounds and produce a JSON decision schema for review-only risk assessment. Future auto-trading integration remains decision-support only in this phase.
 
+Phase 5 adds optional Telegram report delivery. Telegram is disabled by default and is used only for notification and report delivery, never for broker access or order execution.
+
 ## Structure
 
 ```text
@@ -189,6 +191,39 @@ curl -X POST "http://127.0.0.1:8000/api/meetings" \
   -d '{"topic":"Review a high-risk setup","ticker":"RISK","mode":"risk_gate_review"}'
 ```
 
+## Phase 5 Telegram Notifications
+
+Telegram delivery is disabled by default:
+
+```bash
+TELEGRAM_ENABLED=false
+```
+
+Enable it with environment variables:
+
+```bash
+TELEGRAM_ENABLED=true
+TELEGRAM_BOT_TOKEN=<your bot token>
+TELEGRAM_CHAT_ID=<your chat id>
+TELEGRAM_TIMEOUT_SECONDS=10
+```
+
+Do not commit real bot tokens or chat IDs. Keep secrets in a local `.env` or shell environment only. The repository `.gitignore` excludes `.env`.
+
+Send a completed meeting report:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/telegram/send"
+```
+
+Check Telegram configuration status:
+
+```bash
+curl "http://127.0.0.1:8000/api/telegram/status"
+```
+
+Telegram messages include the meeting title, mode, structured decision, confidence, risk level, risk flags, required follow-up, report path, and safety boundary. Telegram delivery is report-only and does not connect to broker APIs or execute orders.
+
 ## Tests
 
 ```bash
@@ -203,9 +238,11 @@ cd ~/AI-council/backend
 - `GET /api/meetings`
 - `POST /api/meetings` accepts optional `mode`
 - `GET /api/meetings/{meeting_id}` includes `messages` and `structured_decision`
+- `GET /api/telegram/status`
 - `POST /api/meetings/{meeting_id}/files`
 - `GET /api/meetings/{meeting_id}/files`
 - `POST /api/meetings/{meeting_id}/run`
+- `POST /api/meetings/{meeting_id}/telegram/send`
 - `GET /api/meetings/{meeting_id}/report`
 - `GET /api/files/{file_id}`
 - `DELETE /api/files/{file_id}`

@@ -23,4 +23,5 @@ class MeetingRunResponse(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     structured_decision: dict = Field(default_factory=dict)
     files: list[dict] = Field(default_factory=list)
+    telegram: dict | None = None
     report: dict

@@ -37,6 +37,11 @@ from .repository import (
 )
 from .schemas import MeetingCreate, MeetingRunResponse
 from .seed import seed_agents
+from .services.telegram_service import (
+    TelegramConfig,
+    TelegramService,
+    load_telegram_config,
+)
 
 
 def create_app(
@@ -44,11 +49,13 @@ def create_app(
     report_dir: str | Path | None = None,
     upload_root: str | Path | None = None,
     llm_config: LLMConfig | None = None,
+    telegram_config: TelegramConfig | None = None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path or DEFAULT_DB_PATH)
     resolved_report_dir = Path(report_dir or DEFAULT_REPORT_DIR)
     resolved_upload_root = Path(upload_root or UPLOAD_ROOT)
     resolved_llm_config = llm_config or load_llm_config()
+    resolved_telegram_config = telegram_config or load_telegram_config()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -61,6 +68,7 @@ def create_app(
     app.state.report_dir = resolved_report_dir
     app.state.upload_root = resolved_upload_root
     app.state.llm_config = resolved_llm_config
+    app.state.telegram_config = resolved_telegram_config
 
     app.add_middleware(
         CORSMiddleware,
@@ -87,6 +95,7 @@ def create_app(
             "mode": "phase_1_mock",
             "database": "sqlite",
             "llm_provider": app.state.llm_config.provider,
+            "telegram": TelegramService(app.state.telegram_config).status(),
         }
 
     @app.get("/api/agents")
@@ -130,6 +139,10 @@ def create_app(
                 "path": report["path"] if report else None,
             },
         }
+
+    @app.get("/api/telegram/status")
+    def get_telegram_status() -> dict:
+        return TelegramService(app.state.telegram_config).status()
 
     @app.post("/api/meetings/{meeting_id}/files", status_code=201)
     async def post_meeting_file(meeting_id: str, file: UploadFile = File(...)) -> dict:
@@ -207,17 +220,33 @@ def create_app(
             messages=messages,
         )
         report = upsert_report(meeting_id, report_path, markdown, app.state.db_path)
+        telegram_result = None
+        telegram_service = TelegramService(app.state.telegram_config)
+        if telegram_service.config.auto_send_telegram:
+            telegram_result = telegram_service.send_meeting_report(updated_meeting, report)
         return {
             "meeting": updated_meeting,
             "outputs": outputs,
             "messages": messages,
             "structured_decision": council_run.structured_decision,
             "files": files,
+            "telegram": telegram_result,
             "report": {
                 "available": True,
                 "path": report["path"],
                 "created_at": report["created_at"],
             },
+        }
+
+    @app.post("/api/meetings/{meeting_id}/telegram/send")
+    def send_meeting_telegram(meeting_id: str) -> dict:
+        meeting = _meeting_or_404(meeting_id)
+        report = get_report(meeting_id, app.state.db_path)
+        result = TelegramService(app.state.telegram_config).send_meeting_report(meeting, report)
+        return {
+            "meeting_id": meeting_id,
+            "report_available": report is not None,
+            **result,
         }
 
     @app.get("/api/meetings/{meeting_id}/report")

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.llm.config import LLMConfig
 from app.main import create_app
+from app.services.telegram_service import TelegramConfig
 
 
 @pytest.fixture()
@@ -14,6 +15,7 @@ def client(tmp_path):
         report_dir=tmp_path / "reports",
         upload_root=tmp_path / "uploads",
         llm_config=LLMConfig(provider="mock"),
+        telegram_config=TelegramConfig(enabled=False),
     )
     with TestClient(app) as test_client:
         yield test_client

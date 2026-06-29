@@ -33,6 +33,7 @@ async function request(path, options = {}) {
 export const api = {
   baseUrl: API_BASE_URL,
   getAgents: () => request("/api/agents"),
+  getTelegramStatus: () => request("/api/telegram/status"),
   getMeetings: () => request("/api/meetings"),
   createMeeting: (payload) =>
     request("/api/meetings", {
@@ -54,6 +55,10 @@ export const api = {
     }),
   runMeeting: (meetingId) =>
     request(`/api/meetings/${meetingId}/run`, {
+      method: "POST"
+    }),
+  sendTelegram: (meetingId) =>
+    request(`/api/meetings/${meetingId}/telegram/send`, {
       method: "POST"
     }),
   reportUrl: (meetingId) => `${API_BASE_URL}/api/meetings/${meetingId}/report`

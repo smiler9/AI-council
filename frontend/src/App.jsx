@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Scale,
   Shield,
+  Send,
   Trash2,
   Upload
 } from "lucide-react";
@@ -45,7 +46,10 @@ export default function App() {
   const [mode, setMode] = useState("quick_review");
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
+  const [telegramLoading, setTelegramLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [telegramStatus, setTelegramStatus] = useState(null);
+  const [telegramResult, setTelegramResult] = useState(null);
   const [error, setError] = useState("");
 
   const selectedMeeting = detail?.meeting;
@@ -78,8 +82,12 @@ export default function App() {
   async function loadInitialData() {
     setError("");
     try {
-      const [agentList] = await Promise.all([api.getAgents()]);
+      const [agentList, telegram] = await Promise.all([
+        api.getAgents(),
+        api.getTelegramStatus()
+      ]);
       setAgents(agentList);
+      setTelegramStatus(telegram);
       await loadMeetings();
     } catch (err) {
       setError(err.message);
@@ -172,6 +180,30 @@ export default function App() {
       setError(err.message);
     } finally {
       setFileLoading(false);
+    }
+  }
+
+  async function refreshTelegramStatus() {
+    try {
+      setTelegramStatus(await api.getTelegramStatus());
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleSendTelegram() {
+    if (!selectedId) return;
+    setTelegramLoading(true);
+    setTelegramResult(null);
+    setError("");
+    try {
+      const result = await api.sendTelegram(selectedId);
+      setTelegramResult(result);
+      await refreshTelegramStatus();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTelegramLoading(false);
     }
   }
 
@@ -343,6 +375,33 @@ export default function App() {
                   <dd>{selectedMeeting.trade_review?.broker_integration_status || "not_connected"}</dd>
                 </div>
               </dl>
+
+              <div className="telegramPanel">
+                <div className="panelHeading">
+                  <h3>Telegram</h3>
+                  <span>{telegramStatus?.configured ? "ON" : "OFF"}</span>
+                </div>
+                <p className="contextHint">
+                  {telegramStatus?.configured
+                    ? "Report delivery is configured for this backend."
+                    : "Telegram is disabled or missing TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID."}
+                </p>
+                <button
+                  className="secondaryButton"
+                  type="button"
+                  disabled={!selectedId || telegramLoading}
+                  onClick={handleSendTelegram}
+                >
+                  <Send size={17} aria-hidden="true" />
+                  Send to Telegram
+                </button>
+                {telegramResult && (
+                  <div className={`telegramResult ${telegramResult.sent ? "sent" : "disabled"}`}>
+                    <strong>{telegramResult.status}</strong>
+                    <p>{telegramResult.detail}</p>
+                  </div>
+                )}
+              </div>
 
               <div className="contextPanel">
                 <div className="panelHeading">

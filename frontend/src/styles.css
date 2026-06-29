@@ -605,7 +605,8 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
-.contextPanel {
+.contextPanel,
+.telegramPanel {
   display: grid;
   gap: 12px;
   border-top: 1px solid #d9e0e7;
@@ -692,6 +693,35 @@ select:focus {
   font-size: 12px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
+}
+
+.telegramResult {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.telegramResult.sent {
+  border-color: #b9e7c9;
+  background: #f0fbf4;
+}
+
+.telegramResult.disabled {
+  border-color: #f2d7a2;
+  background: #fffaf0;
+}
+
+.telegramResult strong {
+  color: #17202a;
+  text-transform: capitalize;
+}
+
+.telegramResult p {
+  margin: 0;
+  color: #667789;
+  font-size: 13px;
 }
 
 .emptyState,
