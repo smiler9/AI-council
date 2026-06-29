@@ -1,0 +1,480 @@
+:root {
+  color: #17202a;
+  background: #f5f7f9;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.appShell {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  border-right: 1px solid #d9e0e7;
+  background: #ffffff;
+  padding: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #143d59;
+  color: #ffffff;
+}
+
+.brand h1,
+.brand p,
+.topbar h2,
+.topbar p,
+.outputGroup h3,
+.outputCard h4,
+.outputCard p,
+.reviewPanel h3,
+.reviewPanel dl,
+.blankSlate h3,
+.blankSlate p {
+  margin: 0;
+}
+
+.brand h1 {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.brand p,
+.meetingMeta,
+.eyebrow,
+.outputCard p,
+.reviewPanel dt,
+.emptyState,
+.blankSlate p {
+  color: #667789;
+}
+
+.createForm {
+  display: grid;
+  gap: 12px;
+}
+
+.createForm label {
+  display: grid;
+  gap: 6px;
+}
+
+.createForm span,
+.sidebarHeader {
+  font-size: 13px;
+  font-weight: 700;
+  color: #314253;
+}
+
+textarea,
+input {
+  width: 100%;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17202a;
+  padding: 10px 12px;
+  outline: none;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 104px;
+}
+
+textarea:focus,
+input:focus {
+  border-color: #1f7a8c;
+  box-shadow: 0 0 0 3px rgba(31, 122, 140, 0.16);
+}
+
+.primaryButton,
+.secondaryButton,
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primaryButton {
+  min-height: 42px;
+  background: #0f766e;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 10px 14px;
+}
+
+.secondaryButton {
+  min-height: 40px;
+  border: 1px solid #cfd8e3;
+  background: #ffffff;
+  color: #17202a;
+  font-weight: 750;
+  padding: 9px 13px;
+}
+
+.iconButton {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d9e0e7;
+  background: #ffffff;
+  color: #314253;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.secondaryButton.disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: -8px;
+}
+
+.meetingList {
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+}
+
+.meetingItem {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  padding: 12px;
+  text-align: left;
+}
+
+.meetingItem.active {
+  border-color: #1f7a8c;
+  background: #eef8f8;
+}
+
+.meetingTitle {
+  overflow: hidden;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 18px;
+  padding: 26px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+}
+
+.topbar h2 {
+  overflow-wrap: anywhere;
+  font-size: 28px;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.eyebrow {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ticker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  border-radius: 8px;
+  background: #243b53;
+  color: #ffffff;
+  font-weight: 850;
+  padding: 8px 11px;
+}
+
+.errorBanner,
+.statusStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.errorBanner {
+  border: 1px solid #f5b5a8;
+  background: #fff1ed;
+  color: #9f3412;
+}
+
+.statusStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid #d9e0e7;
+  background: #ffffff;
+}
+
+.statusStrip div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #314253;
+  font-weight: 720;
+}
+
+.statusStrip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: start;
+}
+
+.outputColumn,
+.outputGroup,
+.outputList {
+  display: grid;
+  gap: 12px;
+}
+
+.outputGroup {
+  min-width: 0;
+}
+
+.outputGroup h3,
+.reviewPanel h3 {
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+.outputCard,
+.reviewPanel,
+.blankSlate {
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.outputCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.outputHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.stageIcon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #edf2f7;
+  color: #143d59;
+}
+
+.outputCard h4 {
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.outputContent {
+  color: #243243;
+  overflow-wrap: anywhere;
+}
+
+.reviewPanel {
+  position: sticky;
+  top: 20px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.reviewPanel dl {
+  display: grid;
+  gap: 12px;
+}
+
+.reviewPanel div {
+  display: grid;
+  grid-template-columns: minmax(0, 128px) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.reviewPanel dt {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.reviewPanel dd {
+  min-width: 0;
+  margin: 0;
+  color: #17202a;
+  font-weight: 720;
+  overflow-wrap: anywhere;
+}
+
+.emptyState,
+.blankSlate {
+  padding: 18px;
+}
+
+.blankSlate {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  color: #667789;
+  text-align: center;
+}
+
+.blankSlate h3 {
+  color: #17202a;
+}
+
+@media (max-width: 980px) {
+  .appShell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #d9e0e7;
+  }
+
+  .meetingList {
+    max-height: 260px;
+  }
+
+  .topbar,
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .detailGrid {
+    display: grid;
+  }
+
+  .reviewPanel {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .sidebar,
+  .workspace {
+    padding: 18px;
+  }
+
+  .topbar h2 {
+    font-size: 23px;
+  }
+
+  .statusStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .actions,
+  .secondaryButton,
+  .primaryButton {
+    width: 100%;
+  }
+
+  .reviewPanel div {
+    grid-template-columns: 1fr;
+  }
+}
+
