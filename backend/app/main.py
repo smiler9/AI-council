@@ -29,19 +29,22 @@ from .repository import (
     get_meeting_messages,
     get_meeting_outputs,
     get_report,
+    get_trade_review,
     list_agents,
     list_context_files,
     list_meetings,
+    list_trade_reviews,
     replace_meeting_outputs,
     upsert_report,
 )
-from .schemas import MeetingCreate, MeetingRunResponse
+from .schemas import MeetingCreate, MeetingRunResponse, TradeReviewCreate
 from .seed import seed_agents
 from .services.telegram_service import (
     TelegramConfig,
     TelegramService,
     load_telegram_config,
 )
+from .trade_reviews import run_trade_review
 
 
 def create_app(
@@ -86,6 +89,12 @@ def create_app(
         if not meeting:
             raise HTTPException(status_code=404, detail="Meeting not found")
         return meeting
+
+    def _trade_review_or_404(trade_review_id: str) -> dict:
+        trade_review = get_trade_review(trade_review_id, app.state.db_path)
+        if not trade_review:
+            raise HTTPException(status_code=404, detail="Trade review not found")
+        return trade_review
 
     @app.get("/health")
     def health() -> dict:
@@ -143,6 +152,53 @@ def create_app(
     @app.get("/api/telegram/status")
     def get_telegram_status() -> dict:
         return TelegramService(app.state.telegram_config).status()
+
+    @app.post("/api/trade-reviews", status_code=201)
+    def post_trade_review(payload: TradeReviewCreate) -> dict:
+        if not payload.ticker.strip():
+            raise HTTPException(status_code=422, detail="Ticker is required")
+        if not payload.strategy_signal.strip():
+            raise HTTPException(status_code=422, detail="Strategy signal is required")
+        result = run_trade_review(
+            payload,
+            db_path=app.state.db_path,
+            report_dir=app.state.report_dir,
+            llm_config=app.state.llm_config,
+        )
+        return result
+
+    @app.get("/api/trade-reviews")
+    def get_trade_reviews() -> list[dict]:
+        return list_trade_reviews(app.state.db_path)
+
+    @app.get("/api/trade-reviews/{trade_review_id}")
+    def get_trade_review_detail(trade_review_id: str) -> dict:
+        trade_review = _trade_review_or_404(trade_review_id)
+        meeting = get_meeting(trade_review["linked_meeting_id"], app.state.db_path)
+        report = get_report(trade_review["linked_meeting_id"], app.state.db_path)
+        return {
+            "trade_review": trade_review,
+            "meeting": meeting,
+            "report": {
+                "available": report is not None,
+                "path": report["path"] if report else None,
+            },
+            "order_execution_allowed": False,
+        }
+
+    @app.post("/api/trade-reviews/{trade_review_id}/telegram/send")
+    def send_trade_review_telegram(trade_review_id: str) -> dict:
+        trade_review = _trade_review_or_404(trade_review_id)
+        report = get_report(trade_review["linked_meeting_id"], app.state.db_path)
+        result = TelegramService(app.state.telegram_config).send_trade_review_report(
+            trade_review,
+            report,
+        )
+        return {
+            "trade_review_id": trade_review_id,
+            "report_available": report is not None,
+            **result,
+        }
 
     @app.post("/api/meetings/{meeting_id}/files", status_code=201)
     async def post_meeting_file(meeting_id: str, file: UploadFile = File(...)) -> dict:

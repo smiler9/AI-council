@@ -72,6 +72,7 @@ def build_user_prompt(
             "subject": subject,
             "mode": meeting.get("mode", "quick_review"),
             "context_summary": meeting.get("context_summary", "No attached context files."),
+            "trade_signal": meeting.get("trade_signal") or {},
             "context_files": [
                 {
                     "id": file["id"],

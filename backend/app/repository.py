@@ -434,3 +434,130 @@ def delete_context_file(file_id: str, db_path: str | Path | None = None) -> dict
     with get_connection(db_path) as connection:
         connection.execute("DELETE FROM context_files WHERE id = ?", (file_id,))
     return record
+
+
+def create_trade_review(
+    *,
+    ticker: str,
+    strategy_signal: str,
+    side: str,
+    price: float | None,
+    volume: int | None,
+    timeframe: str | None,
+    source: str | None,
+    input_payload: dict,
+    structured_decision: dict,
+    linked_meeting_id: str,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    review_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO trade_reviews (
+                id,
+                ticker,
+                strategy_signal,
+                side,
+                price,
+                volume,
+                timeframe,
+                source,
+                input_payload_json,
+                structured_decision_json,
+                risk_level,
+                decision,
+                trade_allowed,
+                order_execution_allowed,
+                linked_meeting_id,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                review_id,
+                ticker,
+                strategy_signal,
+                side,
+                price,
+                volume,
+                timeframe,
+                source,
+                json.dumps(input_payload, sort_keys=True),
+                json.dumps(structured_decision, sort_keys=True),
+                structured_decision["risk_level"],
+                structured_decision["decision"],
+                int(bool(structured_decision.get("trade_allowed", False))),
+                0,
+                linked_meeting_id,
+                timestamp,
+            ),
+        )
+    return get_trade_review(review_id, db_path)
+
+
+def list_trade_reviews(db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                ticker,
+                strategy_signal,
+                side,
+                price,
+                volume,
+                timeframe,
+                source,
+                input_payload_json,
+                structured_decision_json,
+                risk_level,
+                decision,
+                trade_allowed,
+                order_execution_allowed,
+                linked_meeting_id,
+                created_at
+            FROM trade_reviews
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+    return [_trade_review_row_to_dict(row) for row in rows]
+
+
+def get_trade_review(review_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                ticker,
+                strategy_signal,
+                side,
+                price,
+                volume,
+                timeframe,
+                source,
+                input_payload_json,
+                structured_decision_json,
+                risk_level,
+                decision,
+                trade_allowed,
+                order_execution_allowed,
+                linked_meeting_id,
+                created_at
+            FROM trade_reviews
+            WHERE id = ?
+            """,
+            (review_id,),
+        ).fetchone()
+    return _trade_review_row_to_dict(row) if row else None
+
+
+def _trade_review_row_to_dict(row) -> dict:
+    review = row_to_dict(row)
+    review["input_payload"] = json.loads(review.pop("input_payload_json"))
+    review["structured_decision"] = json.loads(review.pop("structured_decision_json"))
+    review["trade_allowed"] = bool(review["trade_allowed"])
+    review["order_execution_allowed"] = False
+    return review

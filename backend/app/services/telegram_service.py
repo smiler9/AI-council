@@ -133,6 +133,45 @@ class TelegramService:
             "message": text,
         }
 
+    def format_trade_review_message(self, trade_review: dict, report: dict | None = None) -> str:
+        decision = trade_review.get("structured_decision") or {}
+        risk_flags = _bullet_lines(decision.get("risk_flags", []))
+        follow_up = _bullet_lines(decision.get("required_follow_up", []))
+        report_path = report.get("path") if report else None
+        report_line = f"Report: {report_path}" if report_path else "Report: not generated yet"
+        return "\n".join(
+            [
+                "AI Council Trade Review",
+                f"Ticker: {trade_review.get('ticker', 'N/A')}",
+                f"Signal: {trade_review.get('strategy_signal', 'unknown')}",
+                f"Side context: {trade_review.get('side', 'review_only')}",
+                f"Decision: {decision.get('decision', trade_review.get('decision', 'PENDING'))}",
+                f"Confidence: {decision.get('confidence', 0):.2f}",
+                f"Risk level: {decision.get('risk_level', trade_review.get('risk_level', 'unrated'))}",
+                f"Trade allowed: {str(decision.get('trade_allowed', False)).lower()}",
+                "Order execution allowed: false",
+                "Risk flags:",
+                risk_flags,
+                "Required follow-up:",
+                follow_up,
+                f"Linked meeting: {trade_review.get('linked_meeting_id', 'not linked')}",
+                report_line,
+                f"Safety Boundary: {SAFETY_BOUNDARY}",
+            ]
+        )
+
+    def send_trade_review_report(
+        self,
+        trade_review: dict,
+        report: dict | None = None,
+    ) -> dict:
+        text = self.format_trade_review_message(trade_review, report)
+        result = self.send_message(text)
+        return {
+            **result,
+            "message": text,
+        }
+
     def _disabled_reason(self, missing: list[str]) -> str | None:
         if not self.config.enabled:
             return "Telegram notifications are disabled"
@@ -151,4 +190,3 @@ def _bullet_lines(values: list[str]) -> str:
     if not values:
         return "- none"
     return "\n".join(f"- {value}" for value in values[:8])
-

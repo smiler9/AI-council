@@ -201,10 +201,18 @@ def build_failed_council_run(
 def build_structured_decision(meeting: dict, messages: list[dict], provider_name: str) -> dict:
     mode = meeting.get("mode", "quick_review")
     context_files = meeting.get("context_files", [])
+    trade_signal = meeting.get("trade_signal") or {}
     risk_flags = _collect_unique_flags(messages, "risk_flags")
     evidence_gaps = _collect_unique_flags(messages, "evidence_gaps")
-    data_quality = "limited" if evidence_gaps or not context_files else "moderate"
-    risk_level = _risk_level_for_mode(mode, context_files, risk_flags)
+    trade_signal_rules = _trade_signal_rules(trade_signal)
+    risk_flags = _merge_unique(risk_flags, trade_signal_rules["risk_flags"])
+    evidence_gaps = _merge_unique(evidence_gaps, trade_signal_rules["evidence_gaps"])
+    data_quality = (
+        "limited"
+        if evidence_gaps or not context_files or trade_signal_rules["data_quality"] == "limited"
+        else "moderate"
+    )
+    risk_level = _risk_level_for_mode(mode, context_files, risk_flags, trade_signal)
 
     if risk_level == "critical":
         decision = "BLOCK"
@@ -221,10 +229,15 @@ def build_structured_decision(meeting: dict, messages: list[dict], provider_name
     ]
     if context_files:
         primary_reasons.append(f"{len(context_files)} attached context file(s) were considered.")
+    if trade_signal:
+        primary_reasons.append(
+            "External trade signal was reviewed as read-only context, not as an executable order."
+        )
     if mode == "risk_gate_review":
         primary_reasons.append("Risk gate review prioritizes blocking unsafe automation paths.")
     if mode == "action_plan":
         primary_reasons.append("Action plan mode produced follow-up tasks without enabling execution.")
+    primary_reasons.extend(trade_signal_rules["primary_reasons"])
 
     required_follow_up = [
         "Validate financial filings, news catalysts, and market data before any future review.",
@@ -239,6 +252,7 @@ def build_structured_decision(meeting: dict, messages: list[dict], provider_name
                 "Prepare a Codex task to implement review-only data adapters.",
             ]
         )
+    required_follow_up.extend(trade_signal_rules["required_follow_up"])
 
     decision_payload = {
         "decision": decision,
@@ -360,10 +374,12 @@ def _latest_message(messages: list[dict], agent_key: str, preferred_round: str) 
 def _trade_review(meeting: dict, provider_name: str, structured_decision: dict) -> dict:
     subject = _subject(meeting)
     context_files = meeting.get("context_files", [])
+    trade_signal = meeting.get("trade_signal") or {}
     return {
         "phase": "phase_4_debate_engine",
         "subject": subject,
         "meeting_mode": meeting.get("mode", "quick_review"),
+        "external_trade_signal_review": bool(trade_signal),
         "mock_only": provider_name == "mock",
         "order_execution_allowed": False,
         "trade_allowed": structured_decision["trade_allowed"],
@@ -383,6 +399,7 @@ def _trade_review(meeting: dict, provider_name: str, structured_decision: dict) 
             }
             for file in context_files
         ],
+        "trade_signal": trade_signal,
         "structured_decision": structured_decision,
         "safety_boundary": SAFETY_BOUNDARY,
         "evidence_requirements": [
@@ -410,7 +427,25 @@ def _message_risk_level(
     return "medium"
 
 
-def _risk_level_for_mode(mode: str, context_files: list[dict], risk_flags: list[str]) -> str:
+def _risk_level_for_mode(
+    mode: str,
+    context_files: list[dict],
+    risk_flags: list[str],
+    trade_signal: dict | None = None,
+) -> str:
+    if mode == "risk_gate_review" and trade_signal:
+        if "very_high_spread_risk" in risk_flags:
+            return "critical"
+        if {
+            "high_spread_risk",
+            "low_volume_risk",
+            "premarket_session_risk",
+            "missing_news_context",
+            "manipulation_risk",
+            "automation_not_approved",
+        }.intersection(risk_flags):
+            return "high"
+        return "medium"
     if mode == "risk_gate_review":
         return "critical"
     if mode in {"deep_debate", "skeptic_review"}:
@@ -442,3 +477,77 @@ def _collect_unique_flags(messages: list[dict], key: str) -> list[str]:
                 seen.add(value)
                 values.append(value)
     return values[:12]
+
+
+def _trade_signal_rules(trade_signal: dict) -> dict:
+    rules = {
+        "risk_flags": [],
+        "evidence_gaps": [],
+        "primary_reasons": [],
+        "required_follow_up": [],
+        "data_quality": "moderate",
+    }
+    if not trade_signal:
+        return rules
+
+    risk_context = trade_signal.get("risk_context") or {}
+    spread_pct = _as_float(risk_context.get("spread_pct"))
+    volume = _as_float(trade_signal.get("volume"))
+    news_headlines = trade_signal.get("news_headlines") or []
+    side = str(trade_signal.get("side") or "").strip().lower()
+
+    if spread_pct is None:
+        rules["evidence_gaps"].append("spread data")
+        rules["data_quality"] = "limited"
+    elif spread_pct >= 5:
+        rules["risk_flags"].append("very_high_spread_risk")
+        rules["primary_reasons"].append(f"Spread is very high at {spread_pct:.2f}%.")
+        rules["required_follow_up"].append("Review bid/ask spread and liquidity before any future action.")
+    elif spread_pct >= 3:
+        rules["risk_flags"].append("high_spread_risk")
+        rules["primary_reasons"].append(f"Spread is elevated at {spread_pct:.2f}%.")
+        rules["required_follow_up"].append("Confirm spread compression and executable liquidity.")
+
+    if volume is None or volume <= 0:
+        rules["evidence_gaps"].append("validated volume")
+        rules["data_quality"] = "limited"
+    elif volume < 1_000_000:
+        rules["risk_flags"].append("low_volume_risk")
+        rules["primary_reasons"].append("Volume is below the minimum review threshold for penny-stock liquidity.")
+        rules["required_follow_up"].append("Validate volume, float, and dollar liquidity.")
+
+    if bool(risk_context.get("premarket")):
+        rules["risk_flags"].append("premarket_session_risk")
+        rules["primary_reasons"].append("Signal occurred in premarket conditions.")
+        rules["required_follow_up"].append("Recheck spread, liquidity, and catalyst quality during regular hours.")
+
+    if not news_headlines:
+        rules["risk_flags"].append("missing_news_context")
+        rules["evidence_gaps"].append("news catalyst validation")
+        rules["required_follow_up"].append("Attach validated news, SEC filing, or catalyst source.")
+        rules["data_quality"] = "limited"
+
+    if side in {"buy", "sell", "short", "order", "market_order", "limit_order"}:
+        rules["risk_flags"].append("execution_language_treated_as_review_context")
+        rules["primary_reasons"].append(
+            f"Input side '{side}' was stored only as review context and was not treated as an order."
+        )
+
+    return rules
+
+
+def _merge_unique(left: list[str], right: list[str]) -> list[str]:
+    values = []
+    seen = set()
+    for value in left + right:
+        if value not in seen:
+            seen.add(value)
+            values.append(value)
+    return values[:16]
+
+
+def _as_float(value) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

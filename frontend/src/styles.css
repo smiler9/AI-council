@@ -312,6 +312,124 @@ select:focus {
   align-items: start;
 }
 
+.tradeReviewSection,
+.tradeReviewResultCard {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.tradeReviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tradeReviewHeader h3,
+.recentTradeReviews h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.tradeReviewHeader span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border-radius: 8px;
+  background: #f0fbf4;
+  color: #17663a;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 9px;
+}
+
+.tradeReviewForm {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tradeReviewForm label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tradeReviewForm label > span {
+  color: #314253;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.checkboxLabel {
+  align-content: end;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 66px;
+}
+
+.checkboxLabel input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.wideField {
+  grid-column: span 2;
+}
+
+.tradeReviewForm .primaryButton {
+  align-self: end;
+}
+
+.tradeReviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.recentTradeReviews {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #d9e0e7;
+  padding-top: 12px;
+}
+
+.recentTradeReviews > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recentTradeReviews button {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  padding: 10px;
+  text-align: left;
+}
+
+.recentTradeReviews strong,
+.recentTradeReviews span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recentTradeReviews span {
+  color: #667789;
+  font-size: 12px;
+  font-weight: 760;
+}
+
 .outputColumn,
 .outputGroup,
 .outputList {
@@ -760,6 +878,11 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .tradeReviewForm,
+  .recentTradeReviews > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -793,9 +916,24 @@ select:focus {
   }
 
   .actions,
+  .tradeReviewActions,
   .secondaryButton,
   .primaryButton {
     width: 100%;
+  }
+
+  .tradeReviewHeader,
+  .tradeReviewActions {
+    flex-direction: column;
+  }
+
+  .tradeReviewForm,
+  .recentTradeReviews > div {
+    grid-template-columns: 1fr;
+  }
+
+  .wideField {
+    grid-column: span 1;
   }
 
   .reviewPanel dl > div {

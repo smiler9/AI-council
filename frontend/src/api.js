@@ -35,6 +35,17 @@ export const api = {
   getAgents: () => request("/api/agents"),
   getTelegramStatus: () => request("/api/telegram/status"),
   getMeetings: () => request("/api/meetings"),
+  getTradeReviews: () => request("/api/trade-reviews"),
+  createTradeReview: (payload) =>
+    request("/api/trade-reviews", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  getTradeReview: (tradeReviewId) => request(`/api/trade-reviews/${tradeReviewId}`),
+  sendTradeReviewTelegram: (tradeReviewId) =>
+    request(`/api/trade-reviews/${tradeReviewId}/telegram/send`, {
+      method: "POST"
+    }),
   createMeeting: (payload) =>
     request("/api/meetings", {
       method: "POST",

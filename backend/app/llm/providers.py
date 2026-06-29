@@ -66,6 +66,7 @@ class MockLLMProvider(LLMProvider):
         round_name = request.stage
         context_files = request.meeting.get("context_files", [])
         context_note = _context_note(context_files)
+        trade_signal_note = _trade_signal_note(request.meeting.get("trade_signal") or {})
         context_risk_flags = ["attached_context_reviewed"] if context_files else []
         context_evidence_gaps = [
             "uploaded context requires human validation"
@@ -156,8 +157,15 @@ class MockLLMProvider(LLMProvider):
             content = f"{content} {round_note}"
         if context_note:
             content = f"{content} Context-aware note: {context_note}"
+        if trade_signal_note:
+            content = f"{content} Trade signal review note: {trade_signal_note}"
         risk_flags = template["risk_flags"] + context_risk_flags
         evidence_gaps = template["evidence_gaps"] + context_evidence_gaps
+        trade_signal_flags, trade_signal_gaps = _trade_signal_provider_flags(
+            request.meeting.get("trade_signal") or {}
+        )
+        risk_flags = risk_flags + trade_signal_flags
+        evidence_gaps = evidence_gaps + trade_signal_gaps
         if mode == "risk_gate_review" and request.agent["agent_key"] in {
             "risk_manager",
             "pump_dump_risk",
@@ -183,6 +191,7 @@ class MockLLMProvider(LLMProvider):
                 "context_filenames": [
                     file["original_filename"] for file in context_files
                 ],
+                "trade_signal_review": bool(request.meeting.get("trade_signal")),
             },
         )
 
@@ -324,6 +333,50 @@ def _context_note(context_files: list[dict]) -> str:
     )
 
 
+def _trade_signal_note(trade_signal: dict) -> str:
+    if not trade_signal:
+        return ""
+    risk_context = trade_signal.get("risk_context") or {}
+    spread_pct = risk_context.get("spread_pct", "unknown")
+    premarket = bool(risk_context.get("premarket"))
+    headline_count = len(trade_signal.get("news_headlines") or [])
+    return (
+        f"Reviewed external signal {trade_signal.get('strategy_signal', 'unknown')} for "
+        f"{trade_signal.get('ticker', 'unknown')} on timeframe "
+        f"{trade_signal.get('timeframe') or 'unspecified'}. Side "
+        f"'{trade_signal.get('side', 'review_only')}' is treated only as review context. "
+        f"Spread pct: {spread_pct}; volume: {trade_signal.get('volume', 'unknown')}; "
+        f"premarket: {premarket}; news headline count: {headline_count}. "
+        "No order creation, routing, or broker action is allowed."
+    )
+
+
+def _trade_signal_provider_flags(trade_signal: dict) -> tuple[list[str], list[str]]:
+    if not trade_signal:
+        return [], []
+    flags = ["external_trade_signal_review"]
+    gaps = []
+    risk_context = trade_signal.get("risk_context") or {}
+    spread_pct = _as_float(risk_context.get("spread_pct"))
+    volume = _as_float(trade_signal.get("volume"))
+    if spread_pct is None:
+        gaps.append("spread data")
+    elif spread_pct >= 5:
+        flags.append("very_high_spread_risk")
+    elif spread_pct >= 3:
+        flags.append("high_spread_risk")
+    if volume is None or volume <= 0:
+        gaps.append("validated volume")
+    elif volume < 1_000_000:
+        flags.append("low_volume_risk")
+    if bool(risk_context.get("premarket")):
+        flags.append("premarket_session_risk")
+    if not trade_signal.get("news_headlines"):
+        flags.append("missing_news_context")
+        gaps.append("news catalyst validation")
+    return flags, gaps
+
+
 def _round_note(mode: str, agent_key: str, round_name: str) -> str:
     if round_name == "initial_opinion":
         return f"Round 1 initial opinion for {mode}: establish the agent's first-pass evidence view."
@@ -352,6 +405,13 @@ def _mode_confidence(base_confidence: float, mode: str, agent_key: str) -> float
     if mode == "skeptic_review" and agent_key == "skeptic":
         return min(0.9, round(base_confidence + 0.09, 2))
     return base_confidence
+
+
+def _as_float(value) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_json_content(content: str) -> dict:

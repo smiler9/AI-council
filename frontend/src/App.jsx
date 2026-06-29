@@ -39,12 +39,30 @@ function modeLabel(mode) {
 export default function App() {
   const [agents, setAgents] = useState([]);
   const [meetings, setMeetings] = useState([]);
+  const [tradeReviews, setTradeReviews] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [topic, setTopic] = useState("");
   const [ticker, setTicker] = useState("");
   const [mode, setMode] = useState("quick_review");
+  const [tradeReviewForm, setTradeReviewForm] = useState({
+    ticker: "",
+    strategy_signal: "breakout",
+    side: "watch_only",
+    price: "",
+    volume: "",
+    timeframe: "1m",
+    spread_pct: "",
+    premarket: false,
+    rsi: "",
+    vwap_distance: "",
+    notes: "",
+    news_headlines: ""
+  });
+  const [tradeReviewResult, setTradeReviewResult] = useState(null);
+  const [tradeReviewTelegramResult, setTradeReviewTelegramResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [tradeReviewLoading, setTradeReviewLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -82,12 +100,14 @@ export default function App() {
   async function loadInitialData() {
     setError("");
     try {
-      const [agentList, telegram] = await Promise.all([
+      const [agentList, telegram, reviewList] = await Promise.all([
         api.getAgents(),
-        api.getTelegramStatus()
+        api.getTelegramStatus(),
+        api.getTradeReviews()
       ]);
       setAgents(agentList);
       setTelegramStatus(telegram);
+      setTradeReviews(reviewList);
       await loadMeetings();
     } catch (err) {
       setError(err.message);
@@ -117,6 +137,84 @@ export default function App() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function updateTradeReviewField(field, value) {
+    setTradeReviewForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function buildTradeReviewPayload() {
+    const numberOrNull = (value) => {
+      if (value === "" || value === null || value === undefined) return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const technicalIndicators = {};
+    const rsi = numberOrNull(tradeReviewForm.rsi);
+    const vwapDistance = numberOrNull(tradeReviewForm.vwap_distance);
+    if (rsi !== null) technicalIndicators.rsi = rsi;
+    if (vwapDistance !== null) technicalIndicators.vwap_distance = vwapDistance;
+    const riskContext = {
+      premarket: Boolean(tradeReviewForm.premarket)
+    };
+    const spreadPct = numberOrNull(tradeReviewForm.spread_pct);
+    if (spreadPct !== null) riskContext.spread_pct = spreadPct;
+    return {
+      ticker: tradeReviewForm.ticker.trim(),
+      strategy_signal: tradeReviewForm.strategy_signal.trim(),
+      side: tradeReviewForm.side.trim() || "review_only",
+      price: numberOrNull(tradeReviewForm.price),
+      volume: numberOrNull(tradeReviewForm.volume),
+      timeframe: tradeReviewForm.timeframe.trim() || null,
+      source: "external_bot",
+      notes: tradeReviewForm.notes.trim() || null,
+      technical_indicators: technicalIndicators,
+      news_headlines: tradeReviewForm.news_headlines
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      risk_context: riskContext
+    };
+  }
+
+  async function handleTradeReviewSubmit(event) {
+    event.preventDefault();
+    if (!tradeReviewForm.ticker.trim() || !tradeReviewForm.strategy_signal.trim()) return;
+    setTradeReviewLoading(true);
+    setTradeReviewTelegramResult(null);
+    setError("");
+    try {
+      const result = await api.createTradeReview(buildTradeReviewPayload());
+      setTradeReviewResult(result);
+      setTradeReviews(await api.getTradeReviews());
+      if (result.meeting?.id) {
+        await loadMeetings(result.meeting.id);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTradeReviewLoading(false);
+    }
+  }
+
+  async function handleSendTradeReviewTelegram() {
+    const reviewId = tradeReviewResult?.trade_review?.id;
+    if (!reviewId) return;
+    setTradeReviewLoading(true);
+    setTradeReviewTelegramResult(null);
+    setError("");
+    try {
+      const result = await api.sendTradeReviewTelegram(reviewId);
+      setTradeReviewTelegramResult(result);
+      await refreshTelegramStatus();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTradeReviewLoading(false);
     }
   }
 
@@ -288,7 +386,7 @@ export default function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Phase 4 Debate Engine</p>
+            <p className="eyebrow">AI Council Workspace</p>
             <h2>{selectedMeeting?.topic || "Create a council meeting"}</h2>
           </div>
           <div className="actions">
@@ -338,6 +436,183 @@ export default function App() {
                 : "Ready"}
             </span>
           </div>
+        </section>
+
+        <section className="tradeReviewSection">
+          <div className="tradeReviewHeader">
+            <div>
+              <p className="eyebrow">Phase 7 Read-only Review</p>
+              <h3>Trade Signal Review</h3>
+            </div>
+            <span>order_execution_allowed=false</span>
+          </div>
+          <form className="tradeReviewForm" onSubmit={handleTradeReviewSubmit}>
+            <label>
+              <span>Ticker</span>
+              <input
+                value={tradeReviewForm.ticker}
+                onChange={(event) => updateTradeReviewField("ticker", event.target.value)}
+                placeholder="ABCD"
+                maxLength={16}
+              />
+            </label>
+            <label>
+              <span>Signal</span>
+              <input
+                value={tradeReviewForm.strategy_signal}
+                onChange={(event) =>
+                  updateTradeReviewField("strategy_signal", event.target.value)
+                }
+                placeholder="breakout"
+              />
+            </label>
+            <label>
+              <span>Side context</span>
+              <select
+                value={tradeReviewForm.side}
+                onChange={(event) => updateTradeReviewField("side", event.target.value)}
+              >
+                <option value="watch_only">watch_only</option>
+                <option value="review_only">review_only</option>
+                <option value="buy">buy as context</option>
+                <option value="sell">sell as context</option>
+              </select>
+            </label>
+            <label>
+              <span>Price</span>
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                value={tradeReviewForm.price}
+                onChange={(event) => updateTradeReviewField("price", event.target.value)}
+                placeholder="0.82"
+              />
+            </label>
+            <label>
+              <span>Volume</span>
+              <input
+                type="number"
+                min="0"
+                value={tradeReviewForm.volume}
+                onChange={(event) => updateTradeReviewField("volume", event.target.value)}
+                placeholder="12500000"
+              />
+            </label>
+            <label>
+              <span>Timeframe</span>
+              <input
+                value={tradeReviewForm.timeframe}
+                onChange={(event) => updateTradeReviewField("timeframe", event.target.value)}
+                placeholder="1m"
+              />
+            </label>
+            <label>
+              <span>Spread %</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={tradeReviewForm.spread_pct}
+                onChange={(event) => updateTradeReviewField("spread_pct", event.target.value)}
+                placeholder="4.5"
+              />
+            </label>
+            <label className="checkboxLabel">
+              <input
+                type="checkbox"
+                checked={tradeReviewForm.premarket}
+                onChange={(event) => updateTradeReviewField("premarket", event.target.checked)}
+              />
+              <span>Premarket</span>
+            </label>
+            <label>
+              <span>RSI</span>
+              <input
+                type="number"
+                step="0.1"
+                value={tradeReviewForm.rsi}
+                onChange={(event) => updateTradeReviewField("rsi", event.target.value)}
+                placeholder="68"
+              />
+            </label>
+            <label>
+              <span>VWAP distance</span>
+              <input
+                type="number"
+                step="0.001"
+                value={tradeReviewForm.vwap_distance}
+                onChange={(event) => updateTradeReviewField("vwap_distance", event.target.value)}
+                placeholder="0.04"
+              />
+            </label>
+            <label className="wideField">
+              <span>News headlines</span>
+              <textarea
+                value={tradeReviewForm.news_headlines}
+                onChange={(event) =>
+                  updateTradeReviewField("news_headlines", event.target.value)
+                }
+                rows={3}
+                placeholder="One headline per line"
+              />
+            </label>
+            <label className="wideField">
+              <span>Notes</span>
+              <textarea
+                value={tradeReviewForm.notes}
+                onChange={(event) => updateTradeReviewField("notes", event.target.value)}
+                rows={3}
+                placeholder="candidate signal generated by existing bot"
+              />
+            </label>
+            <button
+              className="primaryButton"
+              type="submit"
+              disabled={
+                tradeReviewLoading ||
+                !tradeReviewForm.ticker.trim() ||
+                !tradeReviewForm.strategy_signal.trim()
+              }
+            >
+              <Shield size={18} aria-hidden="true" />
+              Submit for review
+            </button>
+          </form>
+          <p className="contextHint">
+            Trade Review accepts external bot candidates as read-only context and never creates,
+            sends, or routes orders.
+          </p>
+          {tradeReviewResult && (
+            <TradeReviewResult
+              result={tradeReviewResult}
+              onOpenMeeting={handleSelect}
+              onSendTelegram={handleSendTradeReviewTelegram}
+              telegramResult={tradeReviewTelegramResult}
+              telegramConfigured={Boolean(telegramStatus?.configured)}
+              loading={tradeReviewLoading}
+            />
+          )}
+          {tradeReviews.length > 0 && (
+            <div className="recentTradeReviews">
+              <h4>Recent trade reviews</h4>
+              <div>
+                {tradeReviews.slice(0, 4).map((review) => (
+                  <button
+                    type="button"
+                    key={review.id}
+                    onClick={() => handleSelect(review.linked_meeting_id)}
+                  >
+                    <strong>{review.ticker}</strong>
+                    <span>
+                      {review.decision} · {review.risk_level} ·{" "}
+                      {String(review.order_execution_allowed)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {selectedMeeting ? (
@@ -516,6 +791,109 @@ function DecisionCard({ decision }) {
               <p key={item}>{item}</p>
             ))}
           </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TradeReviewResult({
+  result,
+  onOpenMeeting,
+  onSendTelegram,
+  telegramResult,
+  telegramConfigured,
+  loading
+}) {
+  const review = result.trade_review || {};
+  const decision = result.structured_decision || review.structured_decision || {};
+  const linkedMeetingId = review.linked_meeting_id || result.meeting?.id;
+  return (
+    <section className="tradeReviewResultCard">
+      <div className="decisionHeader">
+        <div>
+          <p className="eyebrow">Review Result</p>
+          <h3>
+            {review.ticker} · {decision.decision || review.decision}
+          </h3>
+        </div>
+        <div className="badgeGroup">
+          <span className={`decisionBadge ${(decision.decision || review.decision || "").toLowerCase()}`}>
+            {decision.decision || review.decision}
+          </span>
+          <span className={`riskBadge ${decision.risk_level || review.risk_level}`}>
+            {decision.risk_level || review.risk_level}
+          </span>
+        </div>
+      </div>
+      <div className="decisionMetrics">
+        <div>
+          <span>Confidence</span>
+          <strong>{decision.confidence ? Math.round(decision.confidence * 100) : 0}%</strong>
+        </div>
+        <div>
+          <span>Trade allowed</span>
+          <strong>{String(Boolean(decision.trade_allowed))}</strong>
+        </div>
+        <div>
+          <span>Orders allowed</span>
+          <strong>{String(Boolean(decision.order_execution_allowed))}</strong>
+        </div>
+        <div>
+          <span>Linked meeting</span>
+          <strong>{linkedMeetingId ? linkedMeetingId.slice(0, 8) : "none"}</strong>
+        </div>
+      </div>
+      <div className="decisionLists">
+        <div>
+          <h4>Risk Flags</h4>
+          {(decision.risk_flags || []).slice(0, 6).map((flag) => (
+            <span key={flag}>{flag}</span>
+          ))}
+        </div>
+        <div>
+          <h4>Follow-up</h4>
+          {(decision.required_follow_up || []).slice(0, 4).map((item) => (
+            <p key={item}>{item}</p>
+          ))}
+        </div>
+      </div>
+      <div className="tradeReviewActions">
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={!linkedMeetingId}
+          onClick={() => linkedMeetingId && onOpenMeeting(linkedMeetingId)}
+        >
+          <FileText size={17} aria-hidden="true" />
+          Open linked meeting
+        </button>
+        <a
+          className={`secondaryButton ${result.report?.available ? "" : "disabled"}`}
+          href={linkedMeetingId && result.report?.available ? api.reportUrl(linkedMeetingId) : undefined}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <FileText size={17} aria-hidden="true" />
+          Report
+        </a>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={!review.id || loading}
+          onClick={onSendTelegram}
+        >
+          <Send size={17} aria-hidden="true" />
+          Send review
+        </button>
+      </div>
+      <p className="contextHint">
+        Telegram status: {telegramConfigured ? "configured" : "disabled or missing settings"}
+      </p>
+      {telegramResult && (
+        <div className={`telegramResult ${telegramResult.sent ? "sent" : "disabled"}`}>
+          <strong>{telegramResult.status}</strong>
+          <p>{telegramResult.detail}</p>
         </div>
       )}
     </section>

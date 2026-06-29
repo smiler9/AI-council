@@ -98,6 +98,26 @@ def init_db(db_path: str | Path | None = None) -> None:
                 FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
                 FOREIGN KEY (agent_id) REFERENCES agents(id)
             );
+
+            CREATE TABLE IF NOT EXISTS trade_reviews (
+                id TEXT PRIMARY KEY,
+                ticker TEXT NOT NULL,
+                strategy_signal TEXT NOT NULL,
+                side TEXT NOT NULL,
+                price REAL,
+                volume INTEGER,
+                timeframe TEXT,
+                source TEXT,
+                input_payload_json TEXT NOT NULL,
+                structured_decision_json TEXT NOT NULL,
+                risk_level TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                trade_allowed INTEGER NOT NULL,
+                order_execution_allowed INTEGER NOT NULL,
+                linked_meeting_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (linked_meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_column(

@@ -17,6 +17,7 @@ def build_markdown_report(
 ) -> str:
     ticker = meeting.get("ticker") or "N/A"
     context_files = meeting.get("context_files", [])
+    trade_signal = meeting.get("trade_signal") or {}
     debate_messages = messages or []
     structured_decision = meeting.get("structured_decision", {})
     trade_review = json.dumps(meeting["trade_review"], indent=2, sort_keys=True)
@@ -37,9 +38,28 @@ def build_markdown_report(
         "",
         f"`{meeting.get('mode', 'quick_review')}`",
         "",
-        "## Attached Context Files",
+        "## Trade Signal Context",
         "",
     ]
+    if trade_signal:
+        lines.extend(
+            [
+                "This external signal was reviewed as read-only context. It is not an order.",
+                "",
+                "```json",
+                json.dumps(trade_signal, indent=2, sort_keys=True),
+                "```",
+                "",
+            ]
+        )
+    else:
+        lines.extend(["No external trade signal context.", ""])
+    lines.extend(
+        [
+            "## Attached Context Files",
+            "",
+        ]
+    )
     if context_files:
         for file in context_files:
             lines.append(
