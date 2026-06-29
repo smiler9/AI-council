@@ -2,20 +2,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
-PRIMARY_AGENT_KEYS = [
-    "financial_statement",
-    "news_catalyst",
-    "technical_momentum",
-    "risk_manager",
-    "pump_dump_risk",
-]
+from .llm.providers import AgentLLMRequest, LLMProvider, LLMProviderError, MockLLMProvider
 
 
 @dataclass(frozen=True)
 class CouncilRun:
     outputs: list[dict]
     trade_review: dict
+    status: str = "completed"
+
+
+AGENT_RUN_ORDER = [
+    ("financial_statement", "analysis"),
+    ("news_catalyst", "analysis"),
+    ("technical_momentum", "analysis"),
+    ("risk_manager", "analysis"),
+    ("pump_dump_risk", "analysis"),
+    ("skeptic", "rebuttal"),
+    ("chairman", "summary"),
+]
 
 
 def _subject(meeting: dict) -> str:
@@ -28,111 +33,110 @@ def _agent_by_key(agents: list[dict]) -> dict[str, dict]:
     return {agent["agent_key"]: agent for agent in agents}
 
 
-def run_mock_council(meeting: dict, agents: list[dict]) -> CouncilRun:
+def run_council(meeting: dict, agents: list[dict], provider: LLMProvider) -> CouncilRun:
     by_key = _agent_by_key(agents)
-    subject = _subject(meeting)
-
-    primary_templates = {
-        "financial_statement": {
-            "stance": "cautious",
-            "confidence": 0.62,
-            "content": (
-                f"Mock review for {subject}: financial quality cannot be confirmed in Phase 1 because no "
-                "filings or live fundamentals are connected. Treat balance-sheet strength, dilution risk, "
-                "and cash runway as open questions before any future trading workflow."
-            ),
-        },
-        "news_catalyst": {
-            "stance": "neutral",
-            "confidence": 0.58,
-            "content": (
-                f"Mock catalyst scan for {subject}: no real news feeds are used. A future review should "
-                "separate durable catalysts such as filings or regulatory events from short-lived promotion."
-            ),
-        },
-        "technical_momentum": {
-            "stance": "watchlist",
-            "confidence": 0.6,
-            "content": (
-                f"Mock momentum read for {subject}: the setup is considered watchlist-only until real price, "
-                "volume, liquidity, and spread data are available. Sudden volume without confirmation should "
-                "not be treated as a buy signal."
-            ),
-        },
-        "risk_manager": {
-            "stance": "defensive",
-            "confidence": 0.74,
-            "content": (
-                f"Risk frame for {subject}: Phase 1 allows analysis only. No position sizing, stop logic, "
-                "broker routing, or order placement is approved. A future Risk Gate must evaluate liquidity, "
-                "loss limits, and concentration before automation is considered."
-            ),
-        },
-        "pump_dump_risk": {
-            "stance": "high_alert",
-            "confidence": 0.71,
-            "content": (
-                f"Pump-and-dump screen for {subject}: penny-stock style reviews should assume elevated "
-                "manipulation risk until proven otherwise. Watch for promotional language, thin float, "
-                "toxic financing, and abrupt social-volume spikes."
-            ),
-        },
-    }
-
     outputs = []
-    for agent_key in PRIMARY_AGENT_KEYS:
+    for agent_key, stage in AGENT_RUN_ORDER:
         agent = by_key[agent_key]
-        template = primary_templates[agent_key]
+        response = provider.generate_agent_response(
+            AgentLLMRequest(
+                meeting=meeting,
+                agent=agent,
+                stage=stage,
+                previous_outputs=outputs,
+            )
+        )
         outputs.append(
             {
                 "agent_key": agent["agent_key"],
                 "agent_name": agent["name"],
-                "stage": "analysis",
-                "stance": template["stance"],
-                "confidence": template["confidence"],
-                "content": template["content"],
+                "stage": stage,
+                "stance": response.stance,
+                "confidence": response.confidence,
+                "content": response.content,
+                "provider_name": provider.name,
+                "structured_response": response.as_structured_response(
+                    provider_name=provider.name,
+                    model=provider.model,
+                ),
             }
         )
 
-    skeptic = by_key["skeptic"]
-    outputs.append(
-        {
-            "agent_key": skeptic["agent_key"],
-            "agent_name": skeptic["name"],
-            "stage": "rebuttal",
-            "stance": "challenge",
-            "confidence": 0.79,
-            "content": (
-                "The council has not inspected real filings, real news, or live market microstructure. "
-                "Any bullish interpretation would be premature. The strongest conclusion is that the topic "
-                "needs evidence collection, not execution."
-            ),
-        }
+    return CouncilRun(
+        outputs=outputs,
+        trade_review=_trade_review(meeting, provider.name),
+        status="completed",
     )
 
-    chairman = by_key["chairman"]
-    outputs.append(
-        {
-            "agent_key": chairman["agent_key"],
-            "agent_name": chairman["name"],
-            "stage": "summary",
-            "stance": "research_only",
-            "confidence": 0.83,
-            "content": (
-                f"Final mock conclusion for {subject}: keep this as research-only. The agents agree that "
-                "risk controls and evidence quality matter more than speed. No automated trade action is "
-                "permitted in Phase 1; the next useful step is attaching validated data sources and a separate "
-                "Risk Gate for future trade-review requests."
-            ),
-        }
+
+def run_mock_council(meeting: dict, agents: list[dict]) -> CouncilRun:
+    return run_council(meeting, agents, MockLLMProvider())
+
+
+def build_failed_council_run(
+    meeting: dict,
+    agents: list[dict],
+    provider_name: str,
+    error: LLMProviderError,
+) -> CouncilRun:
+    by_key = _agent_by_key(agents)
+    subject = _subject(meeting)
+    chairman = by_key.get("chairman") or agents[-1]
+    message = (
+        f"LLM provider '{provider_name}' failed while reviewing {subject}. "
+        "The meeting was stopped safely. No broker connection, order routing, or trade execution was attempted."
+    )
+    structured_error = {
+        "provider": provider_name,
+        "model": None,
+        "stance": "provider_error",
+        "confidence": 0.0,
+        "content": message,
+        "risk_flags": ["provider_failure", "review_incomplete"],
+        "evidence_gaps": ["provider response unavailable"],
+        "recommended_action": "needs_more_evidence",
+        "error": str(error),
+    }
+    return CouncilRun(
+        outputs=[
+            {
+                "agent_key": chairman["agent_key"],
+                "agent_name": chairman["name"],
+                "stage": "summary",
+                "stance": "provider_error",
+                "confidence": 0.0,
+                "content": message,
+                "provider_name": provider_name,
+                "structured_response": structured_error,
+            }
+        ],
+        trade_review={
+            "phase": "phase_2_provider_abstraction",
+            "subject": subject,
+            "mock_only": provider_name == "mock",
+            "order_execution_allowed": False,
+            "recommended_action": "needs_more_evidence",
+            "review_status": "failed",
+            "provider": provider_name,
+            "provider_error": str(error),
+            "requires_future_risk_gate": True,
+            "risk_gate_status": "not_implemented",
+            "broker_integration_status": "not_connected",
+        },
+        status="failed",
     )
 
-    trade_review = {
-        "phase": "phase_1_mock",
+
+def _trade_review(meeting: dict, provider_name: str) -> dict:
+    subject = _subject(meeting)
+    return {
+        "phase": "phase_2_provider_abstraction",
         "subject": subject,
-        "mock_only": True,
+        "mock_only": provider_name == "mock",
         "order_execution_allowed": False,
         "recommended_action": "research_only",
+        "review_status": "completed",
+        "provider": provider_name,
         "requires_future_risk_gate": True,
         "risk_gate_status": "not_implemented",
         "broker_integration_status": "not_connected",
@@ -144,5 +148,3 @@ def run_mock_council(meeting: dict, agents: list[dict]) -> CouncilRun:
             "explicit human or future Risk Gate approval",
         ],
     }
-    return CouncilRun(outputs=outputs, trade_review=trade_review)
-

@@ -15,6 +15,7 @@ import { api } from "./api";
 
 function statusLabel(status) {
   if (status === "completed") return "Completed";
+  if (status === "failed") return "Failed";
   if (status === "running") return "Running";
   return "Draft";
 }
@@ -308,4 +309,3 @@ function OutputGroup({ title, outputs }) {
     </section>
   );
 }
-

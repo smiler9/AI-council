@@ -7,8 +7,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from .council import run_mock_council
+from .council import build_failed_council_run, run_council
 from .database import DEFAULT_DB_PATH, init_db
+from .llm.config import LLMConfig, load_llm_config
+from .llm.providers import LLMProviderError, get_llm_provider
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .repository import (
     create_meeting,
@@ -27,9 +29,11 @@ from .seed import seed_agents
 def create_app(
     db_path: str | Path | None = None,
     report_dir: str | Path | None = None,
+    llm_config: LLMConfig | None = None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path or DEFAULT_DB_PATH)
     resolved_report_dir = Path(report_dir or DEFAULT_REPORT_DIR)
+    resolved_llm_config = llm_config or load_llm_config()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -40,6 +44,7 @@ def create_app(
     app = FastAPI(title="AI Council", version="0.1.0", lifespan=lifespan)
     app.state.db_path = resolved_db_path
     app.state.report_dir = resolved_report_dir
+    app.state.llm_config = resolved_llm_config
 
     app.add_middleware(
         CORSMiddleware,
@@ -65,6 +70,7 @@ def create_app(
             "service": "AI Council",
             "mode": "phase_1_mock",
             "database": "sqlite",
+            "llm_provider": app.state.llm_config.provider,
         }
 
     @app.get("/api/agents")
@@ -103,12 +109,22 @@ def create_app(
     def run_meeting(meeting_id: str) -> dict:
         meeting = _meeting_or_404(meeting_id)
         agents = list_agents(app.state.db_path)
-        council_run = run_mock_council(meeting, agents)
+        provider = get_llm_provider(app.state.llm_config)
+        try:
+            council_run = run_council(meeting, agents, provider)
+        except LLMProviderError as exc:
+            council_run = build_failed_council_run(
+                meeting=meeting,
+                agents=agents,
+                provider_name=provider.name,
+                error=exc,
+            )
         replace_meeting_outputs(
             meeting_id=meeting_id,
             outputs=council_run.outputs,
             trade_review=council_run.trade_review,
             db_path=app.state.db_path,
+            status=council_run.status,
         )
         updated_meeting = _meeting_or_404(meeting_id)
         outputs = get_meeting_outputs(meeting_id, app.state.db_path)
@@ -146,4 +162,3 @@ def create_app(
 
 
 app = create_app()
-

@@ -50,6 +50,8 @@ def init_db(db_path: str | Path | None = None) -> None:
                 stance TEXT NOT NULL,
                 confidence REAL NOT NULL,
                 content TEXT NOT NULL,
+                provider_name TEXT NOT NULL DEFAULT 'mock',
+                structured_response_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
             );
@@ -64,4 +66,29 @@ def init_db(db_path: str | Path | None = None) -> None:
             );
             """
         )
+        _ensure_column(
+            connection,
+            table="agent_outputs",
+            column="provider_name",
+            definition="TEXT NOT NULL DEFAULT 'mock'",
+        )
+        _ensure_column(
+            connection,
+            table="agent_outputs",
+            column="structured_response_json",
+            definition="TEXT NOT NULL DEFAULT '{}'",
+        )
 
+
+def _ensure_column(
+    connection: sqlite3.Connection,
+    table: str,
+    column: str,
+    definition: str,
+) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")

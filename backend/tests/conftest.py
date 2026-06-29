@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.llm.config import LLMConfig
 from app.main import create_app
 
 
@@ -11,6 +12,7 @@ def client(tmp_path):
     app = create_app(
         db_path=tmp_path / "ai_council.sqlite",
         report_dir=tmp_path / "reports",
+        llm_config=LLMConfig(provider="mock"),
     )
     with TestClient(app) as test_client:
         yield test_client
@@ -24,4 +26,3 @@ def meeting(client):
     )
     assert response.status_code == 201
     return response.json()
-

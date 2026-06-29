@@ -108,14 +108,32 @@ def get_meeting_outputs(meeting_id: str, db_path: str | Path | None = None) -> l
     with get_connection(db_path) as connection:
         rows = connection.execute(
             """
-            SELECT id, meeting_id, agent_key, agent_name, stage, stance, confidence, content, created_at
+            SELECT
+                id,
+                meeting_id,
+                agent_key,
+                agent_name,
+                stage,
+                stance,
+                confidence,
+                content,
+                provider_name,
+                structured_response_json,
+                created_at
             FROM agent_outputs
             WHERE meeting_id = ?
             ORDER BY id ASC
             """,
             (meeting_id,),
         ).fetchall()
-    return [row_to_dict(row) for row in rows]
+    outputs = []
+    for row in rows:
+        output = row_to_dict(row)
+        output["structured_response"] = json.loads(
+            output.pop("structured_response_json") or "{}"
+        )
+        outputs.append(output)
+    return outputs
 
 
 def replace_meeting_outputs(
@@ -123,6 +141,7 @@ def replace_meeting_outputs(
     outputs: list[dict],
     trade_review: dict,
     db_path: str | Path | None = None,
+    status: str = "completed",
 ) -> None:
     timestamp = now_iso()
     with get_connection(db_path) as connection:
@@ -131,9 +150,18 @@ def replace_meeting_outputs(
             connection.execute(
                 """
                 INSERT INTO agent_outputs (
-                    meeting_id, agent_key, agent_name, stage, stance, confidence, content, created_at
+                    meeting_id,
+                    agent_key,
+                    agent_name,
+                    stage,
+                    stance,
+                    confidence,
+                    content,
+                    provider_name,
+                    structured_response_json,
+                    created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     meeting_id,
@@ -143,6 +171,11 @@ def replace_meeting_outputs(
                     output["stance"],
                     output["confidence"],
                     output["content"],
+                    output.get("provider_name", "mock"),
+                    json.dumps(
+                        output.get("structured_response", {}),
+                        sort_keys=True,
+                    ),
                     timestamp,
                 ),
             )
@@ -153,7 +186,7 @@ def replace_meeting_outputs(
             WHERE id = ?
             """,
             (
-                "completed",
+                status,
                 json.dumps(trade_review, sort_keys=True),
                 timestamp,
                 meeting_id,
@@ -202,4 +235,3 @@ def get_report(meeting_id: str, db_path: str | Path | None = None) -> dict | Non
             (meeting_id,),
         ).fetchone()
     return row_to_dict(row) if row else None
-

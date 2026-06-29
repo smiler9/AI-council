@@ -34,6 +34,7 @@ def build_markdown_report(meeting: dict, outputs: list[dict]) -> str:
                 f"- Stage: `{output['stage']}`",
                 f"- Stance: `{output['stance']}`",
                 f"- Confidence: `{output['confidence']:.2f}`",
+                f"- Provider: `{output.get('provider_name', 'mock')}`",
                 "",
                 output["content"],
                 "",
@@ -65,4 +66,3 @@ def write_markdown_report(
     report_path = directory / f"meeting_{meeting['id']}.md"
     report_path.write_text(markdown, encoding="utf-8")
     return report_path, markdown
-
