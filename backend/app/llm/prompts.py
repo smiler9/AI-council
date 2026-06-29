@@ -93,13 +93,15 @@ def build_user_prompt(
         "required_output_schema": {
             "stance": "short snake_case stance",
             "confidence": "number from 0.0 to 1.0",
-            "content": "concise analysis paragraph",
-            "risk_flags": ["risk flag strings"],
-            "evidence_gaps": ["missing evidence strings"],
+            "content": "concise analysis paragraph, maximum 80 words",
+            "risk_flags": ["up to 4 risk flag strings"],
+            "evidence_gaps": ["up to 4 missing evidence strings"],
             "recommended_action": "research_only | watchlist_only | reject | needs_more_evidence",
         },
         "hard_constraints": [
             "Return only valid JSON. Do not wrap it in Markdown.",
+            "Do not repeat or summarize the input JSON payload.",
+            "Use exactly the top-level keys shown in required_output_schema.",
             "Do not recommend buying, selling, shorting, routing, sizing, or placing orders.",
             "Do not claim live market, news, filing, or broker data was checked.",
             "Keep the output as decision support and risk analysis only.",

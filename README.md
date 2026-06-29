@@ -20,6 +20,8 @@ Phase 4 adds a debate engine and structured decision output. Meetings now run th
 
 Phase 5 adds optional Telegram report delivery. Telegram is disabled by default and is used only for notification and report delivery, never for broker access or order execution.
 
+Phase 6 verifies local LLM integration against OpenAI-compatible endpoints such as Ollama and vLLM. The default provider remains `mock`; local LLM failures are recorded safely and do not enable broker access or order execution.
+
 ## Structure
 
 ```text
@@ -87,6 +89,7 @@ LLM_BASE_URL=http://localhost:11434/v1
 LLM_MODEL=qwen3-coder:30b
 LLM_API_KEY=local
 LLM_TIMEOUT_SECONDS=60
+LLM_MAX_TOKENS=1200
 ```
 
 Run with local settings:
@@ -98,6 +101,7 @@ LLM_BASE_URL=http://localhost:11434/v1 \
 LLM_MODEL=qwen3-coder:30b \
 LLM_API_KEY=local \
 LLM_TIMEOUT_SECONDS=60 \
+LLM_MAX_TOKENS=1200 \
 ../.venv/bin/python -m uvicorn app.main:app --reload
 ```
 
@@ -223,6 +227,78 @@ curl "http://127.0.0.1:8000/api/telegram/status"
 ```
 
 Telegram messages include the meeting title, mode, structured decision, confidence, risk level, risk flags, required follow-up, report path, and safety boundary. Telegram delivery is report-only and does not connect to broker APIs or execute orders.
+
+## Phase 6 Local LLM Verification
+
+AI Council can use a local OpenAI-compatible LLM server for agent responses while keeping the same debate engine, structured decision schema, and safety boundary.
+
+Default safe mode:
+
+```bash
+LLM_PROVIDER=mock
+```
+
+Check for an Ollama OpenAI-compatible endpoint:
+
+```bash
+curl "http://localhost:11434/v1/models"
+```
+
+Run the backend with Ollama:
+
+```bash
+cd ~/AI-council/backend
+LLM_PROVIDER=local_openai_compatible \
+LLM_BASE_URL=http://localhost:11434/v1 \
+LLM_MODEL=qwen3:8b \
+LLM_API_KEY=local \
+LLM_TIMEOUT_SECONDS=60 \
+LLM_MAX_TOKENS=1200 \
+../.venv/bin/python -m uvicorn app.main:app --reload
+```
+
+Check for a vLLM OpenAI-compatible endpoint:
+
+```bash
+curl "http://localhost:8000/v1/models"
+```
+
+Run the backend with vLLM:
+
+```bash
+cd ~/AI-council/backend
+LLM_PROVIDER=local_openai_compatible \
+LLM_BASE_URL=http://localhost:8000/v1 \
+LLM_MODEL=<served-model-name> \
+LLM_API_KEY=local \
+LLM_TIMEOUT_SECONDS=60 \
+LLM_MAX_TOKENS=1200 \
+../.venv/bin/python -m uvicorn app.main:app --reload
+```
+
+Use the API as usual:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/meetings" \
+  -H "Content-Type: application/json" \
+  -d '{"topic":"Verify local LLM review","ticker":"LLM","mode":"deep_debate"}'
+
+curl -X POST "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/run"
+```
+
+If the local LLM server is not running, or if it returns invalid JSON, the meeting is marked `failed`, the provider error is stored in the meeting output and trade review metadata, and `order_execution_allowed` remains `false`.
+
+For Ollama Qwen thinking models, the local provider sends a `/no_think` directive and a `max_tokens` cap so the final JSON response is returned in `message.content`. Raw provider metadata is stored without saving reasoning text.
+
+Return to mock mode:
+
+```bash
+LLM_PROVIDER=mock
+```
+
+Safety boundary:
+
+> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
 
 ## Tests
 

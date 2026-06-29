@@ -194,6 +194,43 @@ class LocalOpenAICompatibleProvider(LLMProvider):
         self.config = config
         self.model = config.model
 
+    def list_models(self) -> list[str]:
+        url = f"{self.config.base_url.rstrip('/')}/models"
+        headers = {"Accept": "application/json"}
+        if self.config.api_key:
+            headers["Authorization"] = f"Bearer {self.config.api_key}"
+        try:
+            with httpx.Client(timeout=self.config.timeout_seconds) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            raise LLMProviderError(f"local_openai_compatible models request failed: {exc}") from exc
+        return _model_ids_from_response(data)
+
+    def connection_status(self) -> dict:
+        try:
+            models = self.list_models()
+        except LLMProviderError as exc:
+            return {
+                "provider": self.name,
+                "base_url": self.config.base_url,
+                "available": False,
+                "model": self.model,
+                "models": [],
+                "selected_model_available": False,
+                "error": str(exc),
+            }
+        return {
+            "provider": self.name,
+            "base_url": self.config.base_url,
+            "available": True,
+            "model": self.model,
+            "models": models,
+            "selected_model_available": self.model in models if models else False,
+            "error": None,
+        }
+
     def generate_agent_response(self, request: AgentLLMRequest) -> AgentLLMResponse:
         url = f"{self.config.base_url.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json"}
@@ -203,19 +240,30 @@ class LocalOpenAICompatibleProvider(LLMProvider):
         payload = {
             "model": self.config.model,
             "messages": [
-                {"role": "system", "content": system_prompt_for(request.agent["agent_key"])},
+                {
+                    "role": "system",
+                    "content": (
+                        "/no_think\n"
+                        f"{system_prompt_for(request.agent['agent_key'])} "
+                        "Return only the final JSON object in message.content."
+                    ),
+                },
                 {
                     "role": "user",
-                    "content": build_user_prompt(
-                        request.meeting,
-                        request.agent,
-                        request.stage,
-                        request.previous_outputs,
+                    "content": (
+                        "/no_think\n"
+                        + build_user_prompt(
+                            request.meeting,
+                            request.agent,
+                            request.stage,
+                            request.previous_outputs,
+                        )
                     ),
                 },
             ],
             "temperature": 0.2,
             "stream": False,
+            "max_tokens": self.config.max_tokens,
         }
 
         try:
@@ -232,7 +280,7 @@ class LocalOpenAICompatibleProvider(LLMProvider):
             raise LLMProviderError("local_openai_compatible returned an invalid chat response") from exc
 
         parsed = _parse_json_content(content)
-        return _structured_response_from_dict(parsed, raw={"provider_response": data})
+        return _structured_response_from_dict(parsed, raw=_safe_chat_response_metadata(data))
 
 
 class StubLLMProvider(LLMProvider):
@@ -307,15 +355,11 @@ def _mode_confidence(base_confidence: float, mode: str, agent_key: str) -> float
 
 
 def _parse_json_content(content: str) -> dict:
-    cleaned = content.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.strip("`")
-        if cleaned.startswith("json"):
-            cleaned = cleaned[4:]
+    cleaned = _strip_response_wrappers(content)
     try:
-        parsed = json.loads(cleaned.strip())
-    except json.JSONDecodeError as exc:
-        raise LLMProviderError("LLM response was not valid JSON") from exc
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        parsed = _extract_response_object(cleaned)
     if not isinstance(parsed, dict):
         raise LLMProviderError("LLM response JSON must be an object")
     return parsed
@@ -352,3 +396,83 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item) for item in value]
     return [str(value)]
+
+
+def _safe_chat_response_metadata(data: dict) -> dict:
+    choices = data.get("choices", []) if isinstance(data, dict) else []
+    first_choice = choices[0] if choices and isinstance(choices[0], dict) else {}
+    message = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
+    content = message.get("content", "") if isinstance(message, dict) else ""
+    return {
+        "provider_response": {
+            "id": data.get("id"),
+            "model": data.get("model"),
+            "object": data.get("object"),
+            "finish_reason": first_choice.get("finish_reason"),
+            "usage": data.get("usage", {}),
+            "content_length": len(content or ""),
+            "has_reasoning": bool(
+                isinstance(message, dict)
+                and (message.get("reasoning") or message.get("reasoning_content"))
+            ),
+        }
+    }
+
+
+def _strip_response_wrappers(content: str) -> str:
+    cleaned = content.strip()
+    if cleaned.startswith("<think>"):
+        end = cleaned.find("</think>")
+        if end != -1:
+            cleaned = cleaned[end + len("</think>") :].strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+    return cleaned
+
+
+def _extract_response_object(content: str) -> dict:
+    decoder = json.JSONDecoder()
+    candidates = []
+    for index, character in enumerate(content):
+        if character != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(content[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            candidates.append(parsed)
+    if not candidates:
+        raise LLMProviderError("LLM response was not valid JSON")
+    for candidate in candidates:
+        if {"stance", "confidence", "content"}.issubset(candidate):
+            return candidate
+    return candidates[-1]
+
+
+def _model_ids_from_response(data: dict) -> list[str]:
+    if not isinstance(data, dict):
+        raise LLMProviderError("local_openai_compatible models response must be an object")
+
+    raw_models = data.get("data")
+    if raw_models is None:
+        raw_models = data.get("models")
+    if not isinstance(raw_models, list):
+        raise LLMProviderError("local_openai_compatible models response did not include a model list")
+
+    models = []
+    for item in raw_models:
+        if isinstance(item, str):
+            model_id = item
+        elif isinstance(item, dict):
+            model_id = item.get("id") or item.get("name") or item.get("model")
+        else:
+            model_id = None
+        if model_id:
+            models.append(str(model_id))
+    return models
