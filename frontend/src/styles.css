@@ -20,7 +20,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -108,7 +109,8 @@ a {
 }
 
 textarea,
-input {
+input,
+select {
   width: 100%;
   border: 1px solid #cfd8e3;
   border-radius: 8px;
@@ -124,7 +126,8 @@ textarea {
 }
 
 textarea:focus,
-input:focus {
+input:focus,
+select:focus {
   border-color: #1f7a8c;
   box-shadow: 0 0 0 3px rgba(31, 122, 140, 0.16);
 }
@@ -314,6 +317,209 @@ input:focus {
 .outputList {
   display: grid;
   gap: 12px;
+}
+
+.decisionCard,
+.roundPanel,
+.safetyBoundary {
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.decisionCard {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.decisionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.decisionHeader h3,
+.roundPanel h3,
+.roundGroup h4,
+.decisionLists h4,
+.roundMessage p,
+.roundMessage span,
+.decisionLists p {
+  margin: 0;
+}
+
+.decisionHeader h3 {
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.badgeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.decisionBadge,
+.riskBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 9px;
+  text-transform: uppercase;
+}
+
+.decisionBadge {
+  background: #edf2f7;
+  color: #243b53;
+}
+
+.decisionBadge.allow {
+  background: #e7f7ed;
+  color: #17663a;
+}
+
+.decisionBadge.hold,
+.decisionBadge.need_more_data {
+  background: #fff7df;
+  color: #875b08;
+}
+
+.decisionBadge.block {
+  background: #fff1ed;
+  color: #9f3412;
+}
+
+.riskBadge {
+  background: #edf2f7;
+  color: #314253;
+}
+
+.riskBadge.high,
+.riskBadge.critical {
+  background: #fff1ed;
+  color: #9f3412;
+}
+
+.riskBadge.medium {
+  background: #fff7df;
+  color: #875b08;
+}
+
+.riskBadge.low {
+  background: #e7f7ed;
+  color: #17663a;
+}
+
+.decisionMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.decisionMetrics div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.decisionMetrics span,
+.roundMessage span,
+.decisionLists h4 {
+  color: #667789;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.decisionMetrics strong {
+  color: #17202a;
+  overflow-wrap: anywhere;
+}
+
+.decisionLists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.decisionLists div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-content: flex-start;
+}
+
+.decisionLists h4 {
+  flex: 0 0 100%;
+}
+
+.decisionLists span {
+  border-radius: 8px;
+  background: #edf2f7;
+  color: #314253;
+  font-size: 12px;
+  font-weight: 760;
+  padding: 5px 8px;
+}
+
+.decisionLists p {
+  color: #314253;
+  font-size: 13px;
+}
+
+.safetyBoundary {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #f8fafc;
+  color: #314253;
+  padding: 12px 14px;
+}
+
+.safetyBoundary p {
+  margin: 0;
+}
+
+.roundPanel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.roundGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.roundGroup h4 {
+  color: #314253;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.roundMessage {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.roundMessage strong,
+.roundMessage span {
+  display: block;
+}
+
+.roundMessage p {
+  color: #243243;
+  overflow-wrap: anywhere;
 }
 
 .outputGroup {
@@ -563,6 +769,20 @@ input:focus {
   }
 
   .reviewPanel dl > div {
+    grid-template-columns: 1fr;
+  }
+
+  .decisionHeader,
+  .safetyBoundary {
+    flex-direction: column;
+  }
+
+  .badgeGroup {
+    justify-content: flex-start;
+  }
+
+  .decisionMetrics,
+  .decisionLists {
     grid-template-columns: 1fr;
   }
 }

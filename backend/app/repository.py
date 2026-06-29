@@ -28,7 +28,12 @@ def list_agents(db_path: str | Path | None = None) -> list[dict]:
     return [row_to_dict(row) for row in rows]
 
 
-def create_meeting(topic: str, ticker: str | None, db_path: str | Path | None = None) -> dict:
+def create_meeting(
+    topic: str,
+    ticker: str | None,
+    db_path: str | Path | None = None,
+    mode: str = "quick_review",
+) -> dict:
     timestamp = now_iso()
     meeting_id = uuid4().hex
     trade_review = {
@@ -41,15 +46,27 @@ def create_meeting(topic: str, ticker: str | None, db_path: str | Path | None = 
     with get_connection(db_path) as connection:
         connection.execute(
             """
-            INSERT INTO meetings (id, topic, ticker, status, trade_review_json, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO meetings (
+                id,
+                topic,
+                ticker,
+                mode,
+                status,
+                trade_review_json,
+                final_decision_json,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 meeting_id,
                 topic,
                 ticker,
+                mode,
                 "draft",
                 json.dumps(trade_review, sort_keys=True),
+                "{}",
                 timestamp,
                 timestamp,
             ),
@@ -65,8 +82,10 @@ def list_meetings(db_path: str | Path | None = None) -> list[dict]:
                 m.id,
                 m.topic,
                 m.ticker,
+                m.mode,
                 m.status,
                 m.trade_review_json,
+                m.final_decision_json,
                 m.created_at,
                 m.updated_at,
                 COUNT(o.id) AS output_count,
@@ -82,6 +101,7 @@ def list_meetings(db_path: str | Path | None = None) -> list[dict]:
     for row in rows:
         meeting = row_to_dict(row)
         meeting["trade_review"] = json.loads(meeting.pop("trade_review_json"))
+        meeting["structured_decision"] = json.loads(meeting.pop("final_decision_json") or "{}")
         meeting["report_available"] = bool(meeting["report_available"])
         meetings.append(meeting)
     return meetings
@@ -91,7 +111,16 @@ def get_meeting(meeting_id: str, db_path: str | Path | None = None) -> dict | No
     with get_connection(db_path) as connection:
         row = connection.execute(
             """
-            SELECT id, topic, ticker, status, trade_review_json, created_at, updated_at
+            SELECT
+                id,
+                topic,
+                ticker,
+                mode,
+                status,
+                trade_review_json,
+                final_decision_json,
+                created_at,
+                updated_at
             FROM meetings
             WHERE id = ?
             """,
@@ -101,6 +130,7 @@ def get_meeting(meeting_id: str, db_path: str | Path | None = None) -> dict | No
         return None
     meeting = row_to_dict(row)
     meeting["trade_review"] = json.loads(meeting.pop("trade_review_json"))
+    meeting["structured_decision"] = json.loads(meeting.pop("final_decision_json") or "{}")
     return meeting
 
 
@@ -142,10 +172,13 @@ def replace_meeting_outputs(
     trade_review: dict,
     db_path: str | Path | None = None,
     status: str = "completed",
+    messages: list[dict] | None = None,
+    structured_decision: dict | None = None,
 ) -> None:
     timestamp = now_iso()
     with get_connection(db_path) as connection:
         connection.execute("DELETE FROM agent_outputs WHERE meeting_id = ?", (meeting_id,))
+        connection.execute("DELETE FROM meeting_messages WHERE meeting_id = ?", (meeting_id,))
         for output in outputs:
             connection.execute(
                 """
@@ -179,19 +212,95 @@ def replace_meeting_outputs(
                     timestamp,
                 ),
             )
+        for message in messages or []:
+            connection.execute(
+                """
+                INSERT INTO meeting_messages (
+                    meeting_id,
+                    agent_id,
+                    agent_key,
+                    agent_name,
+                    round,
+                    message_type,
+                    content,
+                    confidence,
+                    risk_level,
+                    provider_name,
+                    structured_response_json,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    meeting_id,
+                    message.get("agent_id"),
+                    message["agent_key"],
+                    message["agent_name"],
+                    message["round"],
+                    message["message_type"],
+                    message["content"],
+                    message["confidence"],
+                    message["risk_level"],
+                    message.get("provider_name", "mock"),
+                    json.dumps(
+                        message.get("structured_response", {}),
+                        sort_keys=True,
+                    ),
+                    timestamp,
+                ),
+            )
         connection.execute(
             """
             UPDATE meetings
-            SET status = ?, trade_review_json = ?, updated_at = ?
+            SET
+                status = ?,
+                trade_review_json = ?,
+                final_decision_json = ?,
+                updated_at = ?
             WHERE id = ?
             """,
             (
                 status,
                 json.dumps(trade_review, sort_keys=True),
+                json.dumps(structured_decision or {}, sort_keys=True),
                 timestamp,
                 meeting_id,
             ),
         )
+
+
+def get_meeting_messages(meeting_id: str, db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                meeting_id,
+                agent_id,
+                agent_key,
+                agent_name,
+                round,
+                message_type,
+                content,
+                confidence,
+                risk_level,
+                provider_name,
+                structured_response_json,
+                created_at
+            FROM meeting_messages
+            WHERE meeting_id = ?
+            ORDER BY id ASC
+            """,
+            (meeting_id,),
+        ).fetchall()
+    messages = []
+    for row in rows:
+        message = row_to_dict(row)
+        message["structured_response"] = json.loads(
+            message.pop("structured_response_json") or "{}"
+        )
+        messages.append(message)
+    return messages
 
 
 def upsert_report(

@@ -70,6 +70,7 @@ def build_user_prompt(
             "topic": meeting["topic"],
             "ticker": meeting.get("ticker"),
             "subject": subject,
+            "mode": meeting.get("mode", "quick_review"),
             "context_summary": meeting.get("context_summary", "No attached context files."),
             "context_files": [
                 {

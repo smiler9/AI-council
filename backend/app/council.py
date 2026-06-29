@@ -5,22 +5,43 @@ from dataclasses import dataclass
 from .llm.providers import AgentLLMRequest, LLMProvider, LLMProviderError, MockLLMProvider
 
 
+MEETING_MODES = {
+    "quick_review",
+    "deep_debate",
+    "skeptic_review",
+    "risk_gate_review",
+    "action_plan",
+}
+
+SAFETY_BOUNDARY = (
+    "AI Council does not execute trades or connect to broker APIs. "
+    "This output is for review, risk analysis, and decision support only."
+)
+
+INITIAL_AGENT_KEYS = [
+    "financial_statement",
+    "news_catalyst",
+    "technical_momentum",
+    "risk_manager",
+    "pump_dump_risk",
+]
+REBUTTAL_AGENT_KEYS = ["skeptic", "risk_manager"]
+REVISION_AGENT_KEYS = [
+    "financial_statement",
+    "news_catalyst",
+    "technical_momentum",
+    "risk_manager",
+    "pump_dump_risk",
+]
+
+
 @dataclass(frozen=True)
 class CouncilRun:
     outputs: list[dict]
+    messages: list[dict]
     trade_review: dict
+    structured_decision: dict
     status: str = "completed"
-
-
-AGENT_RUN_ORDER = [
-    ("financial_statement", "analysis"),
-    ("news_catalyst", "analysis"),
-    ("technical_momentum", "analysis"),
-    ("risk_manager", "analysis"),
-    ("pump_dump_risk", "analysis"),
-    ("skeptic", "rebuttal"),
-    ("chairman", "summary"),
-]
 
 
 def _subject(meeting: dict) -> str:
@@ -35,36 +56,64 @@ def _agent_by_key(agents: list[dict]) -> dict[str, dict]:
 
 def run_council(meeting: dict, agents: list[dict], provider: LLMProvider) -> CouncilRun:
     by_key = _agent_by_key(agents)
-    outputs = []
-    for agent_key, stage in AGENT_RUN_ORDER:
-        agent = by_key[agent_key]
-        response = provider.generate_agent_response(
-            AgentLLMRequest(
+    messages: list[dict] = []
+
+    for agent_key in INITIAL_AGENT_KEYS:
+        messages.append(
+            _run_agent_round(
                 meeting=meeting,
-                agent=agent,
-                stage=stage,
-                previous_outputs=outputs,
+                agent=by_key[agent_key],
+                round_name="initial_opinion",
+                message_type="analysis",
+                provider=provider,
+                previous_messages=messages,
             )
         )
-        outputs.append(
-            {
-                "agent_key": agent["agent_key"],
-                "agent_name": agent["name"],
-                "stage": stage,
-                "stance": response.stance,
-                "confidence": response.confidence,
-                "content": response.content,
-                "provider_name": provider.name,
-                "structured_response": response.as_structured_response(
-                    provider_name=provider.name,
-                    model=provider.model,
-                ),
-            }
+
+    for agent_key in REBUTTAL_AGENT_KEYS:
+        messages.append(
+            _run_agent_round(
+                meeting=meeting,
+                agent=by_key[agent_key],
+                round_name="rebuttal",
+                message_type="rebuttal",
+                provider=provider,
+                previous_messages=messages,
+            )
         )
+
+    for agent_key in REVISION_AGENT_KEYS:
+        messages.append(
+            _run_agent_round(
+                meeting=meeting,
+                agent=by_key[agent_key],
+                round_name="revision",
+                message_type="revision",
+                provider=provider,
+                previous_messages=messages,
+            )
+        )
+
+    messages.append(
+        _run_agent_round(
+            meeting=meeting,
+            agent=by_key["chairman"],
+            round_name="chairman_summary",
+            message_type="summary",
+            provider=provider,
+            previous_messages=messages,
+        )
+    )
+
+    structured_decision = build_structured_decision(meeting, messages, provider.name)
+    messages.append(_structured_decision_message(meeting, by_key["chairman"], structured_decision, provider))
+    outputs = _legacy_outputs(messages)
 
     return CouncilRun(
         outputs=outputs,
-        trade_review=_trade_review(meeting, provider.name),
+        messages=messages,
+        trade_review=_trade_review(meeting, provider.name, structured_decision),
+        structured_decision=structured_decision,
         status="completed",
     )
 
@@ -98,21 +147,38 @@ def build_failed_council_run(
         "recommended_action": "needs_more_evidence",
         "error": str(error),
     }
+    structured_decision = {
+        "decision": "NEED_MORE_DATA",
+        "confidence": 0.0,
+        "risk_level": "critical",
+        "trade_allowed": False,
+        "position_size_multiplier": 0.0,
+        "primary_reasons": ["Provider failed before the council could complete review."],
+        "risk_flags": ["provider_failure", "review_incomplete"],
+        "required_follow_up": ["Restore provider availability and rerun the meeting."],
+        "data_quality": "failed",
+        "order_execution_allowed": False,
+        "safety_boundary": SAFETY_BOUNDARY,
+    }
+    failed_output = {
+        "agent_id": chairman.get("id"),
+        "agent_key": chairman["agent_key"],
+        "agent_name": chairman["name"],
+        "round": "chairman_summary",
+        "stage": "summary",
+        "message_type": "summary",
+        "stance": "provider_error",
+        "confidence": 0.0,
+        "risk_level": "critical",
+        "content": message,
+        "provider_name": provider_name,
+        "structured_response": structured_error,
+    }
     return CouncilRun(
-        outputs=[
-            {
-                "agent_key": chairman["agent_key"],
-                "agent_name": chairman["name"],
-                "stage": "summary",
-                "stance": "provider_error",
-                "confidence": 0.0,
-                "content": message,
-                "provider_name": provider_name,
-                "structured_response": structured_error,
-            }
-        ],
+        outputs=[failed_output],
+        messages=[failed_output],
         trade_review={
-            "phase": "phase_2_provider_abstraction",
+            "phase": "phase_4_debate_engine",
             "subject": subject,
             "mock_only": provider_name == "mock",
             "order_execution_allowed": False,
@@ -124,20 +190,184 @@ def build_failed_council_run(
             "risk_gate_status": "not_implemented",
             "broker_integration_status": "not_connected",
             "context_file_count": len(context_files),
+            "structured_decision": structured_decision,
+            "safety_boundary": SAFETY_BOUNDARY,
         },
+        structured_decision=structured_decision,
         status="failed",
     )
 
 
-def _trade_review(meeting: dict, provider_name: str) -> dict:
+def build_structured_decision(meeting: dict, messages: list[dict], provider_name: str) -> dict:
+    mode = meeting.get("mode", "quick_review")
+    context_files = meeting.get("context_files", [])
+    risk_flags = _collect_unique_flags(messages, "risk_flags")
+    evidence_gaps = _collect_unique_flags(messages, "evidence_gaps")
+    data_quality = "limited" if evidence_gaps or not context_files else "moderate"
+    risk_level = _risk_level_for_mode(mode, context_files, risk_flags)
+
+    if risk_level == "critical":
+        decision = "BLOCK"
+    elif risk_level == "high":
+        decision = "HOLD"
+    elif data_quality == "limited":
+        decision = "NEED_MORE_DATA"
+    else:
+        decision = "HOLD"
+
+    primary_reasons = [
+        f"Meeting mode '{mode}' completed through structured debate rounds.",
+        "Uploaded and live evidence remains review-only and requires validation.",
+    ]
+    if context_files:
+        primary_reasons.append(f"{len(context_files)} attached context file(s) were considered.")
+    if mode == "risk_gate_review":
+        primary_reasons.append("Risk gate review prioritizes blocking unsafe automation paths.")
+    if mode == "action_plan":
+        primary_reasons.append("Action plan mode produced follow-up tasks without enabling execution.")
+
+    required_follow_up = [
+        "Validate financial filings, news catalysts, and market data before any future review.",
+        "Run a separate Risk Gate before any future automation integration.",
+    ]
+    if evidence_gaps:
+        required_follow_up.append("Resolve evidence gaps: " + ", ".join(evidence_gaps[:6]))
+    if mode == "action_plan":
+        required_follow_up.extend(
+            [
+                "Draft data-source validation checks.",
+                "Prepare a Codex task to implement review-only data adapters.",
+            ]
+        )
+
+    decision_payload = {
+        "decision": decision,
+        "confidence": _decision_confidence(mode, data_quality),
+        "risk_level": risk_level,
+        "trade_allowed": False,
+        "position_size_multiplier": 0.0,
+        "primary_reasons": primary_reasons,
+        "risk_flags": risk_flags,
+        "required_follow_up": required_follow_up,
+        "data_quality": data_quality,
+        "order_execution_allowed": False,
+        "provider": provider_name,
+        "meeting_mode": mode,
+        "safety_boundary": SAFETY_BOUNDARY,
+    }
+    if mode == "action_plan":
+        decision_payload["codex_prompt"] = (
+            "Implement review-only validation tasks for AI Council. Do not connect broker APIs "
+            "or implement order execution."
+        )
+    return decision_payload
+
+
+def _run_agent_round(
+    meeting: dict,
+    agent: dict,
+    round_name: str,
+    message_type: str,
+    provider: LLMProvider,
+    previous_messages: list[dict],
+) -> dict:
+    response = provider.generate_agent_response(
+        AgentLLMRequest(
+            meeting=meeting,
+            agent=agent,
+            stage=round_name,
+            previous_outputs=previous_messages,
+        )
+    )
+    structured_response = response.as_structured_response(
+        provider_name=provider.name,
+        model=provider.model,
+    )
+    risk_level = _message_risk_level(
+        meeting.get("mode", "quick_review"),
+        agent["agent_key"],
+        round_name,
+        structured_response.get("risk_flags", []),
+    )
+    return {
+        "agent_id": agent.get("id"),
+        "agent_key": agent["agent_key"],
+        "agent_name": agent["name"],
+        "round": round_name,
+        "stage": round_name,
+        "message_type": message_type,
+        "stance": response.stance,
+        "confidence": response.confidence,
+        "risk_level": risk_level,
+        "content": response.content,
+        "provider_name": provider.name,
+        "structured_response": structured_response,
+    }
+
+
+def _structured_decision_message(
+    meeting: dict,
+    chairman: dict,
+    structured_decision: dict,
+    provider: LLMProvider,
+) -> dict:
+    content = (
+        f"Structured decision: {structured_decision['decision']} with "
+        f"{structured_decision['risk_level']} risk. "
+        f"Order execution allowed: {structured_decision['order_execution_allowed']}."
+    )
+    return {
+        "agent_id": chairman.get("id"),
+        "agent_key": chairman["agent_key"],
+        "agent_name": chairman["name"],
+        "round": "structured_decision",
+        "stage": "structured_decision",
+        "message_type": "decision",
+        "stance": structured_decision["decision"].lower(),
+        "confidence": structured_decision["confidence"],
+        "risk_level": structured_decision["risk_level"],
+        "content": content,
+        "provider_name": provider.name,
+        "structured_response": structured_decision,
+    }
+
+
+def _legacy_outputs(messages: list[dict]) -> list[dict]:
+    outputs = []
+    for agent_key in INITIAL_AGENT_KEYS:
+        message = _latest_message(messages, agent_key, preferred_round="revision")
+        if message:
+            outputs.append({**message, "stage": "analysis"})
+    skeptic = _latest_message(messages, "skeptic", preferred_round="rebuttal")
+    if skeptic:
+        outputs.append({**skeptic, "stage": "rebuttal"})
+    chairman = _latest_message(messages, "chairman", preferred_round="chairman_summary")
+    if chairman:
+        outputs.append({**chairman, "stage": "summary"})
+    return outputs
+
+
+def _latest_message(messages: list[dict], agent_key: str, preferred_round: str) -> dict | None:
+    for message in reversed(messages):
+        if message["agent_key"] == agent_key and message["round"] == preferred_round:
+            return message
+    for message in reversed(messages):
+        if message["agent_key"] == agent_key:
+            return message
+    return None
+
+
+def _trade_review(meeting: dict, provider_name: str, structured_decision: dict) -> dict:
     subject = _subject(meeting)
     context_files = meeting.get("context_files", [])
     return {
-        "phase": "phase_2_provider_abstraction",
+        "phase": "phase_4_debate_engine",
         "subject": subject,
+        "meeting_mode": meeting.get("mode", "quick_review"),
         "mock_only": provider_name == "mock",
         "order_execution_allowed": False,
-        "recommended_action": "research_only",
+        "trade_allowed": structured_decision["trade_allowed"],
+        "recommended_action": structured_decision["decision"],
         "review_status": "completed",
         "provider": provider_name,
         "requires_future_risk_gate": True,
@@ -153,6 +383,8 @@ def _trade_review(meeting: dict, provider_name: str) -> dict:
             }
             for file in context_files
         ],
+        "structured_decision": structured_decision,
+        "safety_boundary": SAFETY_BOUNDARY,
         "evidence_requirements": [
             "validated financial filings",
             "validated news or SEC catalyst source",
@@ -161,3 +393,52 @@ def _trade_review(meeting: dict, provider_name: str) -> dict:
             "explicit human or future Risk Gate approval",
         ],
     }
+
+
+def _message_risk_level(
+    mode: str,
+    agent_key: str,
+    round_name: str,
+    risk_flags: list[str],
+) -> str:
+    if mode == "risk_gate_review" and agent_key in {"risk_manager", "pump_dump_risk", "skeptic"}:
+        return "critical"
+    if "manipulation_risk" in risk_flags or "automation_not_approved" in risk_flags:
+        return "high"
+    if round_name == "rebuttal" or agent_key in {"risk_manager", "pump_dump_risk", "skeptic"}:
+        return "high" if mode in {"deep_debate", "skeptic_review"} else "medium"
+    return "medium"
+
+
+def _risk_level_for_mode(mode: str, context_files: list[dict], risk_flags: list[str]) -> str:
+    if mode == "risk_gate_review":
+        return "critical"
+    if mode in {"deep_debate", "skeptic_review"}:
+        return "high"
+    if "manipulation_risk" in risk_flags or "automation_not_approved" in risk_flags:
+        return "high"
+    if not context_files:
+        return "medium"
+    return "medium"
+
+
+def _decision_confidence(mode: str, data_quality: str) -> float:
+    if mode == "risk_gate_review":
+        return 0.72
+    if mode == "deep_debate":
+        return 0.66
+    if data_quality == "limited":
+        return 0.58
+    return 0.62
+
+
+def _collect_unique_flags(messages: list[dict], key: str) -> list[str]:
+    values = []
+    seen = set()
+    for message in messages:
+        response = message.get("structured_response", {})
+        for value in response.get(key, []):
+            if value not in seen:
+                seen.add(value)
+                values.append(value)
+    return values[:12]

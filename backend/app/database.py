@@ -35,8 +35,10 @@ def init_db(db_path: str | Path | None = None) -> None:
                 id TEXT PRIMARY KEY,
                 topic TEXT NOT NULL,
                 ticker TEXT,
+                mode TEXT NOT NULL DEFAULT 'quick_review',
                 status TEXT NOT NULL,
                 trade_review_json TEXT NOT NULL,
+                final_decision_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -78,7 +80,37 @@ def init_db(db_path: str | Path | None = None) -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS meeting_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                meeting_id TEXT NOT NULL,
+                agent_id INTEGER,
+                agent_key TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                round TEXT NOT NULL,
+                message_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                risk_level TEXT NOT NULL,
+                provider_name TEXT NOT NULL DEFAULT 'mock',
+                structured_response_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY (agent_id) REFERENCES agents(id)
+            );
             """
+        )
+        _ensure_column(
+            connection,
+            table="meetings",
+            column="mode",
+            definition="TEXT NOT NULL DEFAULT 'quick_review'",
+        )
+        _ensure_column(
+            connection,
+            table="meetings",
+            column="final_decision_json",
+            definition="TEXT NOT NULL DEFAULT '{}'",
         )
         _ensure_column(
             connection,

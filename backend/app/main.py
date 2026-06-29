@@ -26,6 +26,7 @@ from .repository import (
     delete_context_file,
     get_context_file,
     get_meeting,
+    get_meeting_messages,
     get_meeting_outputs,
     get_report,
     list_agents,
@@ -104,17 +105,25 @@ def create_app(
         ticker = payload.ticker.strip().upper() if payload.ticker else None
         if ticker == "":
             ticker = None
-        return create_meeting(topic=topic, ticker=ticker, db_path=app.state.db_path)
+        return create_meeting(
+            topic=topic,
+            ticker=ticker,
+            db_path=app.state.db_path,
+            mode=payload.mode,
+        )
 
     @app.get("/api/meetings/{meeting_id}")
     def get_meeting_detail(meeting_id: str) -> dict:
         meeting = _meeting_or_404(meeting_id)
         outputs = get_meeting_outputs(meeting_id, app.state.db_path)
+        messages = get_meeting_messages(meeting_id, app.state.db_path)
         report = get_report(meeting_id, app.state.db_path)
         files = list_context_files(meeting_id, app.state.db_path)
         return {
             "meeting": meeting,
             "outputs": outputs,
+            "messages": messages,
+            "structured_decision": meeting.get("structured_decision", {}),
             "files": files,
             "report": {
                 "available": report is not None,
@@ -183,20 +192,26 @@ def create_app(
             trade_review=council_run.trade_review,
             db_path=app.state.db_path,
             status=council_run.status,
+            messages=council_run.messages,
+            structured_decision=council_run.structured_decision,
         )
         updated_meeting = _meeting_or_404(meeting_id)
         updated_meeting["context_files"] = files
         updated_meeting["context_summary"] = build_meeting_context_summary(files)
         outputs = get_meeting_outputs(meeting_id, app.state.db_path)
+        messages = get_meeting_messages(meeting_id, app.state.db_path)
         report_path, markdown = write_markdown_report(
             updated_meeting,
             outputs,
             app.state.report_dir,
+            messages=messages,
         )
         report = upsert_report(meeting_id, report_path, markdown, app.state.db_path)
         return {
             "meeting": updated_meeting,
             "outputs": outputs,
+            "messages": messages,
+            "structured_decision": council_run.structured_decision,
             "files": files,
             "report": {
                 "available": True,

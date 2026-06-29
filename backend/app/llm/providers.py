@@ -62,6 +62,8 @@ class MockLLMProvider(LLMProvider):
 
     def generate_agent_response(self, request: AgentLLMRequest) -> AgentLLMResponse:
         subject = _subject(request.meeting)
+        mode = request.meeting.get("mode", "quick_review")
+        round_name = request.stage
         context_files = request.meeting.get("context_files", [])
         context_note = _context_note(context_files)
         context_risk_flags = ["attached_context_reviewed"] if context_files else []
@@ -149,19 +151,34 @@ class MockLLMProvider(LLMProvider):
         }
         template = templates[request.agent["agent_key"]]
         content = template["content"]
+        round_note = _round_note(mode, request.agent["agent_key"], round_name)
+        if round_note:
+            content = f"{content} {round_note}"
         if context_note:
             content = f"{content} Context-aware note: {context_note}"
+        risk_flags = template["risk_flags"] + context_risk_flags
+        evidence_gaps = template["evidence_gaps"] + context_evidence_gaps
+        if mode == "risk_gate_review" and request.agent["agent_key"] in {
+            "risk_manager",
+            "pump_dump_risk",
+            "skeptic",
+        }:
+            risk_flags = risk_flags + ["risk_gate_blocker", "automation_block_required"]
+        if mode == "action_plan":
+            evidence_gaps = evidence_gaps + ["implementation_tasks_need_validation"]
         return AgentLLMResponse(
             stance=template["stance"],
-            confidence=template["confidence"],
+            confidence=_mode_confidence(template["confidence"], mode, request.agent["agent_key"]),
             content=content,
-            risk_flags=template["risk_flags"] + context_risk_flags,
-            evidence_gaps=template["evidence_gaps"] + context_evidence_gaps,
+            risk_flags=risk_flags,
+            evidence_gaps=evidence_gaps,
             recommended_action="research_only",
             raw={
                 "provider_mode": "deterministic_mock",
+                "meeting_mode": mode,
                 "agent_key": request.agent["agent_key"],
-                "stage": request.stage,
+                "stage": round_name,
+                "round": round_name,
                 "context_file_count": len(context_files),
                 "context_filenames": [
                     file["original_filename"] for file in context_files
@@ -257,6 +274,36 @@ def _context_note(context_files: list[dict]) -> str:
         f"Key context summary: {summaries[:900]} "
         "Treat uploaded material as user-provided evidence that still requires validation."
     )
+
+
+def _round_note(mode: str, agent_key: str, round_name: str) -> str:
+    if round_name == "initial_opinion":
+        return f"Round 1 initial opinion for {mode}: establish the agent's first-pass evidence view."
+    if round_name == "rebuttal":
+        return "Round 2 rebuttal: challenge unsupported assumptions and identify downside scenarios."
+    if round_name == "revision":
+        return "Round 3 revision: adjust the original view after skeptic and risk-manager objections."
+    if round_name == "chairman_summary":
+        if mode == "action_plan":
+            return "Round 4 chairman summary: convert the review into follow-up tasks without enabling execution."
+        return "Round 4 chairman summary: synthesize consensus, dissent, risk posture, and next review steps."
+    if mode == "risk_gate_review" and agent_key in {"risk_manager", "pump_dump_risk", "skeptic"}:
+        return "Risk gate mode: treat unresolved liquidity, manipulation, or automation concerns as blockers."
+    if mode == "deep_debate":
+        return "Deep debate mode: explicitly compare supporting and opposing interpretations."
+    if mode == "skeptic_review":
+        return "Skeptic review mode: emphasize base-rate risk and missing evidence."
+    return ""
+
+
+def _mode_confidence(base_confidence: float, mode: str, agent_key: str) -> float:
+    if mode == "risk_gate_review" and agent_key in {"risk_manager", "pump_dump_risk", "skeptic"}:
+        return min(0.9, round(base_confidence + 0.08, 2))
+    if mode == "deep_debate":
+        return min(0.86, round(base_confidence + 0.03, 2))
+    if mode == "skeptic_review" and agent_key == "skeptic":
+        return min(0.9, round(base_confidence + 0.09, 2))
+    return base_confidence
 
 
 def _parse_json_content(content: str) -> dict:

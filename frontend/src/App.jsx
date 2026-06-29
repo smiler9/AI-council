@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import { api } from "./api";
 
+const SAFETY_BOUNDARY =
+  "AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.";
+
 function statusLabel(status) {
   if (status === "completed") return "Completed";
   if (status === "failed") return "Failed";
@@ -28,6 +31,10 @@ function stageIcon(stage) {
   return <Brain size={18} aria-hidden="true" />;
 }
 
+function modeLabel(mode) {
+  return (mode || "quick_review").replaceAll("_", " ");
+}
+
 export default function App() {
   const [agents, setAgents] = useState([]);
   const [meetings, setMeetings] = useState([]);
@@ -35,6 +42,7 @@ export default function App() {
   const [detail, setDetail] = useState(null);
   const [topic, setTopic] = useState("");
   const [ticker, setTicker] = useState("");
+  const [mode, setMode] = useState("quick_review");
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -42,6 +50,9 @@ export default function App() {
 
   const selectedMeeting = detail?.meeting;
   const contextFiles = detail?.files || [];
+  const messages = detail?.messages || [];
+  const structuredDecision =
+    detail?.structured_decision || selectedMeeting?.structured_decision || {};
 
   const groupedOutputs = useMemo(() => {
     const groups = { analysis: [], rebuttal: [], summary: [] };
@@ -87,10 +98,12 @@ export default function App() {
     try {
       const meeting = await api.createMeeting({
         topic: topic.trim(),
-        ticker: ticker.trim() || null
+        ticker: ticker.trim() || null,
+        mode
       });
       setTopic("");
       setTicker("");
+      setMode("quick_review");
       await loadMeetings(meeting.id);
     } catch (err) {
       setError(err.message);
@@ -118,6 +131,8 @@ export default function App() {
       setDetail({
         meeting: payload.meeting,
         outputs: payload.outputs,
+        messages: payload.messages || [],
+        structured_decision: payload.structured_decision || {},
         files: payload.files || contextFiles,
         report: payload.report
       });
@@ -192,6 +207,16 @@ export default function App() {
               maxLength={16}
             />
           </label>
+          <label>
+            <span>Mode</span>
+            <select value={mode} onChange={(event) => setMode(event.target.value)}>
+              <option value="quick_review">Quick review</option>
+              <option value="deep_debate">Deep debate</option>
+              <option value="skeptic_review">Skeptic review</option>
+              <option value="risk_gate_review">Risk gate review</option>
+              <option value="action_plan">Action plan</option>
+            </select>
+          </label>
           <button className="primaryButton" type="submit" disabled={loading || !topic.trim()}>
             <Plus size={18} aria-hidden="true" />
             Create meeting
@@ -231,7 +256,7 @@ export default function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Phase 1 MVP</p>
+            <p className="eyebrow">Phase 4 Debate Engine</p>
             <h2>{selectedMeeting?.topic || "Create a council meeting"}</h2>
           </div>
           <div className="actions">
@@ -275,13 +300,20 @@ export default function App() {
           </div>
           <div>
             <CheckCircle2 size={18} aria-hidden="true" />
-            <span>{selectedMeeting ? statusLabel(selectedMeeting.status) : "Ready"}</span>
+            <span>
+              {selectedMeeting
+                ? `${statusLabel(selectedMeeting.status)} · ${modeLabel(selectedMeeting.mode)}`
+                : "Ready"}
+            </span>
           </div>
         </section>
 
         {selectedMeeting ? (
           <section className="detailGrid">
             <div className="outputColumn">
+              <DecisionCard decision={structuredDecision} />
+              <SafetyBoundary />
+              <RoundList messages={messages} />
               <OutputGroup title="Agent Analysis" outputs={groupedOutputs.analysis} />
               <OutputGroup title="Skeptic Rebuttal" outputs={groupedOutputs.rebuttal} />
               <OutputGroup title="Chairman Summary" outputs={groupedOutputs.summary} />
@@ -290,6 +322,10 @@ export default function App() {
             <aside className="reviewPanel">
               <h3>Trade Review Scaffold</h3>
               <dl>
+                <div>
+                  <dt>Mode</dt>
+                  <dd>{modeLabel(selectedMeeting.mode)}</dd>
+                </div>
                 <div>
                   <dt>Mock only</dt>
                   <dd>{String(selectedMeeting.trade_review?.mock_only)}</dd>
@@ -368,6 +404,110 @@ export default function App() {
         )}
       </main>
     </div>
+  );
+}
+
+function DecisionCard({ decision }) {
+  const hasDecision = Boolean(decision?.decision);
+  return (
+    <section className="decisionCard">
+      <div className="decisionHeader">
+        <div>
+          <p className="eyebrow">Structured Decision</p>
+          <h3>{hasDecision ? decision.decision : "Pending"}</h3>
+        </div>
+        <div className="badgeGroup">
+          <span className={`decisionBadge ${hasDecision ? decision.decision?.toLowerCase() : ""}`}>
+            {hasDecision ? decision.decision : "DRAFT"}
+          </span>
+          <span className={`riskBadge ${hasDecision ? decision.risk_level : ""}`}>
+            {hasDecision ? decision.risk_level : "unrated"}
+          </span>
+        </div>
+      </div>
+      <div className="decisionMetrics">
+        <div>
+          <span>Confidence</span>
+          <strong>{hasDecision ? Math.round(decision.confidence * 100) : 0}%</strong>
+        </div>
+        <div>
+          <span>Trade allowed</span>
+          <strong>{String(Boolean(decision.trade_allowed))}</strong>
+        </div>
+        <div>
+          <span>Orders allowed</span>
+          <strong>{String(Boolean(decision.order_execution_allowed))}</strong>
+        </div>
+        <div>
+          <span>Size multiplier</span>
+          <strong>{hasDecision ? decision.position_size_multiplier : 0}</strong>
+        </div>
+      </div>
+      {hasDecision && (
+        <div className="decisionLists">
+          <div>
+            <h4>Risk Flags</h4>
+            {(decision.risk_flags || []).slice(0, 6).map((flag) => (
+              <span key={flag}>{flag}</span>
+            ))}
+          </div>
+          <div>
+            <h4>Required Follow-up</h4>
+            {(decision.required_follow_up || []).slice(0, 4).map((item) => (
+              <p key={item}>{item}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SafetyBoundary() {
+  return (
+    <section className="safetyBoundary">
+      <Shield size={18} aria-hidden="true" />
+      <p>{SAFETY_BOUNDARY}</p>
+    </section>
+  );
+}
+
+function RoundList({ messages }) {
+  const rounds = [
+    ["initial_opinion", "Agent Initial Opinions"],
+    ["rebuttal", "Rebuttals"],
+    ["revision", "Revised Notes"],
+    ["chairman_summary", "Chairman Summary"],
+    ["structured_decision", "Structured Decision"]
+  ];
+  return (
+    <section className="roundPanel">
+      <h3>Debate Rounds</h3>
+      {rounds.map(([round, title]) => {
+        const roundMessages = messages.filter((message) => message.round === round);
+        return (
+          <div className="roundGroup" key={round}>
+            <h4>{title}</h4>
+            {roundMessages.length > 0 ? (
+              roundMessages.map((message) => (
+                <article className="roundMessage" key={message.id || `${round}-${message.agent_key}`}>
+                  <div>
+                    <strong>{message.agent_name}</strong>
+                    <span>
+                      {message.message_type} · {message.risk_level} ·{" "}
+                      {Math.round(message.confidence * 100)}%
+                    </span>
+                  </div>
+                  <p>{message.content}</p>
+                </article>
+              ))
+            ) : (
+              <div className="emptyState">Run the council to generate this round</div>
+            )}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
