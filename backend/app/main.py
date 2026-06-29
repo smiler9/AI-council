@@ -3,21 +3,33 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from .council import build_failed_council_run, run_council
 from .database import DEFAULT_DB_PATH, init_db
+from .file_context import (
+    FileContextError,
+    UPLOAD_ROOT,
+    build_context_file_record,
+    build_meeting_context_summary,
+    read_extracted_text,
+    remove_context_file_artifacts,
+)
 from .llm.config import LLMConfig, load_llm_config
 from .llm.providers import LLMProviderError, get_llm_provider
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .repository import (
+    create_context_file,
     create_meeting,
+    delete_context_file,
+    get_context_file,
     get_meeting,
     get_meeting_outputs,
     get_report,
     list_agents,
+    list_context_files,
     list_meetings,
     replace_meeting_outputs,
     upsert_report,
@@ -29,10 +41,12 @@ from .seed import seed_agents
 def create_app(
     db_path: str | Path | None = None,
     report_dir: str | Path | None = None,
+    upload_root: str | Path | None = None,
     llm_config: LLMConfig | None = None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path or DEFAULT_DB_PATH)
     resolved_report_dir = Path(report_dir or DEFAULT_REPORT_DIR)
+    resolved_upload_root = Path(upload_root or UPLOAD_ROOT)
     resolved_llm_config = llm_config or load_llm_config()
 
     @asynccontextmanager
@@ -44,6 +58,7 @@ def create_app(
     app = FastAPI(title="AI Council", version="0.1.0", lifespan=lifespan)
     app.state.db_path = resolved_db_path
     app.state.report_dir = resolved_report_dir
+    app.state.upload_root = resolved_upload_root
     app.state.llm_config = resolved_llm_config
 
     app.add_middleware(
@@ -96,18 +111,61 @@ def create_app(
         meeting = _meeting_or_404(meeting_id)
         outputs = get_meeting_outputs(meeting_id, app.state.db_path)
         report = get_report(meeting_id, app.state.db_path)
+        files = list_context_files(meeting_id, app.state.db_path)
         return {
             "meeting": meeting,
             "outputs": outputs,
+            "files": files,
             "report": {
                 "available": report is not None,
                 "path": report["path"] if report else None,
             },
         }
 
+    @app.post("/api/meetings/{meeting_id}/files", status_code=201)
+    async def post_meeting_file(meeting_id: str, file: UploadFile = File(...)) -> dict:
+        _meeting_or_404(meeting_id)
+        data = await file.read()
+        try:
+            record = build_context_file_record(
+                meeting_id=meeting_id,
+                filename=file.filename or "",
+                data=data,
+                upload_root=app.state.upload_root,
+            )
+        except FileContextError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return create_context_file(record, app.state.db_path)
+
+    @app.get("/api/meetings/{meeting_id}/files")
+    def get_meeting_files(meeting_id: str) -> list[dict]:
+        _meeting_or_404(meeting_id)
+        return list_context_files(meeting_id, app.state.db_path)
+
+    @app.get("/api/files/{file_id}")
+    def get_file_detail(file_id: str) -> dict:
+        record = get_context_file(file_id, app.state.db_path)
+        if not record:
+            raise HTTPException(status_code=404, detail="File not found")
+        return {
+            **record,
+            "extracted_text": read_extracted_text(record),
+        }
+
+    @app.delete("/api/files/{file_id}")
+    def delete_file(file_id: str) -> dict:
+        record = delete_context_file(file_id, app.state.db_path)
+        if not record:
+            raise HTTPException(status_code=404, detail="File not found")
+        remove_context_file_artifacts(record, app.state.upload_root)
+        return {"deleted": True, "file_id": file_id}
+
     @app.post("/api/meetings/{meeting_id}/run", response_model=MeetingRunResponse)
     def run_meeting(meeting_id: str) -> dict:
         meeting = _meeting_or_404(meeting_id)
+        files = list_context_files(meeting_id, app.state.db_path)
+        meeting["context_files"] = files
+        meeting["context_summary"] = build_meeting_context_summary(files)
         agents = list_agents(app.state.db_path)
         provider = get_llm_provider(app.state.llm_config)
         try:
@@ -127,6 +185,8 @@ def create_app(
             status=council_run.status,
         )
         updated_meeting = _meeting_or_404(meeting_id)
+        updated_meeting["context_files"] = files
+        updated_meeting["context_summary"] = build_meeting_context_summary(files)
         outputs = get_meeting_outputs(meeting_id, app.state.db_path)
         report_path, markdown = write_markdown_report(
             updated_meeting,
@@ -137,6 +197,7 @@ def create_app(
         return {
             "meeting": updated_meeting,
             "outputs": outputs,
+            "files": files,
             "report": {
                 "available": True,
                 "path": report["path"],

@@ -380,7 +380,7 @@ input:focus {
   gap: 12px;
 }
 
-.reviewPanel div {
+.reviewPanel dl > div {
   display: grid;
   grid-template-columns: minmax(0, 128px) minmax(0, 1fr);
   gap: 10px;
@@ -397,6 +397,95 @@ input:focus {
   color: #17202a;
   font-weight: 720;
   overflow-wrap: anywhere;
+}
+
+.contextPanel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #d9e0e7;
+  padding-top: 14px;
+}
+
+.panelHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panelHeading span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #edf2f7;
+  color: #314253;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.fileUpload {
+  display: grid;
+  gap: 8px;
+}
+
+.fileUpload input {
+  min-width: 0;
+}
+
+.contextHint,
+.fileRow p,
+.fileRow span {
+  margin: 0;
+  color: #667789;
+}
+
+.contextHint {
+  font-size: 13px;
+}
+
+.fileList {
+  display: grid;
+  gap: 10px;
+}
+
+.fileRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.fileRow strong,
+.fileRow span {
+  display: block;
+}
+
+.fileRow strong {
+  overflow: hidden;
+  color: #17202a;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileRow span {
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.fileRow p {
+  display: -webkit-box;
+  margin-top: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
 }
 
 .emptyState,
@@ -473,8 +562,7 @@ input:focus {
     width: 100%;
   }
 
-  .reviewPanel div {
+  .reviewPanel dl > div {
     grid-template-columns: 1fr;
   }
 }
-

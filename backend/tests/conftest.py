@@ -12,6 +12,7 @@ def client(tmp_path):
     app = create_app(
         db_path=tmp_path / "ai_council.sqlite",
         report_dir=tmp_path / "reports",
+        upload_root=tmp_path / "uploads",
         llm_config=LLMConfig(provider="mock"),
     )
     with TestClient(app) as test_client:

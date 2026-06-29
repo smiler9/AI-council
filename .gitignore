@@ -8,6 +8,8 @@ dist/
 frontend/dist/
 backend/data/*.sqlite
 backend/data/*.sqlite-*
+backend/data/uploads/
+data/uploads/
 data/reports/*.md
 reports/*.md
 .env

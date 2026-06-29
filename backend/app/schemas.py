@@ -11,5 +11,5 @@ class MeetingCreate(BaseModel):
 class MeetingRunResponse(BaseModel):
     meeting: dict
     outputs: list[dict]
+    files: list[dict] = Field(default_factory=list)
     report: dict
-

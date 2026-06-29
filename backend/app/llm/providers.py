@@ -62,6 +62,12 @@ class MockLLMProvider(LLMProvider):
 
     def generate_agent_response(self, request: AgentLLMRequest) -> AgentLLMResponse:
         subject = _subject(request.meeting)
+        context_files = request.meeting.get("context_files", [])
+        context_note = _context_note(context_files)
+        context_risk_flags = ["attached_context_reviewed"] if context_files else []
+        context_evidence_gaps = [
+            "uploaded context requires human validation"
+        ] if context_files else []
         templates = {
             "financial_statement": {
                 "stance": "cautious",
@@ -142,17 +148,24 @@ class MockLLMProvider(LLMProvider):
             },
         }
         template = templates[request.agent["agent_key"]]
+        content = template["content"]
+        if context_note:
+            content = f"{content} Context-aware note: {context_note}"
         return AgentLLMResponse(
             stance=template["stance"],
             confidence=template["confidence"],
-            content=template["content"],
-            risk_flags=template["risk_flags"],
-            evidence_gaps=template["evidence_gaps"],
+            content=content,
+            risk_flags=template["risk_flags"] + context_risk_flags,
+            evidence_gaps=template["evidence_gaps"] + context_evidence_gaps,
             recommended_action="research_only",
             raw={
                 "provider_mode": "deterministic_mock",
                 "agent_key": request.agent["agent_key"],
                 "stage": request.stage,
+                "context_file_count": len(context_files),
+                "context_filenames": [
+                    file["original_filename"] for file in context_files
+                ],
             },
         )
 
@@ -231,6 +244,21 @@ def _subject(meeting: dict) -> str:
     return meeting["topic"]
 
 
+def _context_note(context_files: list[dict]) -> str:
+    ready_files = [file for file in context_files if file.get("status") == "ready"]
+    if not context_files:
+        return ""
+    filenames = ", ".join(file["original_filename"] for file in context_files[:5])
+    summaries = " ".join(file["summary"] for file in ready_files[:3])
+    if not summaries:
+        summaries = "No ready text context was available; unsupported files were not used as evidence."
+    return (
+        f"Referenced {len(context_files)} attached file(s): {filenames}. "
+        f"Key context summary: {summaries[:900]} "
+        "Treat uploaded material as user-provided evidence that still requires validation."
+    )
+
+
 def _parse_json_content(content: str) -> dict:
     cleaned = content.strip()
     if cleaned.startswith("```"):
@@ -277,4 +305,3 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item) for item in value]
     return [str(value)]
-

@@ -1,11 +1,14 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 async function request(path, options = {}) {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
+    headers: isFormData
+      ? options.headers || {}
+      : {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        },
     ...options
   });
 
@@ -37,10 +40,21 @@ export const api = {
       body: JSON.stringify(payload)
     }),
   getMeeting: (meetingId) => request(`/api/meetings/${meetingId}`),
+  uploadMeetingFile: (meetingId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request(`/api/meetings/${meetingId}/files`, {
+      method: "POST",
+      body: formData
+    });
+  },
+  deleteFile: (fileId) =>
+    request(`/api/files/${fileId}`, {
+      method: "DELETE"
+    }),
   runMeeting: (meetingId) =>
     request(`/api/meetings/${meetingId}/run`, {
       method: "POST"
     }),
   reportUrl: (meetingId) => `${API_BASE_URL}/api/meetings/${meetingId}/report`
 };
-

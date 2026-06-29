@@ -64,6 +64,20 @@ def init_db(db_path: str | Path | None = None) -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS context_files (
+                id TEXT PRIMARY KEY,
+                meeting_id TEXT NOT NULL,
+                original_filename TEXT NOT NULL,
+                stored_path TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                extracted_text_path TEXT,
+                summary TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_column(

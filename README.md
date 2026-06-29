@@ -14,6 +14,8 @@ The backend keeps a `trade_review` structure so a future trading bot can request
 
 Phase 2 adds an LLM provider abstraction while keeping `mock` as the default. AI Council remains a review, risk analysis, and decision-support layer only. Broker APIs and automated order execution are still not implemented.
 
+Phase 3 adds meeting context files. Uploaded files are parsed into summaries and included as council context for mock or LLM-backed meetings. The system can review uploaded trading-related material, but it still does not connect to brokers or execute orders.
+
 ## Structure
 
 ```text
@@ -97,6 +99,43 @@ LLM_TIMEOUT_SECONDS=60 \
 
 Provider responses are stored as structured JSON with the agent output. If a provider fails, the meeting is marked `failed`, the error is recorded, and no broker connection or order execution is attempted.
 
+## Phase 3 Context Files
+
+Meeting files can be uploaded from the web UI or API. The backend stores the original file, extracted text, and a context summary under:
+
+```text
+data/uploads/{meeting_id}/
+```
+
+Supported file types:
+
+- `.txt`
+- `.md`
+- `.csv`
+- `.json`
+- `.log`
+- `.pdf` is accepted as a Phase 3 stub, stored as `unsupported`, and excluded from evidence-based analysis until a PDF parser is added.
+
+Safety limits:
+
+- Maximum file size: 2MB
+- Filenames are sanitized before storage
+- Path traversal is prevented by storing files under the controlled upload directory
+- Unsupported extensions are rejected
+- Binary content is rejected for text-based file types
+- Uploaded context is treated as user-provided evidence that still requires validation
+
+API example:
+
+```bash
+MEETING_ID="<meeting id>"
+curl -F "file=@notes.md" "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/files"
+curl "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/files"
+curl -X POST "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/run"
+```
+
+When a meeting is run, ready file summaries are included in the provider prompt. Reports include `Attached Context Files`, `File Summaries`, and `Context-aware Agent Notes`.
+
 ## Tests
 
 ```bash
@@ -111,5 +150,9 @@ cd ~/AI-council/backend
 - `GET /api/meetings`
 - `POST /api/meetings`
 - `GET /api/meetings/{meeting_id}`
+- `POST /api/meetings/{meeting_id}/files`
+- `GET /api/meetings/{meeting_id}/files`
 - `POST /api/meetings/{meeting_id}/run`
 - `GET /api/meetings/{meeting_id}/report`
+- `GET /api/files/{file_id}`
+- `DELETE /api/files/{file_id}`

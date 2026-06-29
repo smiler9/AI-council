@@ -70,6 +70,17 @@ def build_user_prompt(
             "topic": meeting["topic"],
             "ticker": meeting.get("ticker"),
             "subject": subject,
+            "context_summary": meeting.get("context_summary", "No attached context files."),
+            "context_files": [
+                {
+                    "id": file["id"],
+                    "filename": file["original_filename"],
+                    "file_type": file["file_type"],
+                    "status": file["status"],
+                    "summary": file["summary"],
+                }
+                for file in meeting.get("context_files", [])
+            ],
         },
         "agent": {
             "name": agent["name"],
@@ -94,4 +105,3 @@ def build_user_prompt(
         ],
     }
     return json.dumps(payload, indent=2, sort_keys=True)
-

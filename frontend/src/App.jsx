@@ -9,7 +9,9 @@ import {
   Plus,
   RefreshCw,
   Scale,
-  Shield
+  Shield,
+  Trash2,
+  Upload
 } from "lucide-react";
 import { api } from "./api";
 
@@ -34,9 +36,12 @@ export default function App() {
   const [topic, setTopic] = useState("");
   const [ticker, setTicker] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fileLoading, setFileLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState("");
 
   const selectedMeeting = detail?.meeting;
+  const contextFiles = detail?.files || [];
 
   const groupedOutputs = useMemo(() => {
     const groups = { analysis: [], rebuttal: [], summary: [] };
@@ -113,6 +118,7 @@ export default function App() {
       setDetail({
         meeting: payload.meeting,
         outputs: payload.outputs,
+        files: payload.files || contextFiles,
         report: payload.report
       });
       await loadMeetings(selectedId);
@@ -120,6 +126,37 @@ export default function App() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleUploadFile(event) {
+    event.preventDefault();
+    if (!selectedId || !selectedFile) return;
+    setFileLoading(true);
+    setError("");
+    try {
+      await api.uploadMeetingFile(selectedId, selectedFile);
+      setSelectedFile(null);
+      event.target.reset();
+      setDetail(await api.getMeeting(selectedId));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setFileLoading(false);
+    }
+  }
+
+  async function handleDeleteFile(fileId) {
+    if (!selectedId) return;
+    setFileLoading(true);
+    setError("");
+    try {
+      await api.deleteFile(fileId);
+      setDetail(await api.getMeeting(selectedId));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setFileLoading(false);
     }
   }
 
@@ -270,6 +307,56 @@ export default function App() {
                   <dd>{selectedMeeting.trade_review?.broker_integration_status || "not_connected"}</dd>
                 </div>
               </dl>
+
+              <div className="contextPanel">
+                <div className="panelHeading">
+                  <h3>Context Files</h3>
+                  <span>{contextFiles.length}</span>
+                </div>
+                <form className="fileUpload" onSubmit={handleUploadFile}>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.csv,.json,.log,.pdf"
+                    onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+                  />
+                  <button
+                    className="secondaryButton"
+                    type="submit"
+                    disabled={!selectedFile || fileLoading}
+                  >
+                    <Upload size={17} aria-hidden="true" />
+                    Upload
+                  </button>
+                </form>
+                <p className="contextHint">
+                  Uploaded text summaries are included in the next council run as meeting context.
+                </p>
+                <div className="fileList">
+                  {contextFiles.map((file) => (
+                    <div className="fileRow" key={file.id}>
+                      <div>
+                        <strong>{file.original_filename}</strong>
+                        <span>
+                          {file.file_type} · {file.status} · {Math.ceil(file.file_size / 1024)} KB
+                        </span>
+                        <p>{file.summary}</p>
+                      </div>
+                      <button
+                        className="iconButton"
+                        type="button"
+                        title="Delete file"
+                        disabled={fileLoading}
+                        onClick={() => handleDeleteFile(file.id)}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                  {contextFiles.length === 0 && (
+                    <div className="emptyState">No context files attached</div>
+                  )}
+                </div>
+              </div>
             </aside>
           </section>
         ) : (

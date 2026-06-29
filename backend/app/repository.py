@@ -235,3 +235,93 @@ def get_report(meeting_id: str, db_path: str | Path | None = None) -> dict | Non
             (meeting_id,),
         ).fetchone()
     return row_to_dict(row) if row else None
+
+
+def create_context_file(record: dict, db_path: str | Path | None = None) -> dict:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO context_files (
+                id,
+                meeting_id,
+                original_filename,
+                stored_path,
+                file_type,
+                file_size,
+                extracted_text_path,
+                summary,
+                status,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record["id"],
+                record["meeting_id"],
+                record["original_filename"],
+                record["stored_path"],
+                record["file_type"],
+                record["file_size"],
+                record.get("extracted_text_path"),
+                record["summary"],
+                record["status"],
+                record["created_at"],
+            ),
+        )
+    return get_context_file(record["id"], db_path)
+
+
+def list_context_files(meeting_id: str, db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                meeting_id,
+                original_filename,
+                stored_path,
+                file_type,
+                file_size,
+                extracted_text_path,
+                summary,
+                status,
+                created_at
+            FROM context_files
+            WHERE meeting_id = ?
+            ORDER BY created_at ASC, original_filename ASC
+            """,
+            (meeting_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def get_context_file(file_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                meeting_id,
+                original_filename,
+                stored_path,
+                file_type,
+                file_size,
+                extracted_text_path,
+                summary,
+                status,
+                created_at
+            FROM context_files
+            WHERE id = ?
+            """,
+            (file_id,),
+        ).fetchone()
+    return row_to_dict(row) if row else None
+
+
+def delete_context_file(file_id: str, db_path: str | Path | None = None) -> dict | None:
+    record = get_context_file(file_id, db_path)
+    if record is None:
+        return None
+    with get_connection(db_path) as connection:
+        connection.execute("DELETE FROM context_files WHERE id = ?", (file_id,))
+    return record

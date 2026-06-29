@@ -81,6 +81,7 @@ def build_failed_council_run(
 ) -> CouncilRun:
     by_key = _agent_by_key(agents)
     subject = _subject(meeting)
+    context_files = meeting.get("context_files", [])
     chairman = by_key.get("chairman") or agents[-1]
     message = (
         f"LLM provider '{provider_name}' failed while reviewing {subject}. "
@@ -122,6 +123,7 @@ def build_failed_council_run(
             "requires_future_risk_gate": True,
             "risk_gate_status": "not_implemented",
             "broker_integration_status": "not_connected",
+            "context_file_count": len(context_files),
         },
         status="failed",
     )
@@ -129,6 +131,7 @@ def build_failed_council_run(
 
 def _trade_review(meeting: dict, provider_name: str) -> dict:
     subject = _subject(meeting)
+    context_files = meeting.get("context_files", [])
     return {
         "phase": "phase_2_provider_abstraction",
         "subject": subject,
@@ -140,6 +143,16 @@ def _trade_review(meeting: dict, provider_name: str) -> dict:
         "requires_future_risk_gate": True,
         "risk_gate_status": "not_implemented",
         "broker_integration_status": "not_connected",
+        "context_file_count": len(context_files),
+        "context_files": [
+            {
+                "id": file["id"],
+                "filename": file["original_filename"],
+                "status": file["status"],
+                "file_type": file["file_type"],
+            }
+            for file in context_files
+        ],
         "evidence_requirements": [
             "validated financial filings",
             "validated news or SEC catalyst source",
