@@ -42,7 +42,8 @@ const DATA_QUALITY_LABELS = {
   unknown: "알 수 없음",
   moderate: "보통",
   failed: "실패",
-  unavailable: "사용 불가"
+  unavailable: "사용 불가",
+  mock: "Mock 데이터"
 };
 
 const AGENT_LABELS = {
@@ -130,6 +131,7 @@ export default function App() {
   const [tradeReviews, setTradeReviews] = useState([]);
   const [health, setHealth] = useState(null);
   const [marketDataStatus, setMarketDataStatus] = useState(null);
+  const [riskEventStatus, setRiskEventStatus] = useState(null);
   const [webhookStatus, setWebhookStatus] = useState(null);
   const [webhookEvents, setWebhookEvents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -166,6 +168,8 @@ export default function App() {
   });
   const [marketDataTicker, setMarketDataTicker] = useState("TESTA");
   const [marketDataResult, setMarketDataResult] = useState(null);
+  const [riskEventTicker, setRiskEventTicker] = useState("TESTB");
+  const [riskEventResult, setRiskEventResult] = useState(null);
   const [tradeReviewResult, setTradeReviewResult] = useState(null);
   const [tickerReviewResult, setTickerReviewResult] = useState(null);
   const [autonomousReviewResult, setAutonomousReviewResult] = useState(null);
@@ -175,6 +179,7 @@ export default function App() {
   const [tickerReviewLoading, setTickerReviewLoading] = useState(false);
   const [autonomousReviewLoading, setAutonomousReviewLoading] = useState(false);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
+  const [riskEventLoading, setRiskEventLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -212,9 +217,19 @@ export default function App() {
   async function loadInitialData() {
     setError("");
     try {
-      const [healthStatus, marketStatus, agentList, telegram, reviewList, hooks, events] = await Promise.all([
+      const [
+        healthStatus,
+        marketStatus,
+        riskStatus,
+        agentList,
+        telegram,
+        reviewList,
+        hooks,
+        events
+      ] = await Promise.all([
         api.getHealth(),
         api.getMarketDataStatus(),
+        api.getRiskEventStatus(),
         api.getAgents(),
         api.getTelegramStatus(),
         api.getTradeReviews(),
@@ -223,6 +238,7 @@ export default function App() {
       ]);
       setHealth(healthStatus);
       setMarketDataStatus(marketStatus);
+      setRiskEventStatus(riskStatus);
       setAgents(agentList);
       setTelegramStatus(telegram);
       setTradeReviews(reviewList);
@@ -406,6 +422,27 @@ export default function App() {
     }
   }
 
+  async function handleRiskEventLookup(kind) {
+    const tickerValue = riskEventTicker.trim();
+    if (!tickerValue) return;
+    setRiskEventLoading(true);
+    setError("");
+    try {
+      const requestMap = {
+        news: api.getRiskEventNews,
+        filings: api.getRiskEventFilings,
+        detect: api.getRiskEventDetection
+      };
+      const payload = await requestMap[kind](tickerValue);
+      setRiskEventResult({ kind, payload });
+      setRiskEventStatus(await api.getRiskEventStatus());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRiskEventLoading(false);
+    }
+  }
+
   async function handleSendTradeReviewTelegram() {
     const reviewId = tradeReviewResult?.trade_review?.id;
     if (!reviewId) return;
@@ -542,6 +579,7 @@ export default function App() {
           <a href="#dashboard">대시보드</a>
           <a href="#meetings">회의</a>
           <a href="#market-data">시장 데이터 상태</a>
+          <a href="#risk-events">뉴스/공시 리스크</a>
           <a href="#autonomous-review">자율 트레이더 검토</a>
           <a href="#ticker-review">종목 자동 분석</a>
           <a href="#trade-review">거래 신호 검토</a>
@@ -674,6 +712,7 @@ export default function App() {
         <DashboardCards
           health={health}
           marketDataStatus={marketDataStatus}
+          riskEventStatus={riskEventStatus}
           telegramStatus={telegramStatus}
           webhookStatus={webhookStatus}
           meetings={meetings}
@@ -689,6 +728,15 @@ export default function App() {
           result={marketDataResult}
           loading={marketDataLoading}
           onLookup={handleMarketDataLookup}
+        />
+
+        <RiskEventPanel
+          status={riskEventStatus}
+          ticker={riskEventTicker}
+          setTicker={setRiskEventTicker}
+          result={riskEventResult}
+          loading={riskEventLoading}
+          onLookup={handleRiskEventLookup}
         />
 
         <WebhookPanel
@@ -1150,7 +1198,15 @@ export default function App() {
   );
 }
 
-function DashboardCards({ health, marketDataStatus, telegramStatus, webhookStatus, meetings, tradeReviews }) {
+function DashboardCards({
+  health,
+  marketDataStatus,
+  riskEventStatus,
+  telegramStatus,
+  webhookStatus,
+  meetings,
+  tradeReviews
+}) {
   const backendOk = health?.status === "ok";
   const llmProvider = health?.llm_provider || "mock";
   const marketDataProvider =
@@ -1183,6 +1239,11 @@ function DashboardCards({ health, marketDataStatus, telegramStatus, webhookStatu
         <span>후보 발굴 provider</span>
         <strong>{marketDataProvider}</strong>
         <p>후보군은 mock universe를 기준으로 하며 snapshot provider를 반영합니다.</p>
+      </article>
+      <article>
+        <span>뉴스/공시 리스크</span>
+        <strong>{riskEventStatus?.risk_event_detector || "risk_event_detector"}</strong>
+        <p>뉴스 {riskEventStatus?.active_news_provider || "mock_news_provider"} · 공시 {riskEventStatus?.active_sec_filing_provider || "mock_sec_filing_provider"}</p>
       </article>
       <article>
         <span>텔레그램 상태</span>
@@ -1417,6 +1478,129 @@ function MarketDataPanel({ status, ticker, setTicker, result, loading, onLookup 
   );
 }
 
+function RiskEventPanel({ status, ticker, setTicker, result, loading, onLookup }) {
+  const events = result?.payload?.events || [];
+  const topEvent = result?.payload?.top_event;
+  return (
+    <section className="tradeReviewSection" id="risk-events">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">Phase 14 News, SEC Filing & Risk Event Provider</p>
+          <h3>뉴스/공시 리스크</h3>
+        </div>
+        <span>주문 실행 허용 여부: false</span>
+      </div>
+      <div className="webhookStatusGrid">
+        <div>
+          <span>뉴스 Provider</span>
+          <strong>{status?.active_news_provider || "mock_news_provider"}</strong>
+        </div>
+        <div>
+          <span>공시 Provider</span>
+          <strong>{status?.active_sec_filing_provider || "mock_sec_filing_provider"}</strong>
+        </div>
+        <div>
+          <span>Detector</span>
+          <strong>{status?.detector_enabled ? "켜짐" : "꺼짐"}</strong>
+        </div>
+        <div>
+          <span>외부 뉴스 사용 여부</span>
+          <strong>{booleanKo(Boolean(status?.news_external_enabled))}</strong>
+        </div>
+        <div>
+          <span>외부 공시 사용 여부</span>
+          <strong>{booleanKo(Boolean(status?.sec_external_enabled))}</strong>
+        </div>
+        <div>
+          <span>주문 실행 허용 여부</span>
+          <strong>{booleanKo(Boolean(status?.order_execution_allowed))}</strong>
+        </div>
+      </div>
+      <form className="marketDataLookup" onSubmit={(event) => event.preventDefault()}>
+        <label>
+          <span>티커</span>
+          <input
+            value={ticker}
+            onChange={(event) => setTicker(event.target.value)}
+            placeholder="TESTB"
+            maxLength={16}
+          />
+        </label>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !ticker.trim()}
+          onClick={() => onLookup("news")}
+        >
+          뉴스 조회
+        </button>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !ticker.trim()}
+          onClick={() => onLookup("filings")}
+        >
+          공시 조회
+        </button>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !ticker.trim()}
+          onClick={() => onLookup("detect")}
+        >
+          리스크 이벤트 감지
+        </button>
+      </form>
+      <p className="contextHint">
+        뉴스와 공시 텍스트를 읽기 전용으로 분류합니다. 이 기능은 주문을 실행하지 않습니다.
+      </p>
+      {result && (
+        <div className="jsonResult">
+          <div className="panelHeading">
+            <h3>{result.kind} 결과</h3>
+            <span>{booleanKo(Boolean(result.payload?.order_execution_allowed))}</span>
+          </div>
+          {topEvent && (
+            <div className="decisionMetrics compactMetrics">
+              <div>
+                <span>Top 이벤트</span>
+                <strong>{topEvent.event_type}</strong>
+              </div>
+              <div>
+                <span>심각도</span>
+                <strong>{riskLevelLabel(topEvent.severity)}</strong>
+              </div>
+              <div>
+                <span>판단 영향</span>
+                <strong>{topEvent.recommended_decision_impact}</strong>
+              </div>
+            </div>
+          )}
+          {events.length > 0 && (
+            <div className="autonomousGroups">
+              <div className="autonomousGroup">
+                <h4>감지된 이벤트</h4>
+                {events.map((event) => (
+                  <article key={`${event.event_type}-${event.severity}`}>
+                    <div>
+                      <strong>{event.event_type}</strong>
+                      <span>
+                        심각도 {riskLevelLabel(event.severity)} · 판단 영향 {event.recommended_decision_impact}
+                      </span>
+                      <span>근거: {(event.evidence || []).slice(0, 2).join("; ") || "없음"}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+          <pre>{JSON.stringify(result.payload, null, 2)}</pre>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }) {
   const endpoint = `${api.baseUrl}${status?.endpoint || "/api/webhooks/trade-signal"}`;
   const reviewById = new Map(tradeReviews.map((review) => [review.id, review]));
@@ -1553,6 +1737,11 @@ function AutonomousReviewResult({ result, onOpenMeeting }) {
                     <span>
                       {decisionLabel(item.decision)} · {riskLevelLabel(item.risk_level)} · {item.scan_reason}
                     </span>
+                    {item.top_risk_event?.event_type && (
+                      <span>
+                        리스크 이벤트 {item.top_risk_event.event_type} · {riskLevelLabel(item.risk_event_severity)}
+                      </span>
+                    )}
                     <span>주문 실행 허용 여부: {booleanKo(Boolean(item.order_execution_allowed))}</span>
                   </div>
                   <button
@@ -1584,6 +1773,8 @@ function TickerReviewResult({ result, onOpenMeeting }) {
   const tradeReview = result.trade_review || {};
   const decision = result.structured_decision || tradeReview.structured_decision || {};
   const marketData = result.market_data || {};
+  const riskEvents = result.risk_events || {};
+  const topRiskEvent = riskEvents.top_event || {};
   const linkedMeetingId = tickerReview.linked_meeting_id || tradeReview.linked_meeting_id;
   return (
     <section className="tradeReviewResultCard">
@@ -1615,6 +1806,14 @@ function TickerReviewResult({ result, onOpenMeeting }) {
         <div>
           <span>사용 provider</span>
           <strong>{marketData.provider || "mock_market_data"}</strong>
+        </div>
+        <div>
+          <span>Top 리스크 이벤트</span>
+          <strong>{topRiskEvent.event_type || "없음"}</strong>
+        </div>
+        <div>
+          <span>리스크 이벤트 심각도</span>
+          <strong>{topRiskEvent.severity ? riskLevelLabel(topRiskEvent.severity) : "없음"}</strong>
         </div>
         <div>
           <span>거래 검토 ID</span>

@@ -6,6 +6,7 @@ from .council import KOREAN_SAFETY_BOUNDARY
 from .llm.config import LLMConfig
 from .market_data import MarketDataConfig, get_market_data_provider
 from .repository import create_autonomous_review, get_autonomous_review
+from .risk_events import RiskEventConfig
 from .schemas import AutonomousReviewCreate, TickerReviewCreate
 from .services.telegram_service import TelegramService
 from .ticker_reviews import run_ticker_review
@@ -35,6 +36,7 @@ def run_autonomous_review(
     report_dir: str | Path | None,
     llm_config: LLMConfig,
     market_data_config: MarketDataConfig,
+    risk_event_config: RiskEventConfig | None = None,
 ) -> dict:
     timeframe = payload.timeframe.strip() or "1d"
     provider = get_market_data_provider(market_data_config)
@@ -59,12 +61,15 @@ def run_autonomous_review(
             report_dir=report_dir,
             llm_config=llm_config,
             market_data_config=market_data_config,
+            risk_event_config=risk_event_config,
             market_data_override=candidate,
             source=SOURCE,
         )
         ticker_review = candidate_result["ticker_review"]
         trade_review = candidate_result["trade_review"]
         decision = candidate_result["structured_decision"]
+        risk_detection = candidate_result.get("risk_events") or {}
+        top_event = risk_detection.get("top_event") or {}
         ticker_review_ids.append(ticker_review["id"])
         trade_review_ids.append(trade_review["id"])
         results.append(
@@ -79,6 +84,10 @@ def run_autonomous_review(
                 "linked_ticker_review_id": ticker_review["id"],
                 "linked_meeting_id": trade_review["linked_meeting_id"],
                 "data_quality": candidate.get("data_quality", "limited"),
+                "risk_events": risk_detection.get("events", []),
+                "top_risk_event": top_event,
+                "risk_event_severity": top_event.get("severity"),
+                "risk_event_decision_impact": risk_detection.get("decision_impact"),
                 "market_data": candidate,
             }
         )

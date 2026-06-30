@@ -41,6 +41,12 @@ export const api = {
   getMarketDataNews: (ticker) => request(`/api/market-data/news/${encodeURIComponent(ticker)}`),
   getMarketDataFilings: (ticker) =>
     request(`/api/market-data/filings/${encodeURIComponent(ticker)}`),
+  getRiskEventStatus: () => request("/api/risk-events/status"),
+  getRiskEventNews: (ticker) => request(`/api/risk-events/news/${encodeURIComponent(ticker)}`),
+  getRiskEventFilings: (ticker) =>
+    request(`/api/risk-events/filings/${encodeURIComponent(ticker)}`),
+  getRiskEventDetection: (ticker) =>
+    request(`/api/risk-events/detect/${encodeURIComponent(ticker)}`),
   getTelegramStatus: () => request("/api/telegram/status"),
   getWebhookStatus: () => request("/api/webhooks/status"),
   getWebhookEvents: () => request("/api/webhooks/events"),

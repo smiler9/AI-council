@@ -20,6 +20,7 @@ def build_markdown_report(
     trade_signal = meeting.get("trade_signal") or {}
     auto_research_metadata = trade_signal.get("auto_research_metadata") or {}
     auto_research_context = trade_signal.get("risk_context") or {}
+    risk_events = auto_research_context.get("risk_events") or []
     debate_messages = messages or []
     structured_decision = meeting.get("structured_decision", {})
     trade_review = json.dumps(meeting["trade_review"], indent=2, sort_keys=True)
@@ -70,6 +71,51 @@ def build_markdown_report(
             ]
         )
     if trade_signal:
+        lines.extend(
+            [
+                "## 뉴스/공시 리스크 이벤트",
+                "",
+            ]
+        )
+        if risk_events:
+            lines.extend(
+                [
+                    f"- 감지된 리스크 이벤트 수: `{auto_research_context.get('detected_event_count', len(risk_events))}`",
+                    f"- 고위험 이벤트 수: `{auto_research_context.get('high_severity_event_count', 0)}`",
+                    f"- 데이터 품질: `{auto_research_context.get('risk_event_data_quality', auto_research_context.get('data_quality', 'limited'))}`",
+                    f"- 판단 영향: `{auto_research_context.get('risk_event_decision_impact', 'NONE')}`",
+                    "",
+                    "### 감지된 리스크 이벤트",
+                    "",
+                ]
+            )
+            for event in risk_events:
+                lines.extend(
+                    [
+                        f"- `{event.get('event_type')}` / 심각도 `{event.get('severity')}` / 신뢰도 `{event.get('confidence')}` / 영향 `{event.get('recommended_decision_impact')}`",
+                    ]
+                )
+            lines.extend(["", "### 주요 근거", ""])
+            for event in risk_events:
+                evidence = event.get("evidence") or []
+                if evidence:
+                    lines.append(f"- `{event.get('event_type')}`: " + "; ".join(evidence[:3]))
+            lines.extend(["", "### 판단에 미친 영향", ""])
+            lines.append(
+                "고위험 뉴스/공시 이벤트는 structured decision의 리스크 플래그와 추가 확인 필요사항에 반영됩니다."
+            )
+            lines.append("")
+        else:
+            lines.extend(
+                [
+                    "감지된 뉴스/공시 리스크 이벤트가 없습니다.",
+                    "",
+                    "### 데이터 품질",
+                    "",
+                    f"`{auto_research_context.get('risk_event_data_quality', auto_research_context.get('data_quality', 'limited'))}`",
+                    "",
+                ]
+            )
         lines.extend(
             [
                 "이 외부 신호는 읽기 전용 검토 문맥으로만 사용되었습니다. 주문이 아닙니다.",

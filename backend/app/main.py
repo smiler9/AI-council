@@ -23,6 +23,14 @@ from .llm.config import LLMConfig, load_llm_config
 from .llm.providers import LLMProviderError, get_llm_provider
 from .market_data import MarketDataConfig, get_market_data_provider, load_market_data_config
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
+from .risk_events import (
+    RiskEventConfig,
+    detect_risk_events,
+    get_news_provider,
+    get_sec_filing_provider,
+    load_risk_event_config,
+    risk_event_status,
+)
 from .repository import (
     create_context_file,
     create_webhook_event,
@@ -81,6 +89,7 @@ def create_app(
     telegram_config: TelegramConfig | None = None,
     webhook_config: WebhookConfig | None = None,
     market_data_config: MarketDataConfig | None = None,
+    risk_event_config: RiskEventConfig | None = None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path or DEFAULT_DB_PATH)
     resolved_report_dir = Path(report_dir or DEFAULT_REPORT_DIR)
@@ -89,6 +98,7 @@ def create_app(
     resolved_telegram_config = telegram_config or load_telegram_config()
     resolved_webhook_config = webhook_config or load_webhook_config()
     resolved_market_data_config = market_data_config or load_market_data_config()
+    resolved_risk_event_config = risk_event_config or load_risk_event_config()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -104,6 +114,7 @@ def create_app(
     app.state.telegram_config = resolved_telegram_config
     app.state.webhook_config = resolved_webhook_config
     app.state.market_data_config = resolved_market_data_config
+    app.state.risk_event_config = resolved_risk_event_config
 
     app.add_middleware(
         CORSMiddleware,
@@ -153,6 +164,7 @@ def create_app(
                 "candidate_provider": "mock_market_data",
                 "order_execution_allowed": False,
             },
+            "risk_events": risk_event_status(app.state.risk_event_config),
             "telegram": TelegramService(app.state.telegram_config).status(),
             "webhooks": webhook_status(app.state.webhook_config),
         }
@@ -227,6 +239,24 @@ def create_app(
     def get_market_data_filings(ticker: str) -> dict:
         provider = get_market_data_provider(app.state.market_data_config)
         return provider.filings(ticker)
+
+    @app.get("/api/risk-events/status")
+    def get_risk_event_status() -> dict:
+        return risk_event_status(app.state.risk_event_config)
+
+    @app.get("/api/risk-events/news/{ticker}")
+    def get_risk_event_news(ticker: str) -> dict:
+        provider = get_news_provider(app.state.risk_event_config)
+        return provider.news(ticker)
+
+    @app.get("/api/risk-events/filings/{ticker}")
+    def get_risk_event_filings(ticker: str) -> dict:
+        provider = get_sec_filing_provider(app.state.risk_event_config)
+        return provider.filings(ticker)
+
+    @app.get("/api/risk-events/detect/{ticker}")
+    def get_risk_event_detection(ticker: str) -> dict:
+        return detect_risk_events(ticker, app.state.risk_event_config)
 
     @app.get("/api/webhooks/status")
     def get_webhook_status() -> dict:
@@ -414,6 +444,7 @@ def create_app(
             report_dir=app.state.report_dir,
             llm_config=app.state.llm_config,
             market_data_config=app.state.market_data_config,
+            risk_event_config=app.state.risk_event_config,
         )
 
     @app.post("/api/autonomous-reviews", status_code=201)
@@ -424,6 +455,7 @@ def create_app(
             report_dir=app.state.report_dir,
             llm_config=app.state.llm_config,
             market_data_config=app.state.market_data_config,
+            risk_event_config=app.state.risk_event_config,
         )
 
     @app.post("/api/autonomous-reviews/{review_id}/telegram/send")

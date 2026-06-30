@@ -440,6 +440,8 @@ def _risk_level_for_mode(
     if mode == "risk_gate_review" and trade_signal:
         if "very_high_spread_risk" in risk_flags:
             return "critical"
+        if {"critical_risk_event", "delisting_notice_risk", "trading_halt_risk"}.intersection(risk_flags):
+            return "critical"
         if {
             "high_spread_risk",
             "low_volume_risk",
@@ -447,6 +449,12 @@ def _risk_level_for_mode(
             "missing_news_context",
             "manipulation_risk",
             "automation_not_approved",
+            "high_severity_risk_event",
+            "offering_risk",
+            "reverse_split_risk",
+            "pump_promotion_risk",
+            "dilution_risk",
+            "sec_investigation_risk",
         }.intersection(risk_flags):
             return "high"
         return "medium"
@@ -454,7 +462,18 @@ def _risk_level_for_mode(
         return "critical"
     if mode in {"deep_debate", "skeptic_review"}:
         return "high"
-    if "manipulation_risk" in risk_flags or "automation_not_approved" in risk_flags:
+    if {"critical_risk_event", "delisting_notice_risk", "trading_halt_risk"}.intersection(risk_flags):
+        return "critical"
+    if {
+        "manipulation_risk",
+        "automation_not_approved",
+        "high_severity_risk_event",
+        "offering_risk",
+        "reverse_split_risk",
+        "pump_promotion_risk",
+        "dilution_risk",
+        "sec_investigation_risk",
+    }.intersection(risk_flags):
         return "high"
     if not context_files:
         return "medium"
@@ -499,6 +518,7 @@ def _trade_signal_rules(trade_signal: dict) -> dict:
     volume = _as_float(trade_signal.get("volume"))
     news_headlines = trade_signal.get("news_headlines") or []
     side = str(trade_signal.get("side") or "").strip().lower()
+    risk_events = risk_context.get("risk_events") or []
 
     if spread_pct is None:
         rules["evidence_gaps"].append("spread data")
@@ -536,6 +556,33 @@ def _trade_signal_rules(trade_signal: dict) -> dict:
         rules["primary_reasons"].append(
             f"Input side '{side}' was stored only as review context and was not treated as an order."
         )
+
+    for event in risk_events:
+        event_type = str(event.get("event_type") or "").strip()
+        severity = str(event.get("severity") or "").strip()
+        if not event_type:
+            continue
+        event_flag = event_type if event_type.endswith("_risk") else f"{event_type}_risk"
+        rules["risk_flags"].append(event_flag)
+        if severity in {"high", "critical"}:
+            rules["risk_flags"].append("high_severity_risk_event")
+        if severity == "critical":
+            rules["risk_flags"].append("critical_risk_event")
+        if event_type in {"offering", "reverse_split", "delisting_notice", "trading_halt"}:
+            rules["risk_flags"].append(f"{event_type}_risk")
+        if event_type == "no_recent_news":
+            rules["evidence_gaps"].append("recent news validation")
+            rules["data_quality"] = "limited"
+        if event_type == "insufficient_disclosure":
+            rules["evidence_gaps"].append("recent SEC filing validation")
+            rules["data_quality"] = "limited"
+        if severity in {"high", "critical"}:
+            rules["primary_reasons"].append(
+                f"Risk event '{event_type}' detected with {severity} severity."
+            )
+            rules["required_follow_up"].append(
+                f"Validate risk event '{event_type}' from primary news or SEC filing sources."
+            )
 
     return rules
 
