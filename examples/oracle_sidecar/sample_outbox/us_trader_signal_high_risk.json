@@ -1,0 +1,26 @@
+{
+  "source": "us_trader_oracle",
+  "signal_id": "sidecar_high_risk_001",
+  "symbol": "TESTB",
+  "scan_reason": "high_spread_risk",
+  "action": "entry",
+  "current_price": 0.29,
+  "acc_volume": 620000,
+  "timeframe": "1m",
+  "scores": {
+    "rsi": 82,
+    "relative_volume": 12.4
+  },
+  "headlines": [],
+  "risk_flags": [
+    "spread_too_wide",
+    "premarket_liquidity_risk"
+  ],
+  "meta": {
+    "spread_pct": 9.1,
+    "premarket": true,
+    "float_rotation": 0.7
+  },
+  "order_execution_allowed": false,
+  "notes": "High-risk sidecar sample for HOLD/BLOCK review behavior."
+}

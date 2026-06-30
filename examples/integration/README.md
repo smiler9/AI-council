@@ -176,6 +176,39 @@ python3 examples/integration/run_us_trader_oracle_bridge_smoke.py --pretty
 
 이 smoke test는 Oracle 서버에 접속하지 않고, systemd service를 조작하지 않고, 브로커 API를 호출하지 않고, 실제 주문을 생성하지 않습니다.
 
+## Oracle Sidecar Smoke Test
+
+Phase 24C smoke test는 sample outbox JSON 파일을 임시 디렉터리에 복사한 뒤 sidecar bridge의 dry-run, normalize-preview, duplicate suppression을 검증합니다.
+
+실행:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_sidecar_smoke.sh
+```
+
+직접 실행:
+
+```bash
+python3 examples/integration/run_oracle_sidecar_smoke.py --pretty
+```
+
+검증 항목:
+
+- backend `/health`
+- diagnostics summary
+- `examples/oracle_sidecar/sample_outbox/*.json`
+- sidecar bridge dry-run
+- sidecar bridge preview mode
+- order-like field warning
+- high-risk signal preview
+- state 기반 duplicate suppression
+- `order_execution_allowed=false`
+
+기본 smoke test는 review mode를 실행하지 않습니다. Webhook이 안전하게 configured 상태일 때 별도 환경에서만 review mode를 수동 검증합니다.
+
+이 smoke test는 Oracle 서버에 접속하지 않고, Oracle live bot 파일을 수정하지 않고, systemd service를 조작하지 않고, 실제 주문을 실행하지 않습니다.
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

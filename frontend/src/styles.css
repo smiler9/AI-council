@@ -639,6 +639,18 @@ select:focus {
   padding: 12px;
 }
 
+.commandSnippet {
+  margin: 0;
+  overflow: auto;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #17202a;
+  color: #e9f1f7;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 12px;
+}
+
 .checkboxLabel {
   align-content: end;
   grid-template-columns: 18px minmax(0, 1fr);

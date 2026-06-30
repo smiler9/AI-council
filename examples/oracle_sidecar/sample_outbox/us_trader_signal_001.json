@@ -1,0 +1,26 @@
+{
+  "source": "us_trader_oracle",
+  "signal_id": "sidecar_signal_001",
+  "symbol": "TESTA",
+  "signal": "breakout",
+  "action": "buy",
+  "price": 0.82,
+  "volume": 12500000,
+  "timeframe": "1m",
+  "indicators": {
+    "rsi": 68,
+    "relative_volume": 5.2,
+    "vwap_distance": 0.04
+  },
+  "news": [
+    "TESTA sample sidecar momentum headline"
+  ],
+  "risk": {
+    "spread_pct": 3.2,
+    "premarket": false,
+    "float_rotation": 1.4
+  },
+  "timestamp": "2026-06-30T09:35:00Z",
+  "order_execution_allowed": false,
+  "notes": "Oracle sidecar sample signal. Buy language is review context only."
+}

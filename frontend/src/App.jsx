@@ -4162,6 +4162,44 @@ function WebhookPanel({
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">
           <div>
+            <p className="eyebrow">Oracle Sidecar 연동</p>
+            <h4>Outbox 신호 파일 기반 계획</h4>
+          </div>
+          <span className="statusPill">Preview 우선</span>
+        </div>
+        <p className="contextHint">
+          이 단계는 신호 export 구조 검증용입니다. Oracle 운영봇 직접 수정 없이 sample outbox 파일을
+          normalize-preview로 검증하고, review-only 모드는 명시적으로 선택할 때만 사용합니다.
+        </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>문서</span>
+            <strong>docs/US_TRADER_ORACLE_SIDECAR_PLAN.md</strong>
+          </div>
+          <div>
+            <span>샘플 Outbox</span>
+            <strong>examples/oracle_sidecar/sample_outbox</strong>
+          </div>
+          <div>
+            <span>Smoke test</span>
+            <strong>scripts/run_oracle_sidecar_smoke.sh</strong>
+          </div>
+          <div>
+            <span>주문 실행 허용 여부</span>
+            <strong>아니오</strong>
+          </div>
+        </div>
+        <pre className="commandSnippet">
+{`python3 examples/oracle_sidecar/us_trader_signal_outbox_bridge.py \\
+  --outbox examples/oracle_sidecar/sample_outbox \\
+  --mode preview \\
+  --dry-run \\
+  --pretty`}
+        </pre>
+      </div>
+      <div className="webhookPreview">
+        <div className="tradeReviewHeader compact">
+          <div>
             <p className="eyebrow">Payload 호환성</p>
             <h4>Payload 정규화 미리보기</h4>
           </div>

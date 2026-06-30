@@ -12,6 +12,8 @@ backend/data/uploads/
 data/uploads/
 data/reports/*.md
 reports/*.md
+examples/oracle_sidecar/sample_state/*.json
+examples/oracle_sidecar/sample_state/*.tmp
 .env
 .env.local
 npm-debug.log*
