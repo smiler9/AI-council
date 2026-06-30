@@ -1,0 +1,7 @@
+# Oracle sidecar cron example for manual review only.
+# This file is not installed by AI Council.
+# Keep the sidecar in preview mode until a separate manual approval allows review-only webhook mode.
+# No broker API is called. No real order is created or transmitted.
+
+# Example, after manual approval and environment preparation:
+# */5 * * * * cd <oracle-sidecar-dir> && /usr/bin/env bash -lc 'source <oracle-env-file> && python3 us_trader_signal_outbox_bridge.py --mode preview --outbox "$US_TRADER_SIGNAL_OUTBOX_DIR" >> <oracle-log-dir>/ai_council_sidecar.log 2>&1'

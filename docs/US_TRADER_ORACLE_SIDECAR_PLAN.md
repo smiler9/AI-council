@@ -130,6 +130,17 @@ Phase 24E staging rehearsal:
 
 Staging rehearsal은 로컬 복사본 또는 fixture를 대상으로 patch preview를 생성하고 validate합니다. 운영본에는 적용하지 않습니다.
 
+Phase 24F deployment bundle과 수동 승인:
+
+- `examples/oracle_deployment/`
+- `docs/US_TRADER_ORACLE_MANUAL_APPROVAL_GATE.md`
+- `docs/US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md`
+- `scripts/build_oracle_signal_export_bundle.sh`
+- `scripts/verify_oracle_signal_export_bundle.sh`
+- `scripts/run_oracle_readiness_check_dryrun.sh`
+
+Bundle은 기본적으로 `tmp/oracle_signal_export_bundle/`에 생성되며 Git에 포함하지 않습니다. 실제 Oracle 복사, systemd 조작, 운영봇 patch는 manual approval gate와 deployment runbook 검토 전까지 수행하지 않습니다.
+
 ## 안전한 export hook 삽입 위치 후보
 
 향후 별도 검증 후에만 고려할 수 있는 후보:

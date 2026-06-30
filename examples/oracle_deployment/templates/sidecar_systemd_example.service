@@ -1,0 +1,18 @@
+# Oracle sidecar systemd unit example for manual review only.
+# This file is documentation. AI Council does not install or enable it.
+# Keep mode=preview until a separate manual approval allows review-only webhook mode.
+# No broker API is called. No real order is created or transmitted.
+
+[Unit]
+Description=AI Council US Trader sidecar preview bridge
+Documentation=docs/US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=<oracle-sidecar-dir>
+EnvironmentFile=<oracle-env-file>
+# Manual approval required before copying this command into a real unit.
+# Command: python3 us_trader_signal_outbox_bridge.py --mode preview --outbox "$US_TRADER_SIGNAL_OUTBOX_DIR"
+
+[Install]
+WantedBy=multi-user.target

@@ -135,6 +135,18 @@ scripts/run_oracle_sidecar_smoke.sh
 
 Phase 24E staging rehearsal은 운영본을 수정하지 않고 patch preview를 생성하고 정적 검증합니다.
 
+## Phase 24F deployment bundle과 manual approval
+
+Phase 24F는 patch draft를 실제 적용하기 전에 deployment bundle과 수동 승인 게이트를 추가합니다.
+
+```bash
+scripts/build_oracle_signal_export_bundle.sh
+scripts/verify_oracle_signal_export_bundle.sh
+scripts/run_oracle_readiness_check_dryrun.sh
+```
+
+실제 Oracle 적용은 아직 수행하지 않습니다. `docs/US_TRADER_ORACLE_MANUAL_APPROVAL_GATE.md`와 `docs/US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md`를 승인자가 검토한 뒤 별도 단계에서만 진행합니다.
+
 ## 적용 후 preview-only 검증 절차
 
 1. outbox에 JSON 생성 확인

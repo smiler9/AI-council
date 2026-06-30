@@ -1,0 +1,18 @@
+{
+  "bundle_name": "oracle_signal_export_bundle",
+  "generated_at": "2026-06-30T00:00:00+00:00",
+  "order_execution_allowed": false,
+  "oracle_server_contacted": false,
+  "manual_approval_required": true,
+  "files": [
+    {
+      "path": "ai_council_signal_exporter_module.py",
+      "sha256": "<sha256>"
+    }
+  ],
+  "safety_notes": [
+    "Bundle generation is local only.",
+    "AI Council does not execute trades or connect to broker APIs.",
+    "Oracle live bot patching requires separate manual approval."
+  ]
+}

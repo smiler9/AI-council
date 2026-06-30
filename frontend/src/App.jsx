@@ -4240,6 +4240,28 @@ function WebhookPanel({
           운영봇 수정 전 로컬 staging copy에서 patch preview를 검증합니다. 이 단계는 실제 Oracle 서버를 수정하지
           않고 실제 주문을 실행하지 않습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle 배포 번들</span>
+            <strong>scripts/build_oracle_signal_export_bundle.sh</strong>
+          </div>
+          <div>
+            <span>번들 검증</span>
+            <strong>scripts/verify_oracle_signal_export_bundle.sh</strong>
+          </div>
+          <div>
+            <span>Read-only readiness check</span>
+            <strong>scripts/run_oracle_readiness_check_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>수동 승인 게이트</span>
+            <strong>docs/US_TRADER_ORACLE_MANUAL_APPROVAL_GATE.md</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          배포 번들은 로컬 `tmp/`에만 생성됩니다. 실제 Oracle 서버 수정, systemd 조작, 운영봇 patch는 수동 승인
+          전까지 수행하지 않습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

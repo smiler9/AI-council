@@ -257,6 +257,27 @@ scripts/run_oracle_staging_rehearsal.sh
 
 이 리허설은 Oracle 서버에 접속하지 않고, local backup 원본을 수정하지 않고, 실제 주문을 실행하지 않습니다.
 
+## Oracle Deployment Bundle Approval Gate
+
+Phase 24F는 Oracle 적용 전에 deployment bundle을 로컬에서 만들고 검증하며, readiness check를 dry-run으로 확인합니다.
+
+```bash
+cd ~/AI-council
+scripts/build_oracle_signal_export_bundle.sh
+scripts/verify_oracle_signal_export_bundle.sh
+scripts/run_oracle_readiness_check_dryrun.sh
+```
+
+검증 항목:
+
+- bundle manifest와 sha256
+- secret/API key/token/private key marker 없음
+- 실제 Oracle IP/SSH key path 하드코딩 없음
+- systemd start/stop/restart 자동 실행 없음
+- `order_execution_allowed=false`
+
+실제 Oracle 서버에 파일을 쓰거나 service를 조작하지 않습니다.
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

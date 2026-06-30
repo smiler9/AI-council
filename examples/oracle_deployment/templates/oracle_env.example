@@ -1,0 +1,15 @@
+# Placeholder-only environment file for the Oracle sidecar preview.
+# Do not commit real secrets, tokens, account IDs, private keys, or host values.
+
+AI_COUNCIL_BASE_URL=<ai-council-base-url>
+AI_COUNCIL_WEBHOOK_SECRET=<optional-webhook-secret>
+AI_COUNCIL_TIMEOUT_SECONDS=30
+
+US_TRADER_SIGNAL_OUTBOX_DIR=<oracle-outbox-dir>
+US_TRADER_SIGNAL_PROCESSED_DIR=<oracle-processed-dir>
+US_TRADER_SIGNAL_FAILED_DIR=<oracle-failed-dir>
+US_TRADER_SIGNAL_STATE_PATH=<oracle-state-json-path>
+US_TRADER_BRIDGE_MODE=preview
+US_TRADER_BRIDGE_PROFILE=us_trader_oracle_v1
+
+ORDER_EXECUTION_ALLOWED=false

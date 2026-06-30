@@ -19,6 +19,10 @@ examples/oracle_sidecar/sample_state/*.tmp
 npm-debug.log*
 tmp/
 staging_runs/
+deployment_bundles/
 examples/oracle_staging/output/
 examples/oracle_staging/staging_output/
 examples/oracle_staging/.state/
+examples/oracle_deployment/output/
+examples/oracle_deployment/bundles/
+examples/oracle_deployment/.state/

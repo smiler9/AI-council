@@ -1,0 +1,18 @@
+{
+  "approval_status": "not_approved",
+  "reviewer": "<manual-reviewer>",
+  "reviewed_at": null,
+  "bundle_manifest_sha256": "<manifest-sha256>",
+  "checks": {
+    "sidecar_smoke_passed": false,
+    "export_hook_preflight_passed": false,
+    "staging_rehearsal_passed": false,
+    "deployment_bundle_verified": false,
+    "oracle_readiness_dry_run_reviewed": false,
+    "rollback_plan_reviewed": false,
+    "preview_only_mode_confirmed": false,
+    "order_execution_allowed_false_confirmed": false
+  },
+  "approval_notes": "Do not deploy until every check is true and separately approved.",
+  "order_execution_allowed": false
+}

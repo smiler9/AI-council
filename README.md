@@ -1626,6 +1626,52 @@ Patch preview는 운영본에 적용하지 않습니다. 생성물은 임시 sta
 - `place_order/check_exits/force_close_all` 내부 hook 삽입 금지
 - `order_execution_allowed=false`
 
+## Phase 24F Oracle Deployment Bundle Approval Gate
+
+Phase 24F는 Oracle 운영봇에 signal export hook을 실제 적용하기 전, 사람이 수동으로 검토하고 승인할 수 있는 deployment bundle, readiness dry-run, manual approval gate, deployment runbook을 추가합니다.
+
+추가 파일:
+
+- `examples/oracle_deployment/build_signal_export_bundle.py`
+- `examples/oracle_deployment/verify_signal_export_bundle.py`
+- `examples/oracle_deployment/oracle_readiness_check.py`
+- `examples/oracle_deployment/templates/`
+- `docs/US_TRADER_ORACLE_MANUAL_APPROVAL_GATE.md`
+- `docs/US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md`
+- `scripts/build_oracle_signal_export_bundle.sh`
+- `scripts/verify_oracle_signal_export_bundle.sh`
+- `scripts/run_oracle_readiness_check_dryrun.sh`
+
+로컬 bundle 생성:
+
+```bash
+cd ~/AI-council
+scripts/build_oracle_signal_export_bundle.sh
+```
+
+bundle 검증:
+
+```bash
+scripts/verify_oracle_signal_export_bundle.sh
+```
+
+Oracle readiness dry-run:
+
+```bash
+scripts/run_oracle_readiness_check_dryrun.sh
+```
+
+Phase 24F의 기본 원칙:
+
+- deployment bundle은 `tmp/oracle_signal_export_bundle/`에 생성되며 Git에 포함하지 않음
+- readiness check 기본값은 SSH 없이 command preview만 출력
+- 실제 Oracle 적용은 별도 수동 승인 전까지 하지 않음
+- systemd start/stop/restart 자동 실행 없음
+- Oracle live bot 직접 수정 없음
+- 브로커 API 연결 없음
+- 실제 주문 실행 없음
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

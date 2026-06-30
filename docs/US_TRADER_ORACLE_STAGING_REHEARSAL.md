@@ -154,10 +154,25 @@ ORACLE_SSH_KEY=<path-to-private-key>
 
 ## 다음 단계 Phase 24F 후보
 
-- 로컬 백업본 대상 patch preview 정밀 diff 리뷰
-- exporter feature flag 설계
-- Oracle 적용 전 read-only deployment checklist 강화
+- deployment bundle 생성
+- deployment bundle verify
+- Oracle read-only readiness dry-run
+- manual approval gate 문서 검토
+- deployment runbook 검토
 - 운영 적용은 별도 승인 후 maintenance window에서만 검토
+
+관련 명령:
+
+```bash
+scripts/build_oracle_signal_export_bundle.sh
+scripts/verify_oracle_signal_export_bundle.sh
+scripts/run_oracle_readiness_check_dryrun.sh
+```
+
+관련 문서:
+
+- `docs/US_TRADER_ORACLE_MANUAL_APPROVAL_GATE.md`
+- `docs/US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md`
 
 ## 안전 경계
 
