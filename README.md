@@ -1457,6 +1457,52 @@ python3 examples/integration/run_diagnostics.py --base-url http://127.0.0.1:8000
 - E2E는 API에서 자동 실행하지 않습니다. 긴 점검은 CLI `scripts/run_full_e2e.sh`로 실행합니다.
 - Diagnostics는 브로커 API에 연결하지 않고, 실제 주문 생성/전송/승인/취소/실행을 수행하지 않습니다.
 
+## Phase 24B US Trader Oracle Read-only Bridge
+
+Phase 24B는 Oracle에서 실행 중인 US Trader 운영본을 직접 수정하지 않고, AI Council 쪽에서 payload 호환성을 확인하는 read-only bridge를 추가합니다.
+
+추가 파일:
+
+- `examples/external_bot/mapping_profiles/us_trader_oracle_v1.json`
+- `examples/external_bot/us_trader_oracle_bridge.py`
+- `examples/external_bot/sample_payloads/us_trader_oracle_*.json`
+- `examples/integration/run_us_trader_oracle_bridge_smoke.py`
+- `scripts/run_us_trader_oracle_bridge_smoke.sh`
+- `docs/US_TRADER_ORACLE_READONLY_INTEGRATION.md`
+
+Normalize preview:
+
+```bash
+cd ~/AI-council
+python3 examples/external_bot/us_trader_oracle_bridge.py \
+  --payload examples/external_bot/sample_payloads/us_trader_oracle_signal.json \
+  --profile us_trader_oracle_v1 \
+  --preview \
+  --pretty
+```
+
+Dry-run:
+
+```bash
+python3 examples/external_bot/us_trader_oracle_bridge.py \
+  --payload examples/external_bot/sample_payloads/us_trader_oracle_order_like_signal.json \
+  --profile us_trader_oracle_v1 \
+  --dry-run \
+  --pretty
+```
+
+Smoke test:
+
+```bash
+scripts/run_us_trader_oracle_bridge_smoke.sh
+```
+
+`buy`, `sell`, `entry`, `exit` 같은 값은 주문 의도가 아니라 검토용 context로만 저장됩니다. `quantity`, `order_type`, `stop_loss`, `take_profit`, `broker`, `account` 같은 order-like field는 raw payload에는 보존되지만 adapter warning으로 기록되고 주문 로직으로 연결되지 않습니다.
+
+Oracle live bot, systemd service, secret/config 파일은 AI Council bridge가 수정하지 않습니다. 실제 Oracle host, SSH key path, secret/API key/token 값은 README에 하드코딩하지 않습니다.
+
+이 기능은 브로커 API에 연결하지 않고, 실제 주문 생성/전송/승인/취소/실행을 수행하지 않습니다. `order_execution_allowed`는 항상 `false`입니다.
+
 ## 테스트
 
 ```bash

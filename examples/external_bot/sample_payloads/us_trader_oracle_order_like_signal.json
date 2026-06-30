@@ -1,0 +1,26 @@
+{
+  "source": "us_trader_oracle",
+  "signal_id": "us_trader_oracle_order_like_001",
+  "symbol": "TESTB",
+  "signal": "premarket_spike",
+  "action": "buy",
+  "entry_price": 0.43,
+  "day_volume": 18500000,
+  "interval": "1m",
+  "metrics": {
+    "rsi": 74,
+    "relative_volume": 8.6,
+    "gap_pct": 18.2
+  },
+  "risk": {
+    "spread_pct": 6.7,
+    "premarket": true,
+    "float_rotation": 2.4
+  },
+  "quantity": 5000,
+  "order_type": "limit",
+  "stop_loss": 0.38,
+  "take_profit": 0.52,
+  "tif": "day",
+  "notes": "Order-like fields must be ignored for safety and retained only in raw payload."
+}

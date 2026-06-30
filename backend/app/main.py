@@ -451,6 +451,7 @@ def create_app(
                     "detail": status["disabled_reason"],
                     "webhook_status": status,
                     "trade_review_created": False,
+                    "created_trade_review": False,
                     "order_execution_allowed": False,
                 },
             )
@@ -467,6 +468,7 @@ def create_app(
                     "detail": str(exc),
                     "adapter_warnings": exc.adapter_warnings,
                     "trade_review_created": False,
+                    "created_trade_review": False,
                     "order_execution_allowed": False,
                 },
             )
@@ -478,6 +480,7 @@ def create_app(
                 "normalized_payload": normalized,
                 "adapter_warnings": normalized.get("adapter_warnings", []),
                 "trade_review_created": False,
+                "created_trade_review": False,
                 "order_execution_allowed": False,
             },
         )

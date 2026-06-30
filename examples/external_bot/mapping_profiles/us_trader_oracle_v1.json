@@ -1,0 +1,37 @@
+{
+  "name": "us_trader_oracle_v1",
+  "description": "Read-only compatibility mapping for the Oracle-deployed US Trader signal shape. Order-like fields are preserved only as raw context and must never be executed.",
+  "source": "us_trader_oracle",
+  "fields": {
+    "ticker": ["symbol", "ticker", "code", "stock", "item", "item_code"],
+    "strategy_signal": ["signal", "strategy_signal", "setup", "reason", "scan_reason", "trigger", "pattern", "strategy"],
+    "side": ["side", "action", "direction", "intent", "order_side"],
+    "price": ["price", "last_price", "current_price", "close", "entry_price", "trigger_price", "base_price"],
+    "volume": ["volume", "vol", "current_volume", "day_volume", "acc_volume"],
+    "timeframe": ["timeframe", "interval", "tf", "candle_interval"],
+    "technical_indicators": ["indicators", "technical_indicators", "metrics", "ta", "scores"],
+    "news_headlines": ["news_headlines", "headlines", "news", "catalysts"],
+    "risk_context": ["risk", "risk_context", "risk_flags", "meta", "warnings"],
+    "timestamp": ["timestamp", "time", "event_time", "detected_at", "created_at"]
+  },
+  "order_like_fields": [
+    "quantity",
+    "qty",
+    "shares",
+    "order_type",
+    "stop_loss",
+    "take_profit",
+    "broker",
+    "account",
+    "route",
+    "tif",
+    "submit_order",
+    "place_order"
+  ],
+  "safety_policy": {
+    "normalized_side": "review_only",
+    "preserve_raw_side": true,
+    "order_execution_allowed": false,
+    "broker_api_connected": false
+  }
+}

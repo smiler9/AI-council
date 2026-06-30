@@ -61,8 +61,60 @@ Mapping profiles:
 - `mapping_profiles/generic.json`: 여러 scanner payload alias를 폭넓게 지원
 - `mapping_profiles/penny_bot_v1.json`: 예시 penny stock bot payload 구조
 - `mapping_profiles/minimal_signal.json`: ticker/signal 중심 최소 payload
+- `mapping_profiles/us_trader_oracle_v1.json`: Oracle US Trader 운영본 payload 호환성 점검용 read-only mapping
 
 Bridge client는 브로커 API를 호출하지 않고 주문을 생성/전송/승인/취소/실행하지 않습니다.
+
+## US Trader Oracle read-only bridge
+
+`us_trader_oracle_bridge.py`는 Oracle에서 실행 중인 US Trader 운영본을 직접 수정하지 않고, signal JSON 파일이나 stdin payload를 AI Council normalize-preview 또는 trade-signal endpoint로 전달하는 전용 bridge입니다.
+
+Preview mode는 trade review를 생성하지 않습니다.
+
+```bash
+python3 us_trader_oracle_bridge.py \
+  --payload sample_payloads/us_trader_oracle_signal.json \
+  --profile us_trader_oracle_v1 \
+  --preview \
+  --pretty
+```
+
+Dry-run은 HTTP 호출도 하지 않습니다.
+
+```bash
+python3 us_trader_oracle_bridge.py \
+  --payload sample_payloads/us_trader_oracle_order_like_signal.json \
+  --profile us_trader_oracle_v1 \
+  --dry-run \
+  --pretty
+```
+
+stdin 입력:
+
+```bash
+cat sample_payloads/us_trader_oracle_minimal_signal.json | \
+  python3 us_trader_oracle_bridge.py --stdin --profile us_trader_oracle_v1 --preview --pretty
+```
+
+Review mode는 AI Council webhook이 활성화되어 있고 secret이 설정된 경우에만 사용합니다.
+
+```bash
+export AI_COUNCIL_BASE_URL=http://127.0.0.1:8000
+export AI_COUNCIL_WEBHOOK_SECRET=<webhook-secret>
+python3 us_trader_oracle_bridge.py \
+  --payload sample_payloads/us_trader_oracle_signal.json \
+  --profile us_trader_oracle_v1 \
+  --review \
+  --pretty
+```
+
+이 bridge는 Oracle SSH 접속, systemd 조작, live bot 실행/중지/재시작, 브로커 API 호출, 주문 생성/전송을 수행하지 않습니다.
+
+Order-like field 안전 정책:
+
+- `quantity`, `qty`, `shares`, `order_type`, `stop_loss`, `take_profit`, `broker`, `account`, `route`, `tif`, `submit_order`, `place_order`는 raw payload에만 남고 `adapter_warnings`에 기록됩니다.
+- `buy`, `sell`, `entry`, `exit`는 `raw_side`에 보존되며 normalized `side`는 `review_only`입니다.
+- `order_execution_allowed=false`가 유지됩니다.
 
 ## Normalize preview API
 

@@ -145,6 +145,37 @@ export AI_COUNCIL_TIMEOUT_SECONDS=30
 
 Diagnostics는 `.env` 내용을 읽거나 반환하지 않습니다. Telegram token, Webhook secret, API key는 실제 값을 출력하지 않고 configured 여부만 표시합니다.
 
+## US Trader Oracle Bridge Smoke Test
+
+Phase 24B smoke test는 Oracle 운영본을 직접 수정하지 않고, AI Council의 `us_trader_oracle_v1` mapping profile과 normalize-preview 호환성을 검증합니다.
+
+실행:
+
+```bash
+cd ~/AI-council
+scripts/run_us_trader_oracle_bridge_smoke.sh
+```
+
+직접 실행:
+
+```bash
+python3 examples/integration/run_us_trader_oracle_bridge_smoke.py --pretty
+```
+
+검증 항목:
+
+- backend `/health`
+- `/api/diagnostics/summary`
+- US Trader Oracle sample payload JSON validation
+- `/api/webhooks/normalize-preview`
+- order-like field가 `adapter_warnings`에 기록되는지
+- normalize-preview가 trade review를 생성하지 않는지
+- `order_execution_allowed=false`
+
+기본 smoke는 preview 중심입니다. `--include-review`를 추가하면 webhook이 configured 상태일 때만 read-only trade-signal review를 선택적으로 검증합니다.
+
+이 smoke test는 Oracle 서버에 접속하지 않고, systemd service를 조작하지 않고, 브로커 API를 호출하지 않고, 실제 주문을 생성하지 않습니다.
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

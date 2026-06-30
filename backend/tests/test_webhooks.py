@@ -223,6 +223,58 @@ def test_order_like_fields_are_ignored_with_warning():
     assert normalized["order_execution_allowed"] is False
 
 
+def test_us_trader_oracle_alias_normalization_with_profile_wrapper():
+    payload_dir = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "external_bot"
+        / "sample_payloads"
+    )
+    raw_payload = json.loads(
+        (payload_dir / "us_trader_oracle_signal.json").read_text(encoding="utf-8")
+    )
+
+    normalized = normalize_trade_signal_payload(
+        {"profile": "us_trader_oracle_v1", "payload": raw_payload}
+    )
+
+    assert normalized["ticker"] == "TESTA"
+    assert normalized["strategy_signal"] == "breakout"
+    assert normalized["side"] == "review_only"
+    assert normalized["raw_side"] == "buy"
+    assert normalized["source"] == "us_trader_oracle"
+    assert normalized["risk_context"]["bridge_profile"] == "us_trader_oracle_v1"
+    assert normalized["input_payload_json"]["payload"]["symbol"] == "TESTA"
+    assert any("review context only" in warning for warning in normalized["adapter_warnings"])
+    assert normalized["order_execution_allowed"] is False
+
+
+def test_us_trader_oracle_order_like_fields_are_warned_and_not_normalized_as_orders():
+    payload_dir = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "external_bot"
+        / "sample_payloads"
+    )
+    raw_payload = json.loads(
+        (payload_dir / "us_trader_oracle_order_like_signal.json").read_text(encoding="utf-8")
+    )
+
+    normalized = normalize_trade_signal_payload(
+        {"profile": "us_trader_oracle_v1", "payload": raw_payload}
+    )
+
+    assert normalized["side"] == "review_only"
+    assert normalized["raw_side"] == "buy"
+    warning_text = " ".join(normalized["adapter_warnings"])
+    assert "order-like fields ignored for safety" in warning_text
+    assert "quantity" in warning_text
+    assert "order_type" in warning_text
+    assert "stop_loss" in warning_text
+    assert "take_profit" in warning_text
+    assert normalized["order_execution_allowed"] is False
+
+
 def test_normalize_preview_does_not_create_trade_review(tmp_path):
     payload = {**WEBHOOK_PAYLOAD, "signal_id": "preview_only"}
     with _webhook_client(tmp_path, enabled=False, secret=None) as client:
@@ -234,10 +286,40 @@ def test_normalize_preview_does_not_create_trade_review(tmp_path):
     body = response.json()
     assert body["status"] == "preview"
     assert body["trade_review_created"] is False
+    assert body["created_trade_review"] is False
     assert body["normalized_payload"]["side"] == "review_only"
     assert body["normalized_payload"]["raw_side"] == "buy"
     assert reviews.json() == []
     assert events.json() == []
+    assert body["order_execution_allowed"] is False
+
+
+def test_us_trader_oracle_normalize_preview_does_not_create_trade_review(tmp_path):
+    payload_dir = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "external_bot"
+        / "sample_payloads"
+    )
+    raw_payload = json.loads(
+        (payload_dir / "us_trader_oracle_signal.json").read_text(encoding="utf-8")
+    )
+    with _webhook_client(tmp_path, enabled=False, secret=None) as client:
+        response = client.post(
+            "/api/webhooks/normalize-preview",
+            json={"profile": "us_trader_oracle_v1", "payload": raw_payload},
+        )
+        reviews = client.get("/api/trade-reviews")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "preview"
+    assert body["trade_review_created"] is False
+    assert body["created_trade_review"] is False
+    assert body["normalized_payload"]["ticker"] == "TESTA"
+    assert body["normalized_payload"]["side"] == "review_only"
+    assert body["normalized_payload"]["raw_side"] == "buy"
+    assert reviews.json() == []
     assert body["order_execution_allowed"] is False
 
 
@@ -271,6 +353,10 @@ def test_sample_payloads_are_valid_json_and_normalize_successfully():
         "penny_bot_v1_signal.json",
         "order_like_fields_signal.json",
         "minimal_signal.json",
+        "us_trader_oracle_signal.json",
+        "us_trader_oracle_order_like_signal.json",
+        "us_trader_oracle_minimal_signal.json",
+        "us_trader_oracle_high_risk_signal.json",
     }
     found = {path.name for path in payload_dir.glob("*.json")}
     assert found >= expected
@@ -289,7 +375,12 @@ def test_bridge_mapping_profiles_are_valid_json():
         / "external_bot"
         / "mapping_profiles"
     )
-    expected = {"generic.json", "penny_bot_v1.json", "minimal_signal.json"}
+    expected = {
+        "generic.json",
+        "penny_bot_v1.json",
+        "minimal_signal.json",
+        "us_trader_oracle_v1.json",
+    }
     found = {path.name for path in profile_dir.glob("*.json")}
     assert found >= expected
     for path in profile_dir.glob("*.json"):
@@ -297,6 +388,24 @@ def test_bridge_mapping_profiles_are_valid_json():
         assert isinstance(profile["fields"], dict)
         assert "ticker" in profile["fields"]
         assert "strategy_signal" in profile["fields"]
+
+
+def test_us_trader_oracle_profile_json_validation():
+    profile_path = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "external_bot"
+        / "mapping_profiles"
+        / "us_trader_oracle_v1.json"
+    )
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+
+    assert profile["name"] == "us_trader_oracle_v1"
+    assert profile["source"] == "us_trader_oracle"
+    assert "symbol" in profile["fields"]["ticker"]
+    assert "action" in profile["fields"]["side"]
+    assert "quantity" in profile["order_like_fields"]
+    assert profile["safety_policy"]["order_execution_allowed"] is False
 
 
 def test_bridge_client_dry_run_sample_payload():
@@ -328,6 +437,51 @@ def test_bridge_client_dry_run_sample_payload():
         "order-like fields ignored for safety" in warning
         for warning in body["normalized_preview"]["adapter_warnings"]
     )
+
+
+def test_us_trader_oracle_bridge_dry_run_sample_payload():
+    root = Path(__file__).resolve().parents[2]
+    script = root / "examples" / "external_bot" / "us_trader_oracle_bridge.py"
+    payload = (
+        root
+        / "examples"
+        / "external_bot"
+        / "sample_payloads"
+        / "us_trader_oracle_order_like_signal.json"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--payload",
+            str(payload),
+            "--profile",
+            "us_trader_oracle_v1",
+            "--dry-run",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    body = json.loads(result.stdout)
+    assert body["status"] == "dry_run"
+    assert body["webhook_called"] is False
+    assert body["broker_api_called"] is False
+    assert body["normalized_preview"]["ticker"] == "TESTB"
+    assert body["normalized_preview"]["side"] == "review_only"
+    assert body["normalized_preview"]["raw_side"] == "buy"
+    assert body["normalized_preview"]["order_execution_allowed"] is False
+    assert any(
+        "order-like fields ignored for safety" in warning
+        for warning in body["normalized_preview"]["adapter_warnings"]
+    )
+
+
+def test_us_trader_oracle_smoke_script_exists():
+    root = Path(__file__).resolve().parents[2]
+    assert (root / "examples" / "integration" / "run_us_trader_oracle_bridge_smoke.py").exists()
+    assert (root / "scripts" / "run_us_trader_oracle_bridge_smoke.sh").exists()
 
 
 def test_duplicate_sample_payload_returns_existing_review(tmp_path):

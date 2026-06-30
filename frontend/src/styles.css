@@ -535,6 +535,27 @@ select:focus {
   padding: 12px;
 }
 
+.fieldLabel {
+  display: grid;
+  gap: 6px;
+  color: #314253;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid #b9d5d3;
+  border-radius: 8px;
+  background: #eef8f8;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 4px 8px;
+}
+
 .jsonTextarea {
   min-height: 260px;
   width: 100%;

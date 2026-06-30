@@ -91,20 +91,20 @@ const MESSAGE_TYPE_LABELS = {
 
 const WEBHOOK_PREVIEW_SAMPLE = JSON.stringify(
   {
-    source: "generic_bot",
-    signal_id: "preview_001",
+    source: "us_trader_oracle",
+    signal_id: "us_trader_oracle_preview_001",
     symbol: "TESTA",
-    pattern: "breakout",
+    signal: "breakout",
     action: "buy",
-    current_price: 0.82,
-    day_volume: 12500000,
-    tf: "1m",
-    ta: {
+    price: 0.82,
+    volume: 12500000,
+    timeframe: "1m",
+    indicators: {
       rsi: 68,
       relative_volume: 5.2
     },
-    catalysts: ["Mock catalyst headline"],
-    meta: {
+    news: ["Mock US Trader Oracle compatibility headline"],
+    risk: {
       spread_pct: 4.5,
       premarket: true
     },
@@ -114,6 +114,14 @@ const WEBHOOK_PREVIEW_SAMPLE = JSON.stringify(
   null,
   2
 );
+
+const WEBHOOK_PROFILE_OPTIONS = [
+  ["us_trader_oracle_v1", "US Trader Oracle v1"],
+  ["generic", "Generic"],
+  ["penny_bot_v1", "Penny Bot v1"],
+  ["minimal_signal", "Minimal signal"],
+  ["raw", "Profile 없이 raw payload"]
+];
 
 function statusLabel(status) {
   if (status === "completed") return "완료";
@@ -202,6 +210,7 @@ export default function App() {
   const [webhookStatus, setWebhookStatus] = useState(null);
   const [webhookEvents, setWebhookEvents] = useState([]);
   const [webhookPreviewInput, setWebhookPreviewInput] = useState(WEBHOOK_PREVIEW_SAMPLE);
+  const [webhookPreviewProfile, setWebhookPreviewProfile] = useState("us_trader_oracle_v1");
   const [webhookPreviewResult, setWebhookPreviewResult] = useState(null);
   const [operationsSummary, setOperationsSummary] = useState(null);
   const [operationsRiskBrief, setOperationsRiskBrief] = useState(null);
@@ -1120,7 +1129,14 @@ export default function App() {
     setError("");
     try {
       const payload = JSON.parse(webhookPreviewInput);
-      const result = await api.normalizeWebhookPreview(payload);
+      const requestPayload =
+        webhookPreviewProfile === "raw" || (payload.profile && payload.payload)
+          ? payload
+          : {
+              profile: webhookPreviewProfile,
+              payload
+            };
+      const result = await api.normalizeWebhookPreview(requestPayload);
       setWebhookPreviewResult(result);
     } catch (err) {
       setError(err.message);
@@ -1531,6 +1547,8 @@ export default function App() {
           tradeReviews={tradeReviews}
           previewInput={webhookPreviewInput}
           setPreviewInput={setWebhookPreviewInput}
+          previewProfile={webhookPreviewProfile}
+          setPreviewProfile={setWebhookPreviewProfile}
           previewResult={webhookPreviewResult}
           previewLoading={webhookPreviewLoading}
           onPreview={handleWebhookPreview}
@@ -4063,6 +4081,8 @@ function WebhookPanel({
   tradeReviews,
   previewInput,
   setPreviewInput,
+  previewProfile,
+  setPreviewProfile,
   previewResult,
   previewLoading,
   onPreview,
@@ -4111,6 +4131,37 @@ function WebhookPanel({
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">
           <div>
+            <p className="eyebrow">US Trader Oracle 호환성</p>
+            <h4>Read-only Bridge 점검</h4>
+          </div>
+          <span className="statusPill">주문 실행 없음</span>
+        </div>
+        <p className="contextHint">
+          Oracle live bot과 systemd service는 수정하지 않습니다. buy/sell 값은 주문이 아니라 검토용 context로만
+          저장되고, quantity/order_type/stop_loss/take_profit 같은 주문 유사 필드는 adapter warning으로만 기록됩니다.
+        </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Mapping Profile</span>
+            <strong>{previewProfile}</strong>
+          </div>
+          <div>
+            <span>Review-only 처리</span>
+            <strong>예</strong>
+          </div>
+          <div>
+            <span>주문 유사 필드 감지</span>
+            <strong>Adapter warnings</strong>
+          </div>
+          <div>
+            <span>주문 실행 허용 여부</span>
+            <strong>아니오</strong>
+          </div>
+        </div>
+      </div>
+      <div className="webhookPreview">
+        <div className="tradeReviewHeader compact">
+          <div>
             <p className="eyebrow">Payload 호환성</p>
             <h4>Payload 정규화 미리보기</h4>
           </div>
@@ -4128,6 +4179,16 @@ function WebhookPanel({
           외부 봇 JSON을 붙여넣으면 trade review를 생성하지 않고 표준 payload와 adapter warning만 확인합니다.
           이 기능은 주문을 실행하지 않습니다.
         </p>
+        <label className="fieldLabel">
+          Mapping Profile
+          <select value={previewProfile} onChange={(event) => setPreviewProfile(event.target.value)}>
+            {WEBHOOK_PROFILE_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
         <textarea
           className="jsonTextarea"
           value={previewInput}

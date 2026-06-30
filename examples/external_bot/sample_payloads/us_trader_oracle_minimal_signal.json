@@ -1,0 +1,8 @@
+{
+  "source": "us_trader_oracle",
+  "signal_id": "us_trader_oracle_minimal_001",
+  "symbol": "TESTC",
+  "signal": "scanner_candidate",
+  "action": "watch",
+  "notes": "Minimal US Trader Oracle signal. Missing price, volume, and news should create adapter warnings."
+}

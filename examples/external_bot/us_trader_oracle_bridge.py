@@ -11,9 +11,11 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_WEBHOOK_URL = "http://127.0.0.1:8000/api/webhooks/trade-signal"
+DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+DEFAULT_PROFILE = "us_trader_oracle_v1"
 SECRET_HEADER = "X-AI-Council-Webhook-Secret"
 PROFILE_DIR = Path(__file__).resolve().parent / "mapping_profiles"
+
 SAFE_SIDE_VALUES = {"review_only", "watch_only", "observe", "monitor"}
 ORDER_SIDE_VALUES = {"buy", "sell", "long", "short", "entry", "exit", "order"}
 ORDER_LIKE_FIELDS = {
@@ -37,21 +39,37 @@ ORDER_LIKE_FIELDS = {
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Bridge an external bot JSON signal into AI Council's review-only webhook."
+        description=(
+            "Read-only bridge for sending US Trader Oracle signal payloads to AI Council "
+            "normalize-preview or trade-signal review endpoints."
+        )
     )
     input_group = parser.add_mutually_exclusive_group(required=True)
     input_group.add_argument("--payload", help="Path to a JSON payload file.")
     input_group.add_argument("--stdin", action="store_true", help="Read JSON payload from stdin.")
     parser.add_argument(
         "--profile",
-        default="generic",
+        default=DEFAULT_PROFILE,
         choices=["generic", "penny_bot_v1", "minimal_signal", "us_trader_oracle_v1"],
-        help="Payload mapping profile.",
+        help=f"Mapping profile. Default: {DEFAULT_PROFILE}",
     )
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--preview",
+        action="store_true",
+        help="Call /api/webhooks/normalize-preview. This is the default mode.",
+    )
+    mode_group.add_argument(
+        "--review",
+        action="store_true",
+        help="Call /api/webhooks/trade-signal to create a read-only AI Council review.",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Print the request body without HTTP calls.")
+    parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output.")
     parser.add_argument(
-        "--url",
-        default=os.getenv("AI_COUNCIL_WEBHOOK_URL", DEFAULT_WEBHOOK_URL),
-        help=f"Webhook URL. Default: {DEFAULT_WEBHOOK_URL}",
+        "--base-url",
+        default=os.getenv("AI_COUNCIL_BASE_URL", DEFAULT_BASE_URL),
+        help=f"AI Council base URL. Default: {DEFAULT_BASE_URL}",
     )
     parser.add_argument(
         "--secret",
@@ -61,39 +79,42 @@ def main() -> int:
     parser.add_argument(
         "--timeout",
         type=float,
-        default=float(os.getenv("AI_COUNCIL_TIMEOUT_SECONDS", "15")),
+        default=float(os.getenv("AI_COUNCIL_TIMEOUT_SECONDS", "30")),
         help="Request timeout in seconds.",
-    )
-    parser.add_argument("--pretty", action="store_true", help="Pretty-print response JSON.")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print mapped review-only payload without calling the webhook.",
     )
     args = parser.parse_args()
 
     try:
         raw_payload = read_payload(Path(args.payload)) if args.payload else read_stdin_payload()
         profile = load_profile(args.profile)
-        mapped_payload = apply_profile(raw_payload, profile)
+        request_body = {
+            "profile": profile["name"],
+            "payload": raw_payload,
+        }
         if args.dry_run:
             response = {
                 "status": "dry_run",
+                "mode": "review" if args.review else "preview",
                 "profile": profile["name"],
-                "normalized_preview": build_preview_payload(mapped_payload, raw_payload),
+                "request_body": request_body,
+                "normalized_preview": build_local_preview(raw_payload, profile),
                 "webhook_called": False,
+                "broker_api_called": False,
                 "order_execution_allowed": False,
             }
         else:
-            response = post_json(args.url, mapped_payload, args.secret, args.timeout)
+            endpoint = "/api/webhooks/trade-signal" if args.review else "/api/webhooks/normalize-preview"
+            response = post_json(
+                f"{args.base_url.rstrip('/')}{endpoint}",
+                request_body,
+                args.secret,
+                args.timeout,
+            )
     except Exception as exc:
-        print(f"AI Council bridge failed: {exc}", file=sys.stderr)
+        print(f"US Trader Oracle bridge failed: {exc}", file=sys.stderr)
         return 1
 
-    if args.pretty:
-        print(json.dumps(response, indent=2, sort_keys=True))
-    else:
-        print(json.dumps(response, sort_keys=True))
+    print_json(response, pretty=args.pretty)
     return 0
 
 
@@ -101,8 +122,7 @@ def read_payload(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"payload file not found: {path}")
     with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    return require_object(data)
+        return require_object(json.load(handle))
 
 
 def read_stdin_payload() -> dict[str, Any]:
@@ -127,70 +147,58 @@ def load_profile(name: str) -> dict[str, Any]:
     return profile
 
 
-def apply_profile(raw_payload: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
-    mapped = dict(raw_payload)
-    for standard_field, aliases in profile["fields"].items():
-        if standard_field in mapped:
-            continue
-        value = first_present(raw_payload, aliases)
-        if value is not None:
-            mapped[standard_field] = value
-    mapped.setdefault("source", raw_payload.get("source") or profile.get("source") or profile["name"])
-    mapped.setdefault("notes", f"Bridge client mapped payload with profile {profile['name']}.")
-    mapped["bridge_profile"] = profile["name"]
-    return mapped
-
-
-def first_present(payload: dict[str, Any], aliases: list[str]) -> Any:
-    for key in aliases:
-        if key in payload and payload[key] is not None:
-            return payload[key]
-    return None
-
-
-def build_preview_payload(mapped_payload: dict[str, Any], raw_payload: dict[str, Any]) -> dict[str, Any]:
-    warnings = adapter_warnings(mapped_payload)
-    raw_side = str(mapped_payload.get("side") or "").strip().lower()
+def build_local_preview(raw_payload: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
+    mapped = apply_profile(raw_payload, profile)
+    raw_side = str(mapped.get("side") or "").strip().lower()
     side = raw_side if raw_side in SAFE_SIDE_VALUES else "review_only"
+    warnings = []
+    order_like = sorted(key for key in raw_payload if key in ORDER_LIKE_FIELDS)
+    if order_like:
+        warnings.append("order-like fields ignored for safety: " + ", ".join(order_like))
     if raw_side in ORDER_SIDE_VALUES:
         warnings.append(f"buy/sell side was treated as review context only: {raw_side}")
     elif raw_side and raw_side not in SAFE_SIDE_VALUES:
         warnings.append(f"unsupported side value treated as review context only: {raw_side}")
-    if not mapped_payload.get("ticker"):
+    if not mapped.get("ticker"):
         warnings.append("missing ticker")
-    if not mapped_payload.get("strategy_signal"):
+    if not mapped.get("strategy_signal"):
         warnings.append("missing strategy_signal")
-    if mapped_payload.get("price") in {None, ""}:
+    if mapped.get("price") in {None, ""}:
         warnings.append("missing price")
-    if mapped_payload.get("volume") in {None, ""}:
+    if mapped.get("volume") in {None, ""}:
         warnings.append("missing volume")
-    if not mapped_payload.get("news_headlines"):
+    if not mapped.get("news_headlines"):
         warnings.append("news data unavailable")
-
     return {
-        "ticker": str(mapped_payload.get("ticker") or "").upper() or None,
-        "strategy_signal": mapped_payload.get("strategy_signal"),
+        "ticker": str(mapped.get("ticker") or "").upper() or None,
+        "strategy_signal": mapped.get("strategy_signal"),
         "side": side,
         "raw_side": raw_side or None,
-        "price": mapped_payload.get("price"),
-        "volume": mapped_payload.get("volume"),
-        "timeframe": mapped_payload.get("timeframe"),
-        "source": mapped_payload.get("source"),
-        "notes": mapped_payload.get("notes"),
-        "technical_indicators": mapped_payload.get("technical_indicators") or {},
-        "news_headlines": mapped_payload.get("news_headlines") or [],
-        "risk_context": mapped_payload.get("risk_context") or {},
+        "price": mapped.get("price"),
+        "volume": mapped.get("volume"),
+        "timeframe": mapped.get("timeframe"),
+        "source": mapped.get("source"),
+        "technical_indicators": mapped.get("technical_indicators") or {},
+        "news_headlines": mapped.get("news_headlines") or [],
+        "risk_context": mapped.get("risk_context") or {},
         "adapter_warnings": warnings,
-        "input_payload_json": raw_payload,
         "order_execution_allowed": False,
+        "review_only": True,
     }
 
 
-def adapter_warnings(payload: dict[str, Any]) -> list[str]:
-    fields = sorted(key for key in payload if key in ORDER_LIKE_FIELDS)
-    if not fields:
-        return []
-    return ["order-like fields ignored for safety: " + ", ".join(fields)]
+def apply_profile(raw_payload: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
+    mapped = dict(raw_payload)
+    for standard_field, aliases in profile["fields"].items():
+        if standard_field in mapped and mapped[standard_field] is not None:
+            continue
+        for alias in aliases:
+            if alias in raw_payload and raw_payload[alias] is not None:
+                mapped[standard_field] = raw_payload[alias]
+                break
+    mapped.setdefault("source", profile.get("source") or profile["name"])
+    mapped["bridge_profile"] = profile["name"]
+    return mapped
 
 
 def post_json(url: str, payload: dict[str, Any], secret: str | None, timeout: float) -> dict[str, Any]:
@@ -220,6 +228,13 @@ def decode_json_response(raw: bytes) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise RuntimeError("AI Council returned JSON that is not an object")
     return data
+
+
+def print_json(payload: dict[str, Any], *, pretty: bool) -> None:
+    if pretty:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, sort_keys=True))
 
 
 if __name__ == "__main__":

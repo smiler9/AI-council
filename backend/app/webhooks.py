@@ -11,9 +11,27 @@ WEBHOOK_SECRET_HEADER = "X-AI-Council-Webhook-Secret"
 WEBHOOK_ENDPOINT_PATH = "/api/webhooks/trade-signal"
 WEBHOOK_NORMALIZE_PREVIEW_PATH = "/api/webhooks/normalize-preview"
 
-TICKER_ALIASES = ("ticker", "symbol", "code", "stock", "instrument", "asset")
-SIGNAL_ALIASES = ("strategy_signal", "signal", "setup", "pattern", "trigger", "reason")
-SIDE_ALIASES = ("side", "direction", "action", "intent")
+TICKER_ALIASES = (
+    "ticker",
+    "symbol",
+    "code",
+    "stock",
+    "instrument",
+    "asset",
+    "item",
+    "item_code",
+)
+SIGNAL_ALIASES = (
+    "strategy_signal",
+    "signal",
+    "setup",
+    "pattern",
+    "trigger",
+    "reason",
+    "scan_reason",
+    "strategy",
+)
+SIDE_ALIASES = ("side", "direction", "action", "intent", "order_side")
 PRICE_ALIASES = (
     "price",
     "last_price",
@@ -21,12 +39,14 @@ PRICE_ALIASES = (
     "current_price",
     "entry_price",
     "trigger_price",
+    "base_price",
 )
-VOLUME_ALIASES = ("volume", "current_volume", "vol", "day_volume")
+VOLUME_ALIASES = ("volume", "current_volume", "vol", "day_volume", "acc_volume")
 TIMEFRAME_ALIASES = ("timeframe", "interval", "tf", "candle_interval")
-INDICATOR_ALIASES = ("technical_indicators", "indicators", "ta", "metrics")
+INDICATOR_ALIASES = ("technical_indicators", "indicators", "ta", "metrics", "scores")
 NEWS_ALIASES = ("news_headlines", "headlines", "news", "catalysts")
-RISK_ALIASES = ("risk_context", "risk", "risk_flags", "meta")
+RISK_ALIASES = ("risk_context", "risk", "risk_flags", "meta", "warnings")
+TIMESTAMP_ALIASES = ("timestamp", "event_time", "time", "detected_at", "created_at")
 SAFE_SIDE_VALUES = {"review_only", "watch_only", "observe", "monitor"}
 ORDER_SIDE_VALUES = {
     "buy",
@@ -60,11 +80,12 @@ RECOGNIZED_FIELDS = {
     "source",
     "signal_id",
     "id",
-    "timestamp",
-    "event_time",
     "notes",
     "auto_send_telegram",
     "bridge_profile",
+    "profile",
+    "payload",
+    *TIMESTAMP_ALIASES,
     *TICKER_ALIASES,
     *SIGNAL_ALIASES,
     *SIDE_ALIASES,
@@ -75,6 +96,82 @@ RECOGNIZED_FIELDS = {
     *NEWS_ALIASES,
     *RISK_ALIASES,
     *ORDER_LIKE_FIELDS,
+}
+
+MAPPING_PROFILES = {
+    "generic": {
+        "source": "generic",
+        "fields": {
+            "ticker": TICKER_ALIASES,
+            "strategy_signal": SIGNAL_ALIASES,
+            "side": SIDE_ALIASES,
+            "price": PRICE_ALIASES,
+            "volume": VOLUME_ALIASES,
+            "timeframe": TIMEFRAME_ALIASES,
+            "technical_indicators": INDICATOR_ALIASES,
+            "news_headlines": NEWS_ALIASES,
+            "risk_context": RISK_ALIASES,
+        },
+    },
+    "penny_bot_v1": {
+        "source": "penny_bot_v1",
+        "fields": {
+            "ticker": ("symbol", "ticker"),
+            "strategy_signal": ("setup", "trigger", "signal"),
+            "side": ("action", "intent", "side"),
+            "price": ("entry_price", "trigger_price", "last_price"),
+            "volume": ("day_volume", "current_volume", "vol"),
+            "timeframe": ("candle_interval", "tf", "interval"),
+            "technical_indicators": ("metrics", "ta", "indicators"),
+            "news_headlines": ("catalysts", "headlines", "news"),
+            "risk_context": ("meta", "risk", "risk_context"),
+        },
+    },
+    "minimal_signal": {
+        "source": "minimal_signal",
+        "fields": {
+            "ticker": ("ticker", "symbol"),
+            "strategy_signal": ("signal", "strategy_signal"),
+            "side": ("side",),
+            "price": ("price",),
+            "volume": ("volume",),
+            "timeframe": ("timeframe",),
+            "technical_indicators": ("technical_indicators",),
+            "news_headlines": ("news_headlines",),
+            "risk_context": ("risk_context",),
+        },
+    },
+    "us_trader_oracle_v1": {
+        "source": "us_trader_oracle",
+        "fields": {
+            "ticker": ("symbol", "ticker", "code", "stock", "item", "item_code"),
+            "strategy_signal": (
+                "signal",
+                "strategy_signal",
+                "setup",
+                "reason",
+                "scan_reason",
+                "trigger",
+                "pattern",
+                "strategy",
+            ),
+            "side": ("side", "action", "direction", "intent", "order_side"),
+            "price": (
+                "price",
+                "last_price",
+                "current_price",
+                "close",
+                "entry_price",
+                "trigger_price",
+                "base_price",
+            ),
+            "volume": ("volume", "vol", "current_volume", "day_volume", "acc_volume"),
+            "timeframe": TIMEFRAME_ALIASES,
+            "technical_indicators": ("indicators", "technical_indicators", "metrics", "ta", "scores"),
+            "news_headlines": NEWS_ALIASES,
+            "risk_context": ("risk", "risk_context", "risk_flags", "meta", "warnings"),
+        },
+    },
 }
 
 
@@ -141,15 +238,16 @@ def normalize_trade_signal_payload(raw_payload: dict[str, Any]) -> dict:
     if not isinstance(raw_payload, dict):
         raise WebhookInputError("Webhook payload must be a JSON object")
 
-    adapter_warnings = _adapter_warnings(raw_payload)
-    source = _string_value(raw_payload, "source") or "external_webhook"
-    signal_id = _string_value(raw_payload, "signal_id") or _string_value(raw_payload, "id")
+    payload, profile = _payload_for_normalization(raw_payload)
+    adapter_warnings = _adapter_warnings(payload)
+    source = _string_value(payload, "source") or _profile_source(profile) or "external_webhook"
+    signal_id = _string_value(payload, "signal_id") or _string_value(payload, "id")
     if not signal_id:
         signal_id = f"generated_{uuid4().hex}"
         adapter_warnings.append("missing signal_id; generated id for idempotency")
 
-    ticker = _string_value(raw_payload, *TICKER_ALIASES)
-    strategy_signal = _string_value(raw_payload, *SIGNAL_ALIASES)
+    ticker = _string_value(payload, *TICKER_ALIASES)
+    strategy_signal = _string_value(payload, *SIGNAL_ALIASES)
     if not ticker:
         adapter_warnings.append("missing ticker")
         raise WebhookInputError("Webhook payload requires ticker, symbol, code, stock, instrument, or asset", adapter_warnings)
@@ -160,12 +258,12 @@ def normalize_trade_signal_payload(raw_payload: dict[str, Any]) -> dict:
             adapter_warnings,
         )
 
-    raw_side = _string_value(raw_payload, *SIDE_ALIASES)
+    raw_side = _string_value(payload, *SIDE_ALIASES)
     side, side_warnings = _safe_side(raw_side)
     adapter_warnings.extend(side_warnings)
-    price = _number_value(raw_payload, *PRICE_ALIASES)
-    volume = _int_value(raw_payload, *VOLUME_ALIASES)
-    news_headlines = _headline_list_value(raw_payload, *NEWS_ALIASES)
+    price = _number_value(payload, *PRICE_ALIASES)
+    volume = _int_value(payload, *VOLUME_ALIASES)
+    news_headlines = _headline_list_value(payload, *NEWS_ALIASES)
     if price is None:
         adapter_warnings.append("missing price")
     if volume is None:
@@ -173,8 +271,8 @@ def normalize_trade_signal_payload(raw_payload: dict[str, Any]) -> dict:
     if not news_headlines:
         adapter_warnings.append("news data unavailable")
 
-    risk_context = _risk_context_value(raw_payload)
-    event_time = _string_value(raw_payload, "timestamp") or _string_value(raw_payload, "event_time")
+    risk_context = _risk_context_value(payload)
+    event_time = _string_value(payload, *TIMESTAMP_ALIASES)
     if event_time:
         risk_context["event_time"] = event_time
     risk_context["signal_id"] = signal_id
@@ -183,7 +281,9 @@ def normalize_trade_signal_payload(raw_payload: dict[str, Any]) -> dict:
     if adapter_warnings:
         risk_context["adapter_warnings"] = adapter_warnings
 
-    notes = _string_value(raw_payload, "notes")
+    if profile:
+        risk_context["bridge_profile"] = profile
+    notes = _string_value(payload, "notes")
     if not notes:
         notes = f"candidate signal received from {source}"
 
@@ -194,10 +294,10 @@ def normalize_trade_signal_payload(raw_payload: dict[str, Any]) -> dict:
         "raw_side": raw_side.strip().lower() if raw_side else None,
         "price": price,
         "volume": volume,
-        "timeframe": _string_value(raw_payload, *TIMEFRAME_ALIASES),
+        "timeframe": _string_value(payload, *TIMEFRAME_ALIASES),
         "source": source.strip(),
         "notes": notes,
-        "technical_indicators": _dict_value(raw_payload, *INDICATOR_ALIASES),
+        "technical_indicators": _dict_value(payload, *INDICATOR_ALIASES),
         "news_headlines": news_headlines,
         "risk_context": risk_context,
         "adapter_warnings": adapter_warnings,
@@ -211,6 +311,49 @@ def normalize_trade_signal_payload(raw_payload: dict[str, Any]) -> dict:
         },
     }
     return normalized
+
+
+def _payload_for_normalization(raw_payload: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+    profile = _string_value(raw_payload, "profile") or _string_value(raw_payload, "bridge_profile")
+    payload = raw_payload.get("payload") if isinstance(raw_payload.get("payload"), dict) else raw_payload
+    if not profile:
+        return dict(payload), None
+    normalized_profile = profile.strip()
+    if normalized_profile not in MAPPING_PROFILES:
+        raise WebhookInputError(
+            f"Unsupported mapping profile: {normalized_profile}",
+            [f"unsupported mapping profile: {normalized_profile}"],
+        )
+    return _apply_mapping_profile(payload, normalized_profile), normalized_profile
+
+
+def _apply_mapping_profile(payload: dict[str, Any], profile_name: str) -> dict[str, Any]:
+    profile = MAPPING_PROFILES[profile_name]
+    mapped = dict(payload)
+    for standard_field, aliases in profile["fields"].items():
+        if standard_field in mapped and mapped[standard_field] is not None:
+            continue
+        value = _first_present(payload, aliases)
+        if value is not None:
+            mapped[standard_field] = value
+    mapped.setdefault("source", profile["source"])
+    mapped["bridge_profile"] = profile_name
+    return mapped
+
+
+def _profile_source(profile: str | None) -> str | None:
+    if not profile:
+        return None
+    profile_config = MAPPING_PROFILES.get(profile)
+    return str(profile_config["source"]) if profile_config else None
+
+
+def _first_present(payload: dict[str, Any], aliases: tuple[str, ...] | list[str]) -> Any:
+    for key in aliases:
+        value = payload.get(key)
+        if value is not None:
+            return value
+    return None
 
 
 def webhook_identity(normalized_payload: dict) -> tuple[str, str]:
