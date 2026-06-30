@@ -2377,6 +2377,10 @@ function SettingsGuidePanel({ health }) {
           <dd>LLM_PROVIDER=local_openai_compatible 설정 후 backend를 재시작</dd>
         </div>
         <div>
+          <dt>전체 시나리오 점검</dt>
+          <dd>Watchlist부터 가상 성과 리포트까지 전체 흐름을 확인합니다. 터미널에서 scripts/run_full_e2e.sh를 실행하세요. 이 점검은 실제 주문을 실행하지 않습니다.</dd>
+        </div>
+        <div>
           <dt>보안</dt>
           <dd>텔레그램 token, 웹훅 secret, API key는 Git에 커밋하지 않습니다.</dd>
         </div>

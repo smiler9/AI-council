@@ -64,6 +64,51 @@ Script가 확인하는 항목:
 
 `duplicate_signal.json`은 `breakout_signal.json`과 같은 `source + signal_id`를 사용합니다. AI Council은 기존 `trade_review.id`를 반환해야 하며, 새 meeting이나 새 review를 만들면 안 됩니다.
 
+## Full E2E Scenario Test
+
+Phase 22 E2E 시나리오는 Watchlist 생성부터 Paper Trading 가상 성과 리포트, Operations Dashboard 확인, Telegram disabled 안전 처리까지 전체 흐름을 HTTP API로 점검합니다.
+
+Backend가 먼저 실행 중이어야 합니다.
+
+```bash
+cd ~/AI-council
+scripts/run_full_e2e.sh
+```
+
+직접 실행:
+
+```bash
+python3 examples/integration/run_full_e2e_scenario.py --pretty
+python3 examples/integration/run_full_e2e_scenario.py --base-url http://127.0.0.1:8000
+```
+
+환경변수:
+
+```bash
+export AI_COUNCIL_BASE_URL=http://127.0.0.1:8000
+export AI_COUNCIL_TIMEOUT_SECONDS=30
+```
+
+점검 항목:
+
+- `/health`
+- Operations summary와 risk brief
+- Watchlist 생성과 일괄 분석
+- 뉴스/공시 리스크 이벤트 감지
+- Ticker Review와 Trade Review 생성
+- Paper Portfolio 생성
+- 가상 진입/스킵, 청산 조건 평가
+- Paper Performance 분석과 Markdown 리포트 생성
+- Telegram disabled 상태 안전 처리
+
+기대 안전 조건:
+
+- 모든 응답의 `order_execution_allowed=false`
+- Paper Trading 관련 응답의 `simulation_only=true`
+- 실제 secret/API key/token 불필요
+- 실제 브로커 API 연결 없음
+- 실제 주문 생성, 전송, 승인, 취소, 실행 없음
+
 ## 안전
 
-Smoke test는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 포지션을 변경하지 않습니다.
+Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.
