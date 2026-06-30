@@ -78,6 +78,39 @@ export const api = {
     request(`/api/watchlist-reviews/${reviewId}/telegram/send`, {
       method: "POST"
     }),
+  createWatchlistSchedule: (watchlistId, payload) =>
+    request(`/api/watchlists/${watchlistId}/schedules`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  getWatchlistSchedulesForWatchlist: (watchlistId) =>
+    request(`/api/watchlists/${watchlistId}/schedules`),
+  getWatchlistSchedules: () => request("/api/watchlist-schedules"),
+  getWatchlistSchedule: (scheduleId) => request(`/api/watchlist-schedules/${scheduleId}`),
+  updateWatchlistSchedule: (scheduleId, payload) =>
+    request(`/api/watchlist-schedules/${scheduleId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+  deleteWatchlistSchedule: (scheduleId) =>
+    request(`/api/watchlist-schedules/${scheduleId}`, {
+      method: "DELETE"
+    }),
+  runWatchlistScheduleNow: (scheduleId) =>
+    request(`/api/watchlist-schedules/${scheduleId}/run-now`, {
+      method: "POST"
+    }),
+  runDueWatchlistSchedules: () =>
+    request("/api/watchlist-schedules/run-due", {
+      method: "POST"
+    }),
+  getWatchlistScheduleRuns: (params = {}) => {
+    const search = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+    ).toString();
+    return request(`/api/watchlist-schedule-runs${search ? `?${search}` : ""}`);
+  },
+  getWatchlistScheduleRun: (runId) => request(`/api/watchlist-schedule-runs/${runId}`),
   createTickerReview: (payload) =>
     request("/api/ticker-reviews", {
       method: "POST",

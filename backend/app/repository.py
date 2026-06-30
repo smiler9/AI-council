@@ -1002,6 +1002,322 @@ def _watchlist_review_row_to_dict(row) -> dict:
     return review
 
 
+def create_watchlist_schedule(
+    *,
+    watchlist_id: str,
+    name: str,
+    enabled: bool,
+    cadence: str,
+    run_time: str | None,
+    timezone: str,
+    auto_send_telegram: bool,
+    next_run_at: str | None,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    schedule_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO watchlist_schedules (
+                id,
+                watchlist_id,
+                name,
+                enabled,
+                cadence,
+                run_time,
+                timezone,
+                auto_send_telegram,
+                last_run_at,
+                next_run_at,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                schedule_id,
+                watchlist_id,
+                name,
+                int(bool(enabled)),
+                cadence,
+                run_time,
+                timezone,
+                int(bool(auto_send_telegram)),
+                None,
+                next_run_at,
+                timestamp,
+                timestamp,
+            ),
+        )
+    return get_watchlist_schedule(schedule_id, db_path)
+
+
+def list_watchlist_schedules(
+    db_path: str | Path | None = None,
+    watchlist_id: str | None = None,
+) -> list[dict]:
+    query = """
+        SELECT
+            id,
+            watchlist_id,
+            name,
+            enabled,
+            cadence,
+            run_time,
+            timezone,
+            auto_send_telegram,
+            last_run_at,
+            next_run_at,
+            created_at,
+            updated_at
+        FROM watchlist_schedules
+    """
+    params: tuple = ()
+    if watchlist_id:
+        query += " WHERE watchlist_id = ?"
+        params = (watchlist_id,)
+    query += " ORDER BY created_at DESC"
+    with get_connection(db_path) as connection:
+        rows = connection.execute(query, params).fetchall()
+    return [_watchlist_schedule_row_to_dict(row) for row in rows]
+
+
+def get_watchlist_schedule(schedule_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                watchlist_id,
+                name,
+                enabled,
+                cadence,
+                run_time,
+                timezone,
+                auto_send_telegram,
+                last_run_at,
+                next_run_at,
+                created_at,
+                updated_at
+            FROM watchlist_schedules
+            WHERE id = ?
+            """,
+            (schedule_id,),
+        ).fetchone()
+    return _watchlist_schedule_row_to_dict(row) if row else None
+
+
+def update_watchlist_schedule(
+    schedule_id: str,
+    *,
+    name: str | None = None,
+    enabled: bool | None = None,
+    cadence: str | None = None,
+    run_time: str | None = None,
+    clear_run_time: bool = False,
+    timezone: str | None = None,
+    auto_send_telegram: bool | None = None,
+    last_run_at: str | None = None,
+    next_run_at: str | None = None,
+    clear_next_run_at: bool = False,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    existing = get_watchlist_schedule(schedule_id, db_path)
+    if not existing:
+        return None
+    updated = {
+        "name": name if name is not None else existing["name"],
+        "enabled": enabled if enabled is not None else existing["enabled"],
+        "cadence": cadence if cadence is not None else existing["cadence"],
+        "run_time": (
+            None if clear_run_time else run_time if run_time is not None else existing.get("run_time")
+        ),
+        "timezone": timezone if timezone is not None else existing["timezone"],
+        "auto_send_telegram": (
+            auto_send_telegram
+            if auto_send_telegram is not None
+            else existing["auto_send_telegram"]
+        ),
+        "last_run_at": last_run_at if last_run_at is not None else existing.get("last_run_at"),
+        "next_run_at": (
+            None
+            if clear_next_run_at
+            else next_run_at if next_run_at is not None else existing.get("next_run_at")
+        ),
+    }
+    timestamp = now_iso()
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE watchlist_schedules
+            SET
+                name = ?,
+                enabled = ?,
+                cadence = ?,
+                run_time = ?,
+                timezone = ?,
+                auto_send_telegram = ?,
+                last_run_at = ?,
+                next_run_at = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                updated["name"],
+                int(bool(updated["enabled"])),
+                updated["cadence"],
+                updated["run_time"],
+                updated["timezone"],
+                int(bool(updated["auto_send_telegram"])),
+                updated["last_run_at"],
+                updated["next_run_at"],
+                timestamp,
+                schedule_id,
+            ),
+        )
+    return get_watchlist_schedule(schedule_id, db_path)
+
+
+def delete_watchlist_schedule(schedule_id: str, db_path: str | Path | None = None) -> dict | None:
+    existing = get_watchlist_schedule(schedule_id, db_path)
+    if not existing:
+        return None
+    with get_connection(db_path) as connection:
+        connection.execute("DELETE FROM watchlist_schedules WHERE id = ?", (schedule_id,))
+    return existing
+
+
+def create_watchlist_schedule_run(
+    *,
+    schedule_id: str,
+    watchlist_id: str,
+    watchlist_review_id: str | None,
+    status: str,
+    started_at: str,
+    finished_at: str,
+    summary: dict,
+    telegram_status: dict,
+    error_message: str | None = None,
+    db_path: str | Path | None = None,
+) -> dict:
+    run_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO watchlist_schedule_runs (
+                id,
+                schedule_id,
+                watchlist_id,
+                watchlist_review_id,
+                status,
+                started_at,
+                finished_at,
+                summary_json,
+                telegram_status_json,
+                error_message,
+                order_execution_allowed
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                schedule_id,
+                watchlist_id,
+                watchlist_review_id,
+                status,
+                started_at,
+                finished_at,
+                json.dumps(summary, sort_keys=True),
+                json.dumps(telegram_status, sort_keys=True),
+                error_message,
+                0,
+            ),
+        )
+    return get_watchlist_schedule_run(run_id, db_path)
+
+
+def list_watchlist_schedule_runs(
+    db_path: str | Path | None = None,
+    *,
+    schedule_id: str | None = None,
+    watchlist_id: str | None = None,
+    status: str | None = None,
+) -> list[dict]:
+    clauses = []
+    params: list[str] = []
+    if schedule_id:
+        clauses.append("schedule_id = ?")
+        params.append(schedule_id)
+    if watchlist_id:
+        clauses.append("watchlist_id = ?")
+        params.append(watchlist_id)
+    if status:
+        clauses.append("status = ?")
+        params.append(status)
+    query = """
+        SELECT
+            id,
+            schedule_id,
+            watchlist_id,
+            watchlist_review_id,
+            status,
+            started_at,
+            finished_at,
+            summary_json,
+            telegram_status_json,
+            error_message,
+            order_execution_allowed
+        FROM watchlist_schedule_runs
+    """
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY started_at DESC"
+    with get_connection(db_path) as connection:
+        rows = connection.execute(query, tuple(params)).fetchall()
+    return [_watchlist_schedule_run_row_to_dict(row) for row in rows]
+
+
+def get_watchlist_schedule_run(run_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                schedule_id,
+                watchlist_id,
+                watchlist_review_id,
+                status,
+                started_at,
+                finished_at,
+                summary_json,
+                telegram_status_json,
+                error_message,
+                order_execution_allowed
+            FROM watchlist_schedule_runs
+            WHERE id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+    return _watchlist_schedule_run_row_to_dict(row) if row else None
+
+
+def _watchlist_schedule_row_to_dict(row) -> dict:
+    schedule = row_to_dict(row)
+    schedule["enabled"] = bool(schedule["enabled"])
+    schedule["auto_send_telegram"] = bool(schedule["auto_send_telegram"])
+    schedule["order_execution_allowed"] = False
+    return schedule
+
+
+def _watchlist_schedule_run_row_to_dict(row) -> dict:
+    run = row_to_dict(row)
+    run["summary"] = json.loads(run.pop("summary_json") or "{}")
+    run["telegram_status"] = json.loads(run.pop("telegram_status_json") or "{}")
+    run["order_execution_allowed"] = False
+    return run
+
+
 def _ticker_review_row_to_dict(row) -> dict:
     review = row_to_dict(row)
     review["auto_payload"] = json.loads(review.pop("auto_payload_json"))

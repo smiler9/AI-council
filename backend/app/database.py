@@ -192,6 +192,39 @@ def init_db(db_path: str | Path | None = None) -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (watchlist_id) REFERENCES watchlists(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS watchlist_schedules (
+                id TEXT PRIMARY KEY,
+                watchlist_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                enabled INTEGER NOT NULL,
+                cadence TEXT NOT NULL,
+                run_time TEXT,
+                timezone TEXT NOT NULL,
+                auto_send_telegram INTEGER NOT NULL,
+                last_run_at TEXT,
+                next_run_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (watchlist_id) REFERENCES watchlists(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS watchlist_schedule_runs (
+                id TEXT PRIMARY KEY,
+                schedule_id TEXT NOT NULL,
+                watchlist_id TEXT NOT NULL,
+                watchlist_review_id TEXT,
+                status TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                finished_at TEXT NOT NULL,
+                summary_json TEXT NOT NULL,
+                telegram_status_json TEXT NOT NULL,
+                error_message TEXT,
+                order_execution_allowed INTEGER NOT NULL,
+                FOREIGN KEY (schedule_id) REFERENCES watchlist_schedules(id) ON DELETE CASCADE,
+                FOREIGN KEY (watchlist_id) REFERENCES watchlists(id) ON DELETE CASCADE,
+                FOREIGN KEY (watchlist_review_id) REFERENCES watchlist_reviews(id) ON DELETE SET NULL
+            );
             """
         )
         _ensure_column(

@@ -72,6 +72,15 @@ const ROUND_LABELS = {
   structured_decision: "5라운드: 구조화된 판단"
 };
 
+const SCHEDULE_CADENCE_LABELS = {
+  manual_only: "수동 실행 전용",
+  daily: "매일",
+  weekdays: "평일",
+  hourly_stub: "1시간마다 (stub)",
+  market_open_stub: "장 시작 전 (stub)",
+  market_close_stub: "장 마감 후 (stub)"
+};
+
 const MESSAGE_TYPE_LABELS = {
   analysis: "분석",
   rebuttal: "반박",
@@ -121,8 +130,35 @@ function messageTypeLabel(value) {
   return MESSAGE_TYPE_LABELS[value] ? `${MESSAGE_TYPE_LABELS[value]} (${value})` : value;
 }
 
+function scheduleCadenceLabel(value) {
+  return SCHEDULE_CADENCE_LABELS[value] ? `${SCHEDULE_CADENCE_LABELS[value]} (${value})` : value;
+}
+
+function scheduleRunStatusLabel(value) {
+  const labels = {
+    completed: "완료",
+    failed: "실패",
+    skipped: "건너뜀",
+    telegram_disabled: "텔레그램 비활성화"
+  };
+  return labels[value] ? `${labels[value]} (${value})` : value || "알 수 없음";
+}
+
 function booleanKo(value) {
   return value ? "예 (true)" : "아니오 (false)";
+}
+
+function formatDateTime(value) {
+  if (!value) return "없음";
+  try {
+    return new Intl.DateTimeFormat("ko-KR", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Seoul"
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }
 
 export default function App() {
@@ -131,6 +167,8 @@ export default function App() {
   const [tradeReviews, setTradeReviews] = useState([]);
   const [watchlists, setWatchlists] = useState([]);
   const [watchlistReviews, setWatchlistReviews] = useState([]);
+  const [watchlistSchedules, setWatchlistSchedules] = useState([]);
+  const [watchlistScheduleRuns, setWatchlistScheduleRuns] = useState([]);
   const [health, setHealth] = useState(null);
   const [marketDataStatus, setMarketDataStatus] = useState(null);
   const [riskEventStatus, setRiskEventStatus] = useState(null);
@@ -174,6 +212,15 @@ export default function App() {
     tickers: "TESTA\nTESTB\nTESTC\nTESTD\nTESTE",
     review_mode: "penny_stock_risk"
   });
+  const [scheduleForm, setScheduleForm] = useState({
+    watchlist_id: "",
+    name: "매일 장전 리스크 점검",
+    enabled: true,
+    cadence: "daily",
+    run_time: "08:30",
+    timezone: "Asia/Seoul",
+    auto_send_telegram: false
+  });
   const [selectedWatchlistId, setSelectedWatchlistId] = useState(null);
   const [marketDataTicker, setMarketDataTicker] = useState("TESTA");
   const [marketDataResult, setMarketDataResult] = useState(null);
@@ -184,12 +231,14 @@ export default function App() {
   const [autonomousReviewResult, setAutonomousReviewResult] = useState(null);
   const [watchlistReviewResult, setWatchlistReviewResult] = useState(null);
   const [watchlistTelegramResult, setWatchlistTelegramResult] = useState(null);
+  const [scheduleRunResult, setScheduleRunResult] = useState(null);
   const [tradeReviewTelegramResult, setTradeReviewTelegramResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tradeReviewLoading, setTradeReviewLoading] = useState(false);
   const [tickerReviewLoading, setTickerReviewLoading] = useState(false);
   const [autonomousReviewLoading, setAutonomousReviewLoading] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [riskEventLoading, setRiskEventLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -238,6 +287,8 @@ export default function App() {
         reviewList,
         watchlistList,
         watchlistReviewList,
+        scheduleList,
+        scheduleRunList,
         hooks,
         events
       ] = await Promise.all([
@@ -249,6 +300,8 @@ export default function App() {
         api.getTradeReviews(),
         api.getWatchlists(),
         api.getWatchlistReviews(),
+        api.getWatchlistSchedules(),
+        api.getWatchlistScheduleRuns(),
         api.getWebhookStatus(),
         api.getWebhookEvents()
       ]);
@@ -261,6 +314,12 @@ export default function App() {
       setWatchlists(watchlistList);
       setWatchlistReviews(watchlistReviewList);
       setSelectedWatchlistId((current) => current || watchlistList[0]?.id || null);
+      setWatchlistSchedules(scheduleList);
+      setWatchlistScheduleRuns(scheduleRunList);
+      setScheduleForm((current) => ({
+        ...current,
+        watchlist_id: current.watchlist_id || watchlistList[0]?.id || ""
+      }));
       setWebhookStatus(hooks);
       setWebhookEvents(events);
       await loadMeetings();
@@ -318,6 +377,13 @@ export default function App() {
 
   function updateWatchlistField(field, value) {
     setWatchlistForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function updateScheduleField(field, value) {
+    setScheduleForm((current) => ({
       ...current,
       [field]: value
     }));
@@ -448,6 +514,7 @@ export default function App() {
       const nextWatchlists = await api.getWatchlists();
       setWatchlists(nextWatchlists);
       setSelectedWatchlistId(watchlist.id);
+      setScheduleForm((current) => ({ ...current, watchlist_id: watchlist.id }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -463,6 +530,8 @@ export default function App() {
       const nextWatchlists = await api.getWatchlists();
       setWatchlists(nextWatchlists);
       setSelectedWatchlistId(nextWatchlists[0]?.id || null);
+      setScheduleForm((current) => ({ ...current, watchlist_id: nextWatchlists[0]?.id || "" }));
+      await refreshScheduleData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -484,6 +553,7 @@ export default function App() {
       if (firstMeetingId) {
         await loadMeetings(firstMeetingId);
       }
+      await refreshScheduleData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -505,6 +575,102 @@ export default function App() {
       setError(err.message);
     } finally {
       setWatchlistLoading(false);
+    }
+  }
+
+  async function refreshScheduleData() {
+    try {
+      const [scheduleList, scheduleRunList, watchlistReviewList] = await Promise.all([
+        api.getWatchlistSchedules(),
+        api.getWatchlistScheduleRuns(),
+        api.getWatchlistReviews()
+      ]);
+      setWatchlistSchedules(scheduleList);
+      setWatchlistScheduleRuns(scheduleRunList);
+      setWatchlistReviews(watchlistReviewList);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleScheduleCreate(event) {
+    event.preventDefault();
+    const watchlistId = scheduleForm.watchlist_id || selectedWatchlistId;
+    if (!watchlistId || !scheduleForm.name.trim()) return;
+    setScheduleLoading(true);
+    setScheduleRunResult(null);
+    setError("");
+    try {
+      const schedule = await api.createWatchlistSchedule(watchlistId, {
+        name: scheduleForm.name.trim(),
+        enabled: Boolean(scheduleForm.enabled),
+        cadence: scheduleForm.cadence,
+        run_time: scheduleForm.run_time.trim() || null,
+        timezone: scheduleForm.timezone.trim() || "Asia/Seoul",
+        auto_send_telegram: Boolean(scheduleForm.auto_send_telegram)
+      });
+      setScheduleForm((current) => ({ ...current, watchlist_id: schedule.watchlist_id }));
+      await refreshScheduleData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScheduleLoading(false);
+    }
+  }
+
+  async function handleScheduleDelete(scheduleId) {
+    setScheduleLoading(true);
+    setError("");
+    try {
+      await api.deleteWatchlistSchedule(scheduleId);
+      await refreshScheduleData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScheduleLoading(false);
+    }
+  }
+
+  async function handleScheduleRunNow(scheduleId) {
+    setScheduleLoading(true);
+    setScheduleRunResult(null);
+    setError("");
+    try {
+      const result = await api.runWatchlistScheduleNow(scheduleId);
+      setScheduleRunResult(result);
+      setWatchlistReviewResult(result.review);
+      setWatchlistReviews(await api.getWatchlistReviews());
+      setTradeReviews(await api.getTradeReviews());
+      await refreshScheduleData();
+      const firstMeetingId = result.review?.results?.[0]?.linked_meeting_id;
+      if (firstMeetingId) {
+        await loadMeetings(firstMeetingId);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScheduleLoading(false);
+    }
+  }
+
+  async function handleScheduleRunDue() {
+    setScheduleLoading(true);
+    setScheduleRunResult(null);
+    setError("");
+    try {
+      const result = await api.runDueWatchlistSchedules();
+      setScheduleRunResult(result);
+      setWatchlistReviews(await api.getWatchlistReviews());
+      setTradeReviews(await api.getTradeReviews());
+      await refreshScheduleData();
+      const firstMeetingId = result.results?.[0]?.review?.results?.[0]?.linked_meeting_id;
+      if (firstMeetingId) {
+        await loadMeetings(firstMeetingId);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScheduleLoading(false);
     }
   }
 
@@ -689,6 +855,7 @@ export default function App() {
           <a href="#market-data">시장 데이터 상태</a>
           <a href="#risk-events">뉴스/공시 리스크</a>
           <a href="#watchlists">관심종목</a>
+          <a href="#watchlist-schedules">자동 분석 스케줄</a>
           <a href="#autonomous-review">자율 트레이더 검토</a>
           <a href="#ticker-review">종목 자동 분석</a>
           <a href="#trade-review">거래 신호 검토</a>
@@ -828,6 +995,8 @@ export default function App() {
           tradeReviews={tradeReviews}
           watchlists={watchlists}
           watchlistReviews={watchlistReviews}
+          watchlistSchedules={watchlistSchedules}
+          watchlistScheduleRuns={watchlistScheduleRuns}
         />
 
         <SettingsGuidePanel health={health} />
@@ -864,6 +1033,22 @@ export default function App() {
           onDelete={handleWatchlistDelete}
           onRun={handleWatchlistRun}
           onSendTelegram={handleWatchlistTelegramSend}
+          onOpenMeeting={handleSelect}
+        />
+
+        <WatchlistSchedulePanel
+          watchlists={watchlists}
+          schedules={watchlistSchedules}
+          runs={watchlistScheduleRuns}
+          form={scheduleForm}
+          updateField={updateScheduleField}
+          loading={scheduleLoading}
+          result={scheduleRunResult}
+          telegramConfigured={Boolean(telegramStatus?.configured)}
+          onCreate={handleScheduleCreate}
+          onDelete={handleScheduleDelete}
+          onRunNow={handleScheduleRunNow}
+          onRunDue={handleScheduleRunDue}
           onOpenMeeting={handleSelect}
         />
 
@@ -1335,13 +1520,16 @@ function DashboardCards({
   meetings,
   tradeReviews,
   watchlists,
-  watchlistReviews
+  watchlistReviews,
+  watchlistSchedules,
+  watchlistScheduleRuns
 }) {
   const backendOk = health?.status === "ok";
   const llmProvider = health?.llm_provider || "mock";
   const marketDataProvider =
     marketDataStatus?.active_provider || health?.market_data?.provider || "mock_market_data";
   const latestWatchlistReview = watchlistReviews?.[0];
+  const latestScheduleRun = watchlistScheduleRuns?.[0];
   return (
     <section className="dashboardGrid" id="dashboard">
       <article>
@@ -1405,6 +1593,16 @@ function DashboardCards({
         <span>최근 Watchlist 분석 수</span>
         <strong>{watchlistReviews.length}</strong>
         <p>Batch review 기록</p>
+      </article>
+      <article>
+        <span>자동 분석 스케줄 수</span>
+        <strong>{watchlistSchedules.length}</strong>
+        <p>run-due로 호출 가능한 분석/보고 일정</p>
+      </article>
+      <article>
+        <span>최근 스케줄 실행</span>
+        <strong>{latestScheduleRun ? scheduleRunStatusLabel(latestScheduleRun.status) : "없음"}</strong>
+        <p>{latestScheduleRun ? formatDateTime(latestScheduleRun.finished_at) : "실행 로그 없음"}</p>
       </article>
       <article>
         <span>최근 위험 종목 수</span>
@@ -2004,6 +2202,330 @@ function WatchlistReviewResult({
       )}
       <p className="contextHint">
         이 기능은 주문을 실행하지 않습니다. 모든 결과의 order_execution_allowed는 false입니다.
+      </p>
+    </section>
+  );
+}
+
+function WatchlistSchedulePanel({
+  watchlists,
+  schedules,
+  runs,
+  form,
+  updateField,
+  loading,
+  result,
+  telegramConfigured,
+  onCreate,
+  onDelete,
+  onRunNow,
+  onRunDue,
+  onOpenMeeting
+}) {
+  const watchlistById = new Map(watchlists.map((watchlist) => [watchlist.id, watchlist]));
+  const scheduleById = new Map(schedules.map((schedule) => [schedule.id, schedule]));
+  return (
+    <section className="tradeReviewSection" id="watchlist-schedules">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">Phase 16 Scheduled Watchlist Review</p>
+          <h3>자동 분석 스케줄</h3>
+        </div>
+        <button className="secondaryButton" type="button" disabled={loading} onClick={onRunDue}>
+          <RefreshCw size={17} aria-hidden="true" />
+          실행 대상 스케줄 실행
+        </button>
+      </div>
+      <form className="tickerReviewForm" onSubmit={onCreate}>
+        <label>
+          <span>연결된 Watchlist</span>
+          <select
+            value={form.watchlist_id}
+            onChange={(event) => updateField("watchlist_id", event.target.value)}
+          >
+            <option value="">Watchlist 선택</option>
+            {watchlists.map((watchlist) => (
+              <option value={watchlist.id} key={watchlist.id}>
+                {watchlist.name} ({watchlist.ticker_count}개)
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>스케줄 이름</span>
+          <input
+            value={form.name}
+            onChange={(event) => updateField("name", event.target.value)}
+            placeholder="매일 장전 리스크 점검"
+          />
+        </label>
+        <label>
+          <span>실행 주기</span>
+          <select value={form.cadence} onChange={(event) => updateField("cadence", event.target.value)}>
+            <option value="manual_only">수동 실행 전용 (manual_only)</option>
+            <option value="daily">매일 (daily)</option>
+            <option value="weekdays">평일 (weekdays)</option>
+            <option value="hourly_stub">1시간마다 stub (hourly_stub)</option>
+            <option value="market_open_stub">장 시작 전 stub (market_open_stub)</option>
+            <option value="market_close_stub">장 마감 후 stub (market_close_stub)</option>
+          </select>
+        </label>
+        <label>
+          <span>실행 시간</span>
+          <input
+            value={form.run_time}
+            onChange={(event) => updateField("run_time", event.target.value)}
+            placeholder="08:30"
+            maxLength={5}
+          />
+        </label>
+        <label>
+          <span>시간대</span>
+          <input
+            value={form.timezone}
+            onChange={(event) => updateField("timezone", event.target.value)}
+            placeholder="Asia/Seoul"
+          />
+        </label>
+        <label className="checkboxLabel">
+          <input
+            type="checkbox"
+            checked={form.enabled}
+            onChange={(event) => updateField("enabled", event.target.checked)}
+          />
+          <span>활성화</span>
+        </label>
+        <label className="checkboxLabel">
+          <input
+            type="checkbox"
+            checked={form.auto_send_telegram}
+            onChange={(event) => updateField("auto_send_telegram", event.target.checked)}
+          />
+          <span>텔레그램 자동 보고</span>
+        </label>
+        <button
+          className="primaryButton"
+          type="submit"
+          disabled={loading || !form.watchlist_id || !form.name.trim()}
+        >
+          <Plus size={18} aria-hidden="true" />
+          새 스케줄 만들기
+        </button>
+      </form>
+      <p className="contextHint">
+        자동 스케줄은 Watchlist 분석과 보고만 수행합니다. 이 기능은 주문을 실행하지 않습니다.
+        텔레그램 자동 보고는 설정이 없으면 disabled로 기록됩니다.
+      </p>
+      <div className="webhookStatusGrid">
+        <div>
+          <span>스케줄 수</span>
+          <strong>{schedules.length}</strong>
+        </div>
+        <div>
+          <span>활성 스케줄</span>
+          <strong>{schedules.filter((schedule) => schedule.enabled).length}</strong>
+        </div>
+        <div>
+          <span>최근 실행 로그</span>
+          <strong>{runs.length}</strong>
+        </div>
+        <div>
+          <span>Telegram 설정</span>
+          <strong>{telegramConfigured ? "설정됨" : "비활성화"}</strong>
+        </div>
+      </div>
+
+      <div className="autonomousGroups">
+        <div className="autonomousGroup">
+          <h4>스케줄 목록</h4>
+          {schedules.length > 0 ? (
+            schedules.map((schedule) => {
+              const watchlist = watchlistById.get(schedule.watchlist_id);
+              return (
+                <article key={schedule.id}>
+                  <div>
+                    <strong>{schedule.name}</strong>
+                    <span>
+                      {watchlist?.name || schedule.watchlist_id} · {scheduleCadenceLabel(schedule.cadence)}
+                    </span>
+                    <span>
+                      다음 실행 시각: {formatDateTime(schedule.next_run_at)} · 마지막 실행 시각:{" "}
+                      {formatDateTime(schedule.last_run_at)}
+                    </span>
+                    <span>
+                      활성화 {booleanKo(Boolean(schedule.enabled))} · 텔레그램 자동 보고{" "}
+                      {booleanKo(Boolean(schedule.auto_send_telegram))} · 주문 실행 허용 여부{" "}
+                      {booleanKo(Boolean(schedule.order_execution_allowed))}
+                    </span>
+                  </div>
+                  <div className="tradeReviewActions">
+                    <button
+                      className="secondaryButton"
+                      type="button"
+                      disabled={loading}
+                      onClick={() => onRunNow(schedule.id)}
+                    >
+                      <Play size={16} aria-hidden="true" />
+                      지금 실행
+                    </button>
+                    <button
+                      className="secondaryButton"
+                      type="button"
+                      disabled={loading}
+                      onClick={() => onDelete(schedule.id)}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                      삭제
+                    </button>
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <div className="emptyState">아직 자동 분석 스케줄이 없습니다.</div>
+          )}
+        </div>
+      </div>
+
+      {result && <ScheduleRunResult result={result} onOpenMeeting={onOpenMeeting} />}
+
+      <div className="webhookEvents">
+        <h4>최근 실행 로그</h4>
+        {runs.length > 0 ? (
+          runs.slice(0, 6).map((run) => {
+            const schedule = scheduleById.get(run.schedule_id);
+            return (
+              <article key={run.id}>
+                <div>
+                  <strong>{schedule?.name || run.schedule_id.slice(0, 8)}</strong>
+                  <span>
+                    {scheduleRunStatusLabel(run.status)} · {formatDateTime(run.finished_at)}
+                  </span>
+                </div>
+                <div>
+                  <span>Watchlist Review</span>
+                  <strong>{run.watchlist_review_id ? run.watchlist_review_id.slice(0, 8) : "없음"}</strong>
+                </div>
+                <div>
+                  <span>주문 실행 허용 여부</span>
+                  <strong>{booleanKo(Boolean(run.order_execution_allowed))}</strong>
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <div className="emptyState">아직 schedule run log가 없습니다.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ScheduleRunResult({ result, onOpenMeeting }) {
+  const isRunDue = Array.isArray(result.results);
+  const runs = isRunDue ? result.results : [result];
+  return (
+    <section className="tradeReviewResultCard">
+      <div className="decisionHeader">
+        <div>
+          <p className="eyebrow">스케줄 실행 결과</p>
+          <h3>{isRunDue ? "실행 대상 스케줄 처리" : result.schedule?.name || "지금 실행"}</h3>
+        </div>
+        <div className="badgeGroup">
+          <span className="decisionBadge hold">
+            실행 {isRunDue ? result.executed_count : 1}
+          </span>
+          <span className="riskBadge medium">
+            실패 {isRunDue ? result.failed_count : result.run?.status === "failed" ? 1 : 0}
+          </span>
+        </div>
+      </div>
+      <div className="decisionMetrics">
+        {isRunDue ? (
+          <>
+            <div>
+              <span>실행 대상</span>
+              <strong>{result.due_count}</strong>
+            </div>
+            <div>
+              <span>실행 완료</span>
+              <strong>{result.executed_count}</strong>
+            </div>
+            <div>
+              <span>실패</span>
+              <strong>{result.failed_count}</strong>
+            </div>
+            <div>
+              <span>건너뜀</span>
+              <strong>{result.skipped_count}</strong>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <span>실행 상태</span>
+              <strong>{scheduleRunStatusLabel(result.run?.status)}</strong>
+            </div>
+            <div>
+              <span>분석 종목 수</span>
+              <strong>{result.review?.ticker_count || 0}</strong>
+            </div>
+            <div>
+              <span>최고 리스크 수준</span>
+              <strong>{riskLevelLabel(result.review?.highest_risk_level)}</strong>
+            </div>
+            <div>
+              <span>Telegram 상태</span>
+              <strong>{result.telegram?.status || "not_requested"}</strong>
+            </div>
+          </>
+        )}
+        <div>
+          <span>주문 실행 허용 여부</span>
+          <strong>{booleanKo(Boolean(result.order_execution_allowed))}</strong>
+        </div>
+      </div>
+      <div className="autonomousGroups">
+        {runs.map((item) => {
+          const review = item.review || {};
+          const firstMeetingId = review.results?.[0]?.linked_meeting_id;
+          return (
+            <div className="autonomousGroup" key={item.run?.id || item.schedule?.id || "run-due"}>
+              <h4>{item.schedule?.name || item.schedule?.id || "실행 결과"}</h4>
+              <article>
+                <div>
+                  <strong>{review.watchlist_name || "Watchlist Risk Brief"}</strong>
+                  <span>
+                    {review.ticker_count || 0}개 분석 · 최고 리스크{" "}
+                    {riskLevelLabel(review.highest_risk_level)}
+                  </span>
+                  <span>
+                    Telegram: {item.telegram?.status || "not_requested"} · 주문 실행 허용 여부{" "}
+                    {booleanKo(Boolean(item.order_execution_allowed))}
+                  </span>
+                </div>
+                <button
+                  className="secondaryButton"
+                  type="button"
+                  disabled={!firstMeetingId}
+                  onClick={() => firstMeetingId && onOpenMeeting(firstMeetingId)}
+                >
+                  <FileText size={16} aria-hidden="true" />
+                  첫 회의 열기
+                </button>
+              </article>
+            </div>
+          );
+        })}
+      </div>
+      {isRunDue && result.errors?.length > 0 && (
+        <div className="telegramResult disabled">
+          <strong>일부 스케줄 실패</strong>
+          <p>{result.errors.map((error) => `${error.schedule_id}: ${error.error}`).join(" / ")}</p>
+        </div>
+      )}
+      <p className="contextHint">
+        이 기능은 자동 분석/자동 보고 전용입니다. 자동 주문 또는 자동 매매 기능이 아닙니다.
       </p>
     </section>
   );

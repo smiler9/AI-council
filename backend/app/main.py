@@ -44,6 +44,8 @@ from .repository import (
     get_trade_review,
     get_watchlist,
     get_watchlist_review,
+    get_watchlist_schedule,
+    get_watchlist_schedule_run,
     get_webhook_event,
     get_webhook_event_by_source_signal,
     list_agents,
@@ -51,6 +53,8 @@ from .repository import (
     list_meetings,
     list_trade_reviews,
     list_watchlist_reviews,
+    list_watchlist_schedule_runs,
+    list_watchlist_schedules,
     list_watchlists,
     list_webhook_events,
     replace_meeting_outputs,
@@ -67,6 +71,8 @@ from .schemas import (
     TickerReviewCreate,
     TradeReviewCreate,
     WatchlistCreate,
+    WatchlistScheduleCreate,
+    WatchlistScheduleUpdate,
     WatchlistUpdate,
 )
 from .seed import seed_agents
@@ -83,6 +89,14 @@ from .watchlists import (
     normalize_tickers,
     run_watchlist_review,
     send_watchlist_review_telegram,
+)
+from .watchlist_schedules import (
+    WatchlistScheduleError,
+    create_schedule_for_watchlist,
+    delete_schedule,
+    run_due_schedules,
+    run_schedule_now,
+    update_schedule,
 )
 from .webhooks import (
     WEBHOOK_SECRET_HEADER,
@@ -172,6 +186,18 @@ def create_app(
         if not review:
             raise HTTPException(status_code=404, detail="Watchlist review not found")
         return review
+
+    def _watchlist_schedule_or_404(schedule_id: str) -> dict:
+        schedule = get_watchlist_schedule(schedule_id, app.state.db_path)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Watchlist schedule not found")
+        return schedule
+
+    def _watchlist_schedule_run_or_404(run_id: str) -> dict:
+        run = get_watchlist_schedule_run(run_id, app.state.db_path)
+        if not run:
+            raise HTTPException(status_code=404, detail="Watchlist schedule run not found")
+        return run
 
     @app.get("/health")
     def health() -> dict:
@@ -585,6 +611,92 @@ def create_app(
             db_path=app.state.db_path,
             telegram_service=TelegramService(app.state.telegram_config),
         )
+
+    @app.post("/api/watchlists/{watchlist_id}/schedules", status_code=201)
+    def post_watchlist_schedule(watchlist_id: str, payload: WatchlistScheduleCreate) -> dict:
+        try:
+            return create_schedule_for_watchlist(
+                watchlist_id,
+                payload,
+                db_path=app.state.db_path,
+            )
+        except WatchlistScheduleError as exc:
+            detail = str(exc)
+            status_code = 404 if "not found" in detail.lower() else 422
+            raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    @app.get("/api/watchlists/{watchlist_id}/schedules")
+    def get_watchlist_schedules_for_watchlist(watchlist_id: str) -> list[dict]:
+        _watchlist_or_404(watchlist_id)
+        return list_watchlist_schedules(app.state.db_path, watchlist_id=watchlist_id)
+
+    @app.get("/api/watchlist-schedules")
+    def get_watchlist_schedules() -> list[dict]:
+        return list_watchlist_schedules(app.state.db_path)
+
+    @app.post("/api/watchlist-schedules/run-due")
+    def post_watchlist_schedules_run_due() -> dict:
+        return run_due_schedules(
+            db_path=app.state.db_path,
+            report_dir=app.state.report_dir,
+            llm_config=app.state.llm_config,
+            market_data_config=app.state.market_data_config,
+            risk_event_config=app.state.risk_event_config,
+            telegram_service=TelegramService(app.state.telegram_config),
+        )
+
+    @app.get("/api/watchlist-schedules/{schedule_id}")
+    def get_watchlist_schedule_detail(schedule_id: str) -> dict:
+        return _watchlist_schedule_or_404(schedule_id)
+
+    @app.patch("/api/watchlist-schedules/{schedule_id}")
+    def patch_watchlist_schedule(schedule_id: str, payload: WatchlistScheduleUpdate) -> dict:
+        _watchlist_schedule_or_404(schedule_id)
+        try:
+            return update_schedule(schedule_id, payload, db_path=app.state.db_path)
+        except WatchlistScheduleError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.delete("/api/watchlist-schedules/{schedule_id}")
+    def delete_watchlist_schedule_endpoint(schedule_id: str) -> dict:
+        try:
+            return delete_schedule(schedule_id, db_path=app.state.db_path)
+        except WatchlistScheduleError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/watchlist-schedules/{schedule_id}/run-now")
+    def post_watchlist_schedule_run_now(schedule_id: str) -> dict:
+        try:
+            return run_schedule_now(
+                schedule_id,
+                db_path=app.state.db_path,
+                report_dir=app.state.report_dir,
+                llm_config=app.state.llm_config,
+                market_data_config=app.state.market_data_config,
+                risk_event_config=app.state.risk_event_config,
+                telegram_service=TelegramService(app.state.telegram_config),
+            )
+        except WatchlistScheduleError as exc:
+            detail = str(exc)
+            status_code = 404 if "not found" in detail.lower() else 500
+            raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    @app.get("/api/watchlist-schedule-runs")
+    def get_watchlist_schedule_runs(
+        schedule_id: str | None = Query(default=None),
+        watchlist_id: str | None = Query(default=None),
+        status: str | None = Query(default=None),
+    ) -> list[dict]:
+        return list_watchlist_schedule_runs(
+            app.state.db_path,
+            schedule_id=schedule_id,
+            watchlist_id=watchlist_id,
+            status=status,
+        )
+
+    @app.get("/api/watchlist-schedule-runs/{run_id}")
+    def get_watchlist_schedule_run_detail(run_id: str) -> dict:
+        return _watchlist_schedule_run_or_404(run_id)
 
     @app.get("/api/trade-reviews")
     def get_trade_reviews() -> list[dict]:

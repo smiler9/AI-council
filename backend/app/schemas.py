@@ -94,3 +94,31 @@ class WatchlistUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     tickers: list[str] | None = Field(default=None, min_length=1, max_length=50)
     review_mode: WatchlistReviewMode | None = None
+
+
+ScheduleCadence = Literal[
+    "manual_only",
+    "daily",
+    "weekdays",
+    "hourly_stub",
+    "market_open_stub",
+    "market_close_stub",
+]
+
+
+class WatchlistScheduleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    enabled: bool = True
+    cadence: ScheduleCadence = "manual_only"
+    run_time: str | None = Field(default=None, max_length=5)
+    timezone: str = Field(default="Asia/Seoul", max_length=80)
+    auto_send_telegram: bool = False
+
+
+class WatchlistScheduleUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    cadence: ScheduleCadence | None = None
+    run_time: str | None = Field(default=None, max_length=5)
+    timezone: str | None = Field(default=None, max_length=80)
+    auto_send_telegram: bool | None = None
