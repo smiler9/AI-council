@@ -1,0 +1,25 @@
+{
+  "source": "sample_external_bot",
+  "signal_id": "sample_high_spread_001",
+  "symbol": "TESTB",
+  "setup": "premarket_breakout",
+  "side": "buy",
+  "last_price": 0.47,
+  "current_volume": 850000,
+  "interval": "1m",
+  "event_time": "2026-06-30T08:18:00Z",
+  "indicators": {
+    "rsi": 78,
+    "vwap_distance": 0.091,
+    "relative_volume": 7.4
+  },
+  "headlines": [
+    "TESTB sample premarket attention increases"
+  ],
+  "risk": {
+    "spread_pct": 8.4,
+    "float_rotation": 2.8,
+    "premarket": true
+  },
+  "notes": "High-spread sample candidate. Side is review context only, not an order."
+}

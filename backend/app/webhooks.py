@@ -5,8 +5,10 @@ from dataclasses import dataclass
 from typing import Mapping, Any
 from uuid import uuid4
 
+from .council import SAFETY_BOUNDARY
 
 WEBHOOK_SECRET_HEADER = "X-AI-Council-Webhook-Secret"
+WEBHOOK_ENDPOINT_PATH = "/api/webhooks/trade-signal"
 
 
 class WebhookInputError(ValueError):
@@ -45,9 +47,12 @@ def webhook_status(config: WebhookConfig) -> dict:
         "enabled": config.enabled,
         "configured": config.configured,
         "require_secret": config.require_secret,
+        "secret_configured": bool(config.secret),
         "secret_header": WEBHOOK_SECRET_HEADER,
+        "endpoint_path": WEBHOOK_ENDPOINT_PATH,
         "missing": missing,
         "disabled_reason": _disabled_reason(config, missing),
+        "safety_boundary": SAFETY_BOUNDARY,
         "order_execution_allowed": False,
     }
 

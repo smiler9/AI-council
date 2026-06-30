@@ -26,13 +26,17 @@ Phase 7 adds a read-only Trade Signal Review API. External bots can submit candi
 
 Phase 8 adds a read-only external bot webhook receiver and input adapter. Webhooks are disabled by default, support a shared secret header, normalize common bot payload aliases, and reuse the Phase 7 Trade Signal Review engine.
 
+Phase 9 adds an external bot sample client, webhook smoke test kit, sample payloads, and developer scripts so another local bot can integrate with AI Council safely.
+
 ## Structure
 
 ```text
 AI-council/
   backend/      FastAPI + SQLite API
+  examples/     external bot sample client and integration smoke tests
   frontend/     React + Vite UI
   reports/      generated Markdown meeting reports
+  scripts/      local development helper scripts
 ```
 
 ## Backend
@@ -500,6 +504,84 @@ Telegram option:
 - Add `?auto_send_telegram=true` or `"auto_send_telegram": true` to request report delivery.
 - If Telegram is disabled, the response includes a safe disabled result.
 - Telegram is reporting-only and is not connected to trading or order systems.
+
+Safety boundary:
+
+> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
+
+## Phase 9 Sample Client And Smoke Tests
+
+Phase 9 provides local integration tools for external bot developers.
+
+Files:
+
+```text
+examples/
+  external_bot/
+    send_trade_signal.py
+    sample_payloads/
+  integration/
+    run_webhook_smoke_test.py
+scripts/
+  run_backend.sh
+  run_frontend.sh
+  run_tests.sh
+  run_webhook_smoke.sh
+```
+
+Sample client usage:
+
+```bash
+cd ~/AI-council/examples/external_bot
+export AI_COUNCIL_WEBHOOK_URL=http://127.0.0.1:8000/api/webhooks/trade-signal
+export AI_COUNCIL_WEBHOOK_SECRET=change-me
+python3 send_trade_signal.py --payload sample_payloads/breakout_signal.json --pretty
+```
+
+Smoke test usage:
+
+```bash
+cd ~/AI-council
+WEBHOOKS_ENABLED=true \
+WEBHOOK_SECRET=change-me \
+WEBHOOK_REQUIRE_SECRET=true \
+scripts/run_backend.sh
+```
+
+In a second terminal:
+
+```bash
+cd ~/AI-council
+export AI_COUNCIL_BASE_URL=http://127.0.0.1:8000
+export AI_COUNCIL_WEBHOOK_SECRET=change-me
+scripts/run_webhook_smoke.sh
+```
+
+The smoke test checks `/health`, `/api/webhooks/status`, sample payload delivery, `order_execution_allowed=false`, and duplicate idempotency behavior.
+
+Sample payloads:
+
+- `breakout_signal.json`: ordinary watch-only sample with example headlines.
+- `high_spread_signal.json`: elevated spread and premarket risk sample.
+- `missing_news_signal.json`: no headlines, expected to produce limited data quality.
+- `duplicate_signal.json`: same `source + signal_id` as breakout sample.
+
+Duplicate behavior:
+
+- The first `source + signal_id` creates a trade review.
+- The duplicate request returns `duplicated=true`.
+- No new meeting or trade review is created for the duplicate.
+
+Developer scripts:
+
+```bash
+scripts/run_backend.sh
+scripts/run_frontend.sh
+scripts/run_tests.sh
+scripts/run_webhook_smoke.sh
+```
+
+Secrets are read from environment variables and are not hardcoded in scripts.
 
 Safety boundary:
 

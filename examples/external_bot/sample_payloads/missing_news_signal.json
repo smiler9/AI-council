@@ -1,0 +1,23 @@
+{
+  "source": "sample_external_bot",
+  "signal_id": "sample_missing_news_001",
+  "ticker": "TESTC",
+  "signal": "volume_spike",
+  "side": "review_only",
+  "price": 1.14,
+  "volume": 2400000,
+  "timeframe": "5m",
+  "timestamp": "2026-06-30T10:12:00Z",
+  "technical_indicators": {
+    "rsi": 69,
+    "vwap_distance": 0.038,
+    "relative_volume": 3.1
+  },
+  "news_headlines": [],
+  "risk_context": {
+    "spread_pct": 2.9,
+    "float_rotation": 0.7,
+    "premarket": false
+  },
+  "notes": "Sample signal with no validated news headlines attached."
+}

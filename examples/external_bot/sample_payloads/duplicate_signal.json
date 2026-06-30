@@ -1,0 +1,26 @@
+{
+  "source": "sample_external_bot",
+  "signal_id": "sample_breakout_001",
+  "ticker": "TESTA",
+  "strategy_signal": "breakout",
+  "side": "watch_only",
+  "price": 0.82,
+  "volume": 12500000,
+  "timeframe": "1m",
+  "timestamp": "2026-06-30T09:35:00Z",
+  "technical_indicators": {
+    "rsi": 64,
+    "vwap_distance": 0.025,
+    "relative_volume": 4.8
+  },
+  "news_headlines": [
+    "TESTA announces sample product milestone",
+    "TESTA files example corporate update"
+  ],
+  "risk_context": {
+    "spread_pct": 2.2,
+    "float_rotation": 1.3,
+    "premarket": false
+  },
+  "notes": "Duplicate of sample_breakout_001 for idempotency testing."
+}

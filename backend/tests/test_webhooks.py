@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -60,6 +61,19 @@ def test_webhooks_disabled_returns_safe_response(client):
     payload = response.json()
     assert payload["status"] == "disabled"
     assert payload["order_execution_allowed"] is False
+
+
+def test_webhook_status_includes_safe_metadata_without_secret(tmp_path):
+    with _webhook_client(tmp_path, enabled=True, secret="very-secret", require_secret=True) as client:
+        response = client.get("/api/webhooks/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["endpoint_path"] == "/api/webhooks/trade-signal"
+    assert payload["secret_configured"] is True
+    assert payload["order_execution_allowed"] is False
+    assert "AI Council does not execute trades or connect to broker APIs" in payload["safety_boundary"]
+    assert "very-secret" not in json.dumps(payload)
 
 
 def test_webhooks_missing_configured_secret_is_disabled(tmp_path):
@@ -143,6 +157,57 @@ def test_alias_payload_normalization():
     assert normalized["news_headlines"] == ["Filed 8-K"]
     assert normalized["risk_context"]["event_time"] == "2026-06-30T10:00:00Z"
     assert normalized["order_execution_allowed"] is False
+
+
+def test_sample_payloads_are_valid_json_and_normalize_successfully():
+    payload_dir = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "external_bot"
+        / "sample_payloads"
+    )
+    expected = {
+        "breakout_signal.json",
+        "high_spread_signal.json",
+        "missing_news_signal.json",
+        "duplicate_signal.json",
+    }
+    found = {path.name for path in payload_dir.glob("*.json")}
+    assert found >= expected
+    for path in payload_dir.glob("*.json"):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        normalized = normalize_trade_signal_payload(payload)
+        assert normalized["ticker"].startswith("TEST")
+        assert normalized["strategy_signal"]
+        assert normalized["order_execution_allowed"] is False
+
+
+def test_duplicate_sample_payload_returns_existing_review(tmp_path):
+    payload_dir = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "external_bot"
+        / "sample_payloads"
+    )
+    breakout = json.loads((payload_dir / "breakout_signal.json").read_text(encoding="utf-8"))
+    duplicate = json.loads((payload_dir / "duplicate_signal.json").read_text(encoding="utf-8"))
+
+    with _webhook_client(tmp_path) as client:
+        first = client.post(
+            "/api/webhooks/trade-signal",
+            json=breakout,
+            headers=_secret_headers(),
+        )
+        second = client.post(
+            "/api/webhooks/trade-signal",
+            json=duplicate,
+            headers=_secret_headers(),
+        )
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert second.json()["duplicated"] is True
+    assert second.json()["trade_review"]["id"] == first.json()["trade_review"]["id"]
 
 
 def test_duplicate_source_signal_id_returns_existing_review(tmp_path):

@@ -182,9 +182,10 @@ def create_app(
 
     @app.get("/api/webhooks/status")
     def get_webhook_status() -> dict:
+        status = webhook_status(app.state.webhook_config)
         return {
-            **webhook_status(app.state.webhook_config),
-            "endpoint": "/api/webhooks/trade-signal",
+            **status,
+            "endpoint": status["endpoint_path"],
         }
 
     @app.get("/api/webhooks/events")
