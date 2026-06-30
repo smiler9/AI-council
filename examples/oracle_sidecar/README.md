@@ -121,6 +121,17 @@ Preflight는 다음을 로컬에서만 확인합니다.
 
 Preflight는 Oracle 서버에 접속하지 않고, 운영봇 파일을 수정하지 않고, 실제 주문을 실행하지 않습니다.
 
+## Phase 24E staging rehearsal
+
+로컬 스테이징 복사본에서 patch preview를 검증하려면 다음을 실행합니다.
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_staging_rehearsal.sh
+```
+
+이 리허설은 `examples/oracle_staging/`의 analyzer, staging copy 준비 도구, patch preview generator, validator를 사용합니다. 운영본이나 로컬 원본을 직접 수정하지 않고 임시 staging output만 생성합니다.
+
 ## Sample payloads
 
 - `sample_outbox/us_trader_signal_001.json`

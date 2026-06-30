@@ -4218,6 +4218,28 @@ function WebhookPanel({
           Export Hook 패치 초안은 Oracle 운영봇 직접 수정 전 반드시 검토해야 하는 문서와 helper 예시입니다.
           적용 전 preflight, sidecar dry-run, preview-only 검증을 먼저 통과해야 합니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle 스테이징 리허설</span>
+            <strong>scripts/run_oracle_staging_rehearsal.sh</strong>
+          </div>
+          <div>
+            <span>Patch preview</span>
+            <strong>로컬 복사본 전용</strong>
+          </div>
+          <div>
+            <span>검증 순서</span>
+            <strong>Patch preview / Preflight / Sidecar smoke</strong>
+          </div>
+          <div>
+            <span>실제 Oracle 서버 수정</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          운영봇 수정 전 로컬 staging copy에서 patch preview를 검증합니다. 이 단계는 실제 Oracle 서버를 수정하지
+          않고 실제 주문을 실행하지 않습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

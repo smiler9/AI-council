@@ -122,6 +122,14 @@ Phase 24D patch draft와 preflight:
 
 Preflight는 로컬 임시 outbox에서 exporter module, sidecar dry-run, normalize-preview를 확인합니다. Oracle 서버에 접속하지 않고 live bot 파일을 수정하지 않습니다.
 
+Phase 24E staging rehearsal:
+
+- `docs/US_TRADER_ORACLE_STAGING_REHEARSAL.md`
+- `examples/oracle_staging/`
+- `scripts/run_oracle_staging_rehearsal.sh`
+
+Staging rehearsal은 로컬 복사본 또는 fixture를 대상으로 patch preview를 생성하고 validate합니다. 운영본에는 적용하지 않습니다.
+
 ## 안전한 export hook 삽입 위치 후보
 
 향후 별도 검증 후에만 고려할 수 있는 후보:

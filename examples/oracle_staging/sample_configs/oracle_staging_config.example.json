@@ -1,0 +1,11 @@
+{
+  "oracle_host": "<oracle-host>",
+  "oracle_user": "<oracle-user>",
+  "oracle_trading_dir": "<oracle-trading-dir>",
+  "source_bot_path": "<path-to-local-staging-copy-or-backup>",
+  "staging_output_dir": "tmp/oracle_staging_rehearsal",
+  "ai_council_base_url": "http://127.0.0.1:8000",
+  "order_execution_allowed": false,
+  "simulation_only": true,
+  "notes": "Placeholder-only config. Do not commit real host, key path, secret, account, or token values."
+}

@@ -233,6 +233,30 @@ scripts/run_oracle_export_hook_preflight.sh
 
 Preflight는 Oracle 서버에 접속하지 않고, 운영봇 파일을 수정하지 않고, 브로커 API를 호출하지 않습니다.
 
+## Oracle Staging Rehearsal
+
+Phase 24E staging rehearsal은 운영봇을 직접 수정하지 않고 로컬 staging copy에서 patch preview를 생성하고 검증합니다.
+
+실행:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_staging_rehearsal.sh
+```
+
+검증 항목:
+
+- staging copy 생성
+- bot 함수 정적 분석
+- safe/unsafe insertion point 분류
+- unified diff patch preview 생성
+- patched preview file 생성
+- unsafe function 내부 hook 삽입 여부 검증
+- export hook preflight 실행
+- `order_execution_allowed=false`
+
+이 리허설은 Oracle 서버에 접속하지 않고, local backup 원본을 수정하지 않고, 실제 주문을 실행하지 않습니다.
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

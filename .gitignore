@@ -17,3 +17,8 @@ examples/oracle_sidecar/sample_state/*.tmp
 .env
 .env.local
 npm-debug.log*
+tmp/
+staging_runs/
+examples/oracle_staging/output/
+examples/oracle_staging/staging_output/
+examples/oracle_staging/.state/

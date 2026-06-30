@@ -120,6 +120,7 @@ ORACLE_TRADING_DIR=<oracle-trading-dir>
 
 ```bash
 cd ~/AI-council
+scripts/run_oracle_staging_rehearsal.sh
 scripts/run_oracle_export_hook_preflight.sh
 scripts/run_oracle_sidecar_smoke.sh
 ```
@@ -131,6 +132,8 @@ scripts/run_oracle_sidecar_smoke.sh
 - sidecar dry-run passed
 - sidecar preview passed
 - review mode는 실행하지 않음
+
+Phase 24E staging rehearsal은 운영본을 수정하지 않고 patch preview를 생성하고 정적 검증합니다.
 
 ## 적용 후 preview-only 검증 절차
 

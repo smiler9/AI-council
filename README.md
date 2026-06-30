@@ -1584,6 +1584,48 @@ Patch draft 원칙:
 - 브로커 API 연결 없음
 - `order_execution_allowed=false`
 
+## Phase 24E Oracle Staging Patch Rehearsal
+
+Phase 24E는 Oracle 운영봇을 직접 수정하지 않고, 로컬 스테이징 복사본 또는 fixture에서 export hook patch preview를 리허설하는 도구를 추가합니다.
+
+추가 파일:
+
+- `examples/oracle_staging/analyze_us_trader_bot.py`
+- `examples/oracle_staging/prepare_staging_rehearsal.py`
+- `examples/oracle_staging/generate_export_hook_patch_preview.py`
+- `examples/oracle_staging/validate_staging_patch.py`
+- `examples/oracle_staging/fixtures/`
+- `docs/US_TRADER_ORACLE_STAGING_REHEARSAL.md`
+- `scripts/run_oracle_staging_rehearsal.sh`
+
+전체 리허설:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_staging_rehearsal.sh
+```
+
+리허설 흐름:
+
+1. staging copy 생성
+2. 함수 위치 정적 분석
+3. patch preview diff 생성
+4. patched preview file 생성
+5. patched preview 정적 검증
+6. export hook preflight 실행
+
+Patch preview는 운영본에 적용하지 않습니다. 생성물은 임시 staging output에만 만들어지며 Git에 포함하지 않습니다.
+
+안전 원칙:
+
+- Oracle live bot 직접 수정 없음
+- 로컬 백업 원본 직접 수정 없음
+- Oracle systemd service 조작 없음
+- 브로커 API 연결 없음
+- 실제 주문 실행 없음
+- `place_order/check_exits/force_close_all` 내부 hook 삽입 금지
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash
