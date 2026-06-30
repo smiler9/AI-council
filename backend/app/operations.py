@@ -11,6 +11,7 @@ from .repository import (
     list_autonomous_reviews,
     list_meetings,
     list_paper_portfolios,
+    list_paper_performance_reports,
     list_paper_positions,
     list_paper_trades,
     list_ticker_reviews,
@@ -53,6 +54,7 @@ def build_operations_summary(
             "schedule_runs": len(datasets["schedule_runs"]),
             "paper_portfolios": len(datasets["paper_portfolios"]),
             "paper_trades": len(datasets["paper_trades"]),
+            "paper_performance_reports": len(datasets["paper_performance_reports"]),
         },
         "risk_summary": _aggregate_decision_counts(
             _all_risk_items(
@@ -213,6 +215,7 @@ def _load_datasets(db_path: str | Path | None) -> dict[str, list[dict]]:
         "paper_portfolios": list_paper_portfolios(db_path),
         "paper_positions": _all_paper_positions(db_path),
         "paper_trades": list_paper_trades(db_path=db_path),
+        "paper_performance_reports": list_paper_performance_reports(db_path=db_path),
     }
 
 
@@ -238,6 +241,10 @@ def _paper_operations_summary(
     realized_pnl = sum(float(position.get("realized_pnl") or 0) for position in positions)
     cash_balance = sum(float(portfolio.get("cash_balance") or 0) for portfolio in portfolios)
     simulated_exits = [trade for trade in trades if trade.get("action") == "simulated_exit"]
+    largest_loss = min(
+        [float(trade.get("realized_pnl") or 0) for trade in simulated_exits],
+        default=0.0,
+    )
     return {
         "portfolio_count": len(portfolios),
         "recent_trade_count": len(trades[:10]),
@@ -249,6 +256,7 @@ def _paper_operations_summary(
         "virtual_unrealized_pnl": unrealized_pnl,
         "virtual_realized_pnl": realized_pnl,
         "total_virtual_pnl": unrealized_pnl + realized_pnl,
+        "largest_virtual_loss": largest_loss,
         "simulation_only": True,
         "paper_trade_execution_allowed": "simulation_only",
         "order_execution_allowed": False,

@@ -1856,6 +1856,86 @@ def list_paper_trades(
     return [_paper_trade_row_to_dict(row) for row in rows]
 
 
+def create_paper_performance_report(
+    *,
+    portfolio_id: str,
+    path: str,
+    summary: dict,
+    db_path: str | Path | None = None,
+) -> dict:
+    report_id = uuid4().hex
+    timestamp = now_iso()
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO paper_performance_reports (
+                id,
+                portfolio_id,
+                path,
+                summary_json,
+                created_at,
+                order_execution_allowed
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                report_id,
+                portfolio_id,
+                path,
+                json.dumps(summary, sort_keys=True),
+                timestamp,
+                0,
+            ),
+        )
+    return get_paper_performance_report(report_id, db_path)
+
+
+def get_paper_performance_report(
+    report_id: str,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                portfolio_id,
+                path,
+                summary_json,
+                created_at,
+                order_execution_allowed
+            FROM paper_performance_reports
+            WHERE id = ?
+            """,
+            (report_id,),
+        ).fetchone()
+    return _paper_performance_report_row_to_dict(row) if row else None
+
+
+def list_paper_performance_reports(
+    portfolio_id: str | None = None,
+    db_path: str | Path | None = None,
+) -> list[dict]:
+    query = """
+        SELECT
+            id,
+            portfolio_id,
+            path,
+            summary_json,
+            created_at,
+            order_execution_allowed
+        FROM paper_performance_reports
+    """
+    params: tuple = ()
+    if portfolio_id:
+        query += " WHERE portfolio_id = ?"
+        params = (portfolio_id,)
+    query += " ORDER BY created_at DESC"
+    with get_connection(db_path) as connection:
+        rows = connection.execute(query, params).fetchall()
+    return [_paper_performance_report_row_to_dict(row) for row in rows]
+
+
 def _paper_portfolio_row_to_dict(row) -> dict:
     portfolio = row_to_dict(row)
     portfolio["starting_cash"] = float(portfolio["starting_cash"])
@@ -1897,6 +1977,14 @@ def _paper_trade_row_to_dict(row) -> dict:
     trade["order_execution_allowed"] = False
     trade["simulation_only"] = True
     return trade
+
+
+def _paper_performance_report_row_to_dict(row) -> dict:
+    report = row_to_dict(row)
+    report["summary"] = json.loads(report.pop("summary_json") or "{}")
+    report["order_execution_allowed"] = False
+    report["simulation_only"] = True
+    return report
 
 
 def create_webhook_event(

@@ -283,6 +283,12 @@ export default function App() {
   const [paperSimulationResult, setPaperSimulationResult] = useState(null);
   const [paperExitResult, setPaperExitResult] = useState(null);
   const [paperExitEvaluationResult, setPaperExitEvaluationResult] = useState(null);
+  const [paperPerformance, setPaperPerformance] = useState(null);
+  const [paperPerformanceByStrategy, setPaperPerformanceByStrategy] = useState(null);
+  const [paperPerformanceByDecision, setPaperPerformanceByDecision] = useState(null);
+  const [paperPerformanceByRiskEvent, setPaperPerformanceByRiskEvent] = useState(null);
+  const [paperPerformanceByWatchlist, setPaperPerformanceByWatchlist] = useState(null);
+  const [paperPerformanceReport, setPaperPerformanceReport] = useState(null);
   const [marketDataTicker, setMarketDataTicker] = useState("TESTA");
   const [marketDataResult, setMarketDataResult] = useState(null);
   const [riskEventTicker, setRiskEventTicker] = useState("TESTB");
@@ -836,6 +842,29 @@ export default function App() {
     }
   }
 
+  async function refreshPaperPerformance(portfolioId = selectedPaperPortfolioId) {
+    if (!portfolioId) {
+      setPaperPerformance(null);
+      setPaperPerformanceByStrategy(null);
+      setPaperPerformanceByDecision(null);
+      setPaperPerformanceByRiskEvent(null);
+      setPaperPerformanceByWatchlist(null);
+      return;
+    }
+    const [summary, byStrategy, byDecision, byRiskEvent, byWatchlist] = await Promise.all([
+      api.getPaperPerformance(portfolioId),
+      api.getPaperPerformanceByStrategy(portfolioId),
+      api.getPaperPerformanceByDecision(portfolioId),
+      api.getPaperPerformanceByRiskEvent(portfolioId),
+      api.getPaperPerformanceByWatchlist(portfolioId)
+    ]);
+    setPaperPerformance(summary);
+    setPaperPerformanceByStrategy(byStrategy);
+    setPaperPerformanceByDecision(byDecision);
+    setPaperPerformanceByRiskEvent(byRiskEvent);
+    setPaperPerformanceByWatchlist(byWatchlist);
+  }
+
   async function handlePaperPortfolioCreate(event) {
     event.preventDefault();
     if (!paperPortfolioForm.name.trim()) return;
@@ -875,9 +904,11 @@ export default function App() {
     setPaperSimulationResult(null);
     setPaperExitResult(null);
     setPaperExitEvaluationResult(null);
+    setPaperPerformanceReport(null);
     setError("");
     try {
       setPaperPortfolioDetail(await api.getPaperPortfolio(portfolioId));
+      await refreshPaperPerformance(portfolioId);
     } catch (err) {
       setError(err.message);
     }
@@ -907,6 +938,7 @@ export default function App() {
       });
       setPaperSimulationResult(result);
       await refreshPaperData(selectedPaperPortfolioId);
+      await refreshPaperPerformance(selectedPaperPortfolioId);
       await refreshOperationsData();
     } catch (err) {
       setError(err.message);
@@ -930,6 +962,7 @@ export default function App() {
       });
       setPaperExitResult(result);
       await refreshPaperData(selectedPaperPortfolioId);
+      await refreshPaperPerformance(selectedPaperPortfolioId);
       await refreshOperationsData();
     } catch (err) {
       setError(err.message);
@@ -954,6 +987,37 @@ export default function App() {
       });
       setPaperExitEvaluationResult(result);
       await refreshPaperData(selectedPaperPortfolioId);
+      await refreshPaperPerformance(selectedPaperPortfolioId);
+      await refreshOperationsData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
+  async function handlePaperPerformanceRefresh() {
+    if (!selectedPaperPortfolioId) return;
+    setPaperLoading(true);
+    setError("");
+    try {
+      await refreshPaperPerformance(selectedPaperPortfolioId);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
+  async function handlePaperPerformanceReport() {
+    if (!selectedPaperPortfolioId) return;
+    setPaperLoading(true);
+    setPaperPerformanceReport(null);
+    setError("");
+    try {
+      const report = await api.createPaperPerformanceReport(selectedPaperPortfolioId);
+      setPaperPerformanceReport(report);
+      await refreshPaperPerformance(selectedPaperPortfolioId);
       await refreshOperationsData();
     } catch (err) {
       setError(err.message);
@@ -1381,6 +1445,12 @@ export default function App() {
           simulationResult={paperSimulationResult}
           exitResult={paperExitResult}
           exitEvaluationResult={paperExitEvaluationResult}
+          performance={paperPerformance}
+          performanceByStrategy={paperPerformanceByStrategy}
+          performanceByDecision={paperPerformanceByDecision}
+          performanceByRiskEvent={paperPerformanceByRiskEvent}
+          performanceByWatchlist={paperPerformanceByWatchlist}
+          performanceReport={paperPerformanceReport}
           loading={paperLoading}
           updatePortfolioField={updatePaperPortfolioField}
           updateSimulationField={updatePaperSimulationField}
@@ -1391,6 +1461,8 @@ export default function App() {
           onSimulate={handlePaperSimulationSubmit}
           onSimulateExit={handlePaperPositionExit}
           onEvaluateExits={handlePaperEvaluateExits}
+          onRefreshPerformance={handlePaperPerformanceRefresh}
+          onCreatePerformanceReport={handlePaperPerformanceReport}
         />
 
         <WebhookPanel
@@ -1996,6 +2068,16 @@ function OperationsDashboardPanel({
           <strong>{paperSummary.recent_simulated_exit_count || 0}</strong>
           <p>simulated_exit 기록</p>
         </article>
+        <article>
+          <span>최근 성과 리포트 수</span>
+          <strong>{counts.paper_performance_reports || 0}</strong>
+          <p>가상 성과 리포트 누적</p>
+        </article>
+        <article>
+          <span>가장 큰 가상 손실</span>
+          <strong>{Number(paperSummary.largest_virtual_loss || 0).toFixed(2)}</strong>
+          <p>simulated_exit realized PnL 기준</p>
+        </article>
         <article className="safetyCard">
           <span>주문 실행 상태</span>
           <strong>비활성화</strong>
@@ -2235,6 +2317,11 @@ function DashboardCards({
         <span>가상 청산/포지션</span>
         <strong>{paperSummary.recent_simulated_exit_count || 0}</strong>
         <p>열린 포지션 {paperSummary.open_position_count || 0} · simulation_only</p>
+      </article>
+      <article>
+        <span>가상 성과 리포트</span>
+        <strong>{operationsSummary?.counts?.paper_performance_reports || 0}</strong>
+        <p>가장 큰 가상 손실 {Number(paperSummary.largest_virtual_loss || 0).toFixed(2)}</p>
       </article>
       <article>
         <span>자동 분석 스케줄 수</span>
@@ -3183,6 +3270,12 @@ function PaperTradingPanel({
   simulationResult,
   exitResult,
   exitEvaluationResult,
+  performance,
+  performanceByStrategy,
+  performanceByDecision,
+  performanceByRiskEvent,
+  performanceByWatchlist,
+  performanceReport,
   loading,
   updatePortfolioField,
   updateSimulationField,
@@ -3192,11 +3285,17 @@ function PaperTradingPanel({
   onSelect,
   onSimulate,
   onSimulateExit,
-  onEvaluateExits
+  onEvaluateExits,
+  onRefreshPerformance,
+  onCreatePerformanceReport
 }) {
   const summary = detail?.summary || {};
   const positions = detail?.positions || [];
   const trades = detail?.trades || [];
+  const strategyGroups = performanceByStrategy?.groups || [];
+  const decisionGroups = performanceByDecision?.groups || [];
+  const riskEventGroups = performanceByRiskEvent?.groups || [];
+  const watchlistGroups = performanceByWatchlist?.groups || [];
   return (
     <section className="tradeReviewSection" id="paper-trading">
       <div className="tradeReviewHeader">
@@ -3558,6 +3657,81 @@ function PaperTradingPanel({
             </div>
           )}
 
+          <div className="webhookEvents">
+            <div className="tradeReviewHeader">
+              <div>
+                <p className="eyebrow">Performance Analytics</p>
+                <h4>가상 성과 분석</h4>
+              </div>
+              <div className="tradeReviewActions">
+                <button className="secondaryButton" type="button" disabled={loading} onClick={onRefreshPerformance}>
+                  <RefreshCw size={16} aria-hidden="true" />
+                  성과 조회
+                </button>
+                <button className="secondaryButton" type="button" disabled={loading} onClick={onCreatePerformanceReport}>
+                  <FileText size={16} aria-hidden="true" />
+                  성과 리포트 생성
+                </button>
+              </div>
+            </div>
+            <p className="contextHint">
+              실제 주문/체결 결과가 아닙니다. Paper Trading 기록에 대한 내부 가상 통계이며 simulation_only입니다.
+            </p>
+            {performance ? (
+              <>
+                <div className="webhookStatusGrid">
+                  <div>
+                    <span>총 가상 손익</span>
+                    <strong>{Number(performance.total_pnl || 0).toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>실현 손익</span>
+                    <strong>{Number(performance.realized_pnl || 0).toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>평가 손익</span>
+                    <strong>{Number(performance.unrealized_pnl || 0).toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>승률</span>
+                    <strong>{Number(performance.win_rate || 0).toFixed(2)}%</strong>
+                  </div>
+                  <div>
+                    <span>평균 수익</span>
+                    <strong>{Number(performance.average_win || 0).toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>평균 손실</span>
+                    <strong>{Number(performance.average_loss || 0).toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>Profit factor</span>
+                    <strong>{performance.profit_factor ?? "N/A"}</strong>
+                  </div>
+                  <div>
+                    <span>주문 실행 허용 여부</span>
+                    <strong>{booleanKo(Boolean(performance.order_execution_allowed))}</strong>
+                  </div>
+                </div>
+                <div className="autonomousGroups">
+                  <PerformanceGroupList title="전략별 성과" groups={strategyGroups} />
+                  <PerformanceGroupList title="판단별 성과" groups={decisionGroups} />
+                  <PerformanceGroupList title="리스크 이벤트별 성과" groups={riskEventGroups} />
+                  <PerformanceGroupList title="Watchlist별 성과" groups={watchlistGroups} />
+                </div>
+              </>
+            ) : (
+              <div className="emptyState">성과 분석을 조회하세요.</div>
+            )}
+            {performanceReport && (
+              <div className="telegramResult">
+                <strong>가상 성과 리포트 생성됨</strong>
+                <p>{performanceReport.path}</p>
+                <span>simulation_only: {String(Boolean(performanceReport.simulation_only))}</span>
+              </div>
+            )}
+          </div>
+
           <div className="autonomousGroups">
             <div className="autonomousGroup">
               <h4>가상 포지션 평가</h4>
@@ -3629,6 +3803,32 @@ function PaperTradingPanel({
       )}
       <SafetyBoundary />
     </section>
+  );
+}
+
+function PerformanceGroupList({ title, groups }) {
+  return (
+    <div className="autonomousGroup">
+      <h4>{title}</h4>
+      {groups.length > 0 ? (
+        groups.slice(0, 8).map((group) => (
+          <article key={`${title}-${group.group_key || group.event_type || group.watchlist_id}`}>
+            <strong>{group.group_key || group.event_type || group.watchlist_name || "unknown"}</strong>
+            <span>
+              거래 {group.trade_count || 0} · 진입 {group.entry_count || 0} · 청산 {group.exit_count || 0} · 스킵{" "}
+              {group.skip_count || 0}
+            </span>
+            <span>
+              총 가상 손익 {Number(group.total_pnl || 0).toFixed(2)} · 실현{" "}
+              {Number(group.realized_pnl || 0).toFixed(2)} · 평가 {Number(group.unrealized_pnl || 0).toFixed(2)}
+            </span>
+            <span>승률 {Number(group.win_rate || 0).toFixed(2)}% · simulation_only</span>
+          </article>
+        ))
+      ) : (
+        <div className="emptyState">집계 가능한 가상 성과 기록이 없습니다.</div>
+      )}
+    </div>
   );
 }
 

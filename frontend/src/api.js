@@ -100,6 +100,20 @@ export const api = {
   getPaperPositions: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/positions`),
   getPaperTrades: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/trades`),
   getPaperSummary: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/summary`),
+  getPaperPerformance: (portfolioId) =>
+    request(`/api/paper/portfolios/${portfolioId}/performance`),
+  getPaperPerformanceByStrategy: (portfolioId) =>
+    request(`/api/paper/portfolios/${portfolioId}/performance/by-strategy`),
+  getPaperPerformanceByDecision: (portfolioId) =>
+    request(`/api/paper/portfolios/${portfolioId}/performance/by-decision`),
+  getPaperPerformanceByRiskEvent: (portfolioId) =>
+    request(`/api/paper/portfolios/${portfolioId}/performance/by-risk-event`),
+  getPaperPerformanceByWatchlist: (portfolioId) =>
+    request(`/api/paper/portfolios/${portfolioId}/performance/by-watchlist`),
+  createPaperPerformanceReport: (portfolioId) =>
+    request(`/api/paper/portfolios/${portfolioId}/performance/report`, {
+      method: "POST"
+    }),
   createWatchlist: (payload) =>
     request("/api/watchlists", {
       method: "POST",

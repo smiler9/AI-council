@@ -278,6 +278,16 @@ def init_db(db_path: str | Path | None = None) -> None:
                 order_execution_allowed INTEGER NOT NULL,
                 FOREIGN KEY (portfolio_id) REFERENCES paper_portfolios(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS paper_performance_reports (
+                id TEXT PRIMARY KEY,
+                portfolio_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                summary_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                order_execution_allowed INTEGER NOT NULL,
+                FOREIGN KEY (portfolio_id) REFERENCES paper_portfolios(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_column(

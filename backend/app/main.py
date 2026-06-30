@@ -36,6 +36,14 @@ from .paper_trading import (
     simulate_exit,
     simulate_review,
 )
+from .paper_performance import (
+    build_performance_by_decision,
+    build_performance_by_risk_event,
+    build_performance_by_strategy,
+    build_performance_by_watchlist,
+    build_portfolio_performance,
+    create_performance_report,
+)
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .risk_events import (
     RiskEventConfig,
@@ -897,6 +905,69 @@ def create_app(
     def get_paper_trades(portfolio_id: str) -> list[dict]:
         _paper_portfolio_or_404(portfolio_id)
         return list_paper_trades(portfolio_id, app.state.db_path)
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/performance")
+    def get_paper_performance(portfolio_id: str) -> dict:
+        try:
+            return build_portfolio_performance(
+                portfolio_id,
+                db_path=app.state.db_path,
+                market_data_config=app.state.market_data_config,
+            )
+        except PaperSimulationError as exc:
+            detail = str(exc)
+            status_code = 404 if "not found" in detail.lower() else 422
+            raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/performance/by-strategy")
+    def get_paper_performance_by_strategy(portfolio_id: str) -> dict:
+        _paper_portfolio_or_404(portfolio_id)
+        return build_performance_by_strategy(
+            portfolio_id,
+            db_path=app.state.db_path,
+            market_data_config=app.state.market_data_config,
+        )
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/performance/by-decision")
+    def get_paper_performance_by_decision(portfolio_id: str) -> dict:
+        _paper_portfolio_or_404(portfolio_id)
+        return build_performance_by_decision(
+            portfolio_id,
+            db_path=app.state.db_path,
+            market_data_config=app.state.market_data_config,
+        )
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/performance/by-risk-event")
+    def get_paper_performance_by_risk_event(portfolio_id: str) -> dict:
+        _paper_portfolio_or_404(portfolio_id)
+        return build_performance_by_risk_event(
+            portfolio_id,
+            db_path=app.state.db_path,
+            market_data_config=app.state.market_data_config,
+        )
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/performance/by-watchlist")
+    def get_paper_performance_by_watchlist(portfolio_id: str) -> dict:
+        _paper_portfolio_or_404(portfolio_id)
+        return build_performance_by_watchlist(
+            portfolio_id,
+            db_path=app.state.db_path,
+            market_data_config=app.state.market_data_config,
+        )
+
+    @app.post("/api/paper/portfolios/{portfolio_id}/performance/report")
+    def post_paper_performance_report(portfolio_id: str) -> dict:
+        try:
+            return create_performance_report(
+                portfolio_id,
+                db_path=app.state.db_path,
+                report_dir=app.state.report_dir,
+                market_data_config=app.state.market_data_config,
+            )
+        except PaperSimulationError as exc:
+            detail = str(exc)
+            status_code = 404 if "not found" in detail.lower() else 422
+            raise HTTPException(status_code=status_code, detail=detail) from exc
 
     @app.post("/api/paper/portfolios/{portfolio_id}/positions/{position_id}/simulate-exit")
     def post_paper_simulate_exit(
