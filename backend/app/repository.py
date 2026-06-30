@@ -728,6 +728,29 @@ def get_autonomous_review(review_id: str, db_path: str | Path | None = None) -> 
     return _autonomous_review_row_to_dict(row) if row else None
 
 
+def list_autonomous_reviews(db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                universe,
+                review_mode,
+                max_candidates,
+                timeframe,
+                candidate_count,
+                result_summary_json,
+                created_trade_review_ids_json,
+                created_ticker_review_ids_json,
+                order_execution_allowed,
+                created_at
+            FROM autonomous_reviews
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+    return [_autonomous_review_row_to_dict(row) for row in rows]
+
+
 def _autonomous_review_row_to_dict(row) -> dict:
     review = row_to_dict(row)
     review["summary"] = json.loads(review.pop("result_summary_json"))

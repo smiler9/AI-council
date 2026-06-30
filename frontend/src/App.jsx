@@ -174,6 +174,10 @@ export default function App() {
   const [riskEventStatus, setRiskEventStatus] = useState(null);
   const [webhookStatus, setWebhookStatus] = useState(null);
   const [webhookEvents, setWebhookEvents] = useState([]);
+  const [operationsSummary, setOperationsSummary] = useState(null);
+  const [operationsRiskBrief, setOperationsRiskBrief] = useState(null);
+  const [operationsScheduleHealth, setOperationsScheduleHealth] = useState(null);
+  const [operationsTelegramResult, setOperationsTelegramResult] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [topic, setTopic] = useState("");
@@ -239,6 +243,7 @@ export default function App() {
   const [autonomousReviewLoading, setAutonomousReviewLoading] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [operationsLoading, setOperationsLoading] = useState(false);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [riskEventLoading, setRiskEventLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -289,6 +294,9 @@ export default function App() {
         watchlistReviewList,
         scheduleList,
         scheduleRunList,
+        opsSummary,
+        riskBrief,
+        scheduleHealth,
         hooks,
         events
       ] = await Promise.all([
@@ -302,6 +310,9 @@ export default function App() {
         api.getWatchlistReviews(),
         api.getWatchlistSchedules(),
         api.getWatchlistScheduleRuns(),
+        api.getOperationsSummary(),
+        api.getOperationsRiskBrief(),
+        api.getOperationsScheduleHealth(),
         api.getWebhookStatus(),
         api.getWebhookEvents()
       ]);
@@ -316,6 +327,9 @@ export default function App() {
       setSelectedWatchlistId((current) => current || watchlistList[0]?.id || null);
       setWatchlistSchedules(scheduleList);
       setWatchlistScheduleRuns(scheduleRunList);
+      setOperationsSummary(opsSummary);
+      setOperationsRiskBrief(riskBrief);
+      setOperationsScheduleHealth(scheduleHealth);
       setScheduleForm((current) => ({
         ...current,
         watchlist_id: current.watchlist_id || watchlistList[0]?.id || ""
@@ -443,6 +457,7 @@ export default function App() {
       if (result.meeting?.id) {
         await loadMeetings(result.meeting.id);
       }
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -467,6 +482,7 @@ export default function App() {
       if (result.meeting?.id) {
         await loadMeetings(result.meeting.id);
       }
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -492,6 +508,7 @@ export default function App() {
       if (firstMeetingId) {
         await loadMeetings(firstMeetingId);
       }
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -515,6 +532,7 @@ export default function App() {
       setWatchlists(nextWatchlists);
       setSelectedWatchlistId(watchlist.id);
       setScheduleForm((current) => ({ ...current, watchlist_id: watchlist.id }));
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -532,6 +550,7 @@ export default function App() {
       setSelectedWatchlistId(nextWatchlists[0]?.id || null);
       setScheduleForm((current) => ({ ...current, watchlist_id: nextWatchlists[0]?.id || "" }));
       await refreshScheduleData();
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -554,6 +573,7 @@ export default function App() {
         await loadMeetings(firstMeetingId);
       }
       await refreshScheduleData();
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -593,6 +613,40 @@ export default function App() {
     }
   }
 
+  async function refreshOperationsData() {
+    setOperationsLoading(true);
+    setError("");
+    try {
+      const [opsSummary, riskBrief, scheduleHealth] = await Promise.all([
+        api.getOperationsSummary(),
+        api.getOperationsRiskBrief(),
+        api.getOperationsScheduleHealth()
+      ]);
+      setOperationsSummary(opsSummary);
+      setOperationsRiskBrief(riskBrief);
+      setOperationsScheduleHealth(scheduleHealth);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOperationsLoading(false);
+    }
+  }
+
+  async function handleOperationsRiskBriefTelegram() {
+    setOperationsLoading(true);
+    setOperationsTelegramResult(null);
+    setError("");
+    try {
+      const result = await api.sendOperationsRiskBriefTelegram();
+      setOperationsTelegramResult(result);
+      await refreshTelegramStatus();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOperationsLoading(false);
+    }
+  }
+
   async function handleScheduleCreate(event) {
     event.preventDefault();
     const watchlistId = scheduleForm.watchlist_id || selectedWatchlistId;
@@ -611,6 +665,7 @@ export default function App() {
       });
       setScheduleForm((current) => ({ ...current, watchlist_id: schedule.watchlist_id }));
       await refreshScheduleData();
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -624,6 +679,7 @@ export default function App() {
     try {
       await api.deleteWatchlistSchedule(scheduleId);
       await refreshScheduleData();
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -646,6 +702,7 @@ export default function App() {
       if (firstMeetingId) {
         await loadMeetings(firstMeetingId);
       }
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -667,6 +724,7 @@ export default function App() {
       if (firstMeetingId) {
         await loadMeetings(firstMeetingId);
       }
+      await refreshOperationsData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -984,6 +1042,19 @@ export default function App() {
             </span>
           </div>
         </section>
+
+        <OperationsDashboardPanel
+          summary={operationsSummary}
+          riskBrief={operationsRiskBrief}
+          scheduleHealth={operationsScheduleHealth}
+          telegramStatus={telegramStatus}
+          webhookStatus={webhookStatus}
+          telegramResult={operationsTelegramResult}
+          loading={operationsLoading}
+          onRefresh={refreshOperationsData}
+          onSendTelegram={handleOperationsRiskBriefTelegram}
+          onOpenMeeting={handleSelect}
+        />
 
         <DashboardCards
           health={health}
@@ -1511,6 +1582,248 @@ export default function App() {
   );
 }
 
+function OperationsDashboardPanel({
+  summary,
+  riskBrief,
+  scheduleHealth,
+  telegramStatus,
+  webhookStatus,
+  telegramResult,
+  loading,
+  onRefresh,
+  onSendTelegram,
+  onOpenMeeting
+}) {
+  const counts = summary?.counts || {};
+  const riskSummary = summary?.risk_summary || {};
+  const providerStatus = summary?.provider_status || {};
+  const highRiskItems = riskBrief?.danger_items || [];
+  const warningItems = riskBrief?.warning_items || [];
+  const recentReviews = summary?.recent_watchlist_reviews || [];
+  const recentRuns = scheduleHealth?.recent_runs || summary?.recent_schedule_runs || [];
+  return (
+    <section className="tradeReviewSection" id="dashboard">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">Operations Dashboard</p>
+          <h3>운영 대시보드</h3>
+        </div>
+        <div className="tradeReviewActions">
+          <button className="secondaryButton" type="button" disabled={loading} onClick={onRefresh}>
+            <RefreshCw size={17} aria-hidden="true" />
+            운영 상태 새로고침
+          </button>
+          <button
+            className="secondaryButton"
+            type="button"
+            disabled={loading}
+            onClick={onSendTelegram}
+          >
+            <Send size={17} aria-hidden="true" />
+            Risk Brief 보내기
+          </button>
+        </div>
+      </div>
+      <div className="dashboardGrid">
+        <article>
+          <span>시스템 상태</span>
+          <strong>{summary?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>운영 요약 API 기준</p>
+        </article>
+        <article>
+          <span>전체 Watchlist 수</span>
+          <strong>{counts.watchlists || 0}</strong>
+          <p>등록된 관심종목 묶음</p>
+        </article>
+        <article>
+          <span>최근 분석 수</span>
+          <strong>{counts.watchlist_reviews || 0}</strong>
+          <p>Watchlist Risk Brief 누적</p>
+        </article>
+        <article>
+          <span>위험 종목 수</span>
+          <strong>{riskSummary.block_count || riskBrief?.summary?.danger_count || 0}</strong>
+          <p>BLOCK 또는 critical 중심</p>
+        </article>
+        <article>
+          <span>주의 종목 수</span>
+          <strong>{riskSummary.hold_count || riskBrief?.summary?.warning_count || 0}</strong>
+          <p>HOLD 또는 high 중심</p>
+        </article>
+        <article>
+          <span>추가 데이터 필요 수</span>
+          <strong>{riskSummary.need_more_data_count || riskBrief?.summary?.need_more_data_count || 0}</strong>
+          <p>NEED_MORE_DATA</p>
+        </article>
+        <article>
+          <span>최근 실패한 스케줄 수</span>
+          <strong>{scheduleHealth?.failed_run_count || 0}</strong>
+          <p>Schedule run log 기준</p>
+        </article>
+        <article>
+          <span>Telegram 비활성화 건수</span>
+          <strong>{scheduleHealth?.telegram_disabled_count || 0}</strong>
+          <p>자동 보고 disabled 기록</p>
+        </article>
+        <article>
+          <span>현재 Market Data Provider</span>
+          <strong>{providerStatus.market_data_provider || "mock_market_data"}</strong>
+          <p>데이터 조회 전용</p>
+        </article>
+        <article>
+          <span>현재 LLM Provider</span>
+          <strong>{providerStatus.llm_provider || "mock"}</strong>
+          <p>회의 생성 provider</p>
+        </article>
+        <article>
+          <span>Telegram 상태</span>
+          <strong>{telegramStatus?.configured ? "설정됨" : "비활성화"}</strong>
+          <p>보고 전용</p>
+        </article>
+        <article>
+          <span>Webhook 상태</span>
+          <strong>{webhookStatus?.configured ? "수신 가능" : "비활성화"}</strong>
+          <p>후보 신호 수신 전용</p>
+        </article>
+        <article className="safetyCard">
+          <span>주문 실행 상태</span>
+          <strong>비활성화</strong>
+          <p>order_execution_allowed=false</p>
+        </article>
+      </div>
+
+      <div className="autonomousGroups">
+        <div className="autonomousGroup">
+          <h4>최근 고위험 종목</h4>
+          {highRiskItems.length > 0 ? (
+            highRiskItems.slice(0, 6).map((item) => (
+              <RiskBriefItem key={`${item.source_type}-${item.source_id}-${item.ticker}`} item={item} onOpenMeeting={onOpenMeeting} />
+            ))
+          ) : (
+            <div className="emptyState">최근 고위험 종목이 없습니다.</div>
+          )}
+        </div>
+        <div className="autonomousGroup">
+          <h4>주의 종목</h4>
+          {warningItems.length > 0 ? (
+            warningItems.slice(0, 6).map((item) => (
+              <RiskBriefItem key={`${item.source_type}-${item.source_id}-${item.ticker}`} item={item} onOpenMeeting={onOpenMeeting} />
+            ))
+          ) : (
+            <div className="emptyState">최근 주의 종목이 없습니다.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="webhookEvents">
+        <h4>최근 Watchlist 분석</h4>
+        {recentReviews.length > 0 ? (
+          recentReviews.map((review) => (
+            <article key={review.id}>
+              <div>
+                <strong>{review.watchlist_name || review.watchlist_id}</strong>
+                <span>
+                  {review.ticker_count || 0}개 · 최고 리스크 {riskLevelLabel(review.highest_risk_level)}
+                </span>
+              </div>
+              <div>
+                <span>위험/주의/추가데이터/허용</span>
+                <strong>
+                  {review.block_count || 0}/{review.hold_count || 0}/{review.need_more_data_count || 0}/
+                  {review.allow_count || 0}
+                </strong>
+              </div>
+              <div>
+                <span>주문 실행 허용 여부</span>
+                <strong>{booleanKo(Boolean(review.order_execution_allowed))}</strong>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="emptyState">최근 Watchlist 분석이 없습니다.</div>
+        )}
+      </div>
+
+      <div className="webhookEvents">
+        <h4>최근 스케줄 실행</h4>
+        {recentRuns.length > 0 ? (
+          recentRuns.map((run) => (
+            <article key={run.id}>
+              <div>
+                <strong>{run.schedule_id?.slice(0, 8) || "schedule"}</strong>
+                <span>{scheduleRunStatusLabel(run.status)} · {formatDateTime(run.finished_at)}</span>
+              </div>
+              <div>
+                <span>Watchlist Review</span>
+                <strong>{run.watchlist_review_id ? run.watchlist_review_id.slice(0, 8) : "없음"}</strong>
+              </div>
+              <div>
+                <span>주문 실행 허용 여부</span>
+                <strong>{booleanKo(Boolean(run.order_execution_allowed))}</strong>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="emptyState">최근 스케줄 실행 로그가 없습니다.</div>
+        )}
+      </div>
+
+      <div className="webhookStatusGrid">
+        <div>
+          <span>활성 스케줄</span>
+          <strong>{scheduleHealth?.enabled_schedules || 0}</strong>
+        </div>
+        <div>
+          <span>비활성 스케줄</span>
+          <strong>{scheduleHealth?.disabled_schedules || 0}</strong>
+        </div>
+        <div>
+          <span>실행 대상 스케줄</span>
+          <strong>{scheduleHealth?.due_schedules || 0}</strong>
+        </div>
+        <div>
+          <span>마지막 실행 상태</span>
+          <strong>{scheduleRunStatusLabel(scheduleHealth?.last_run_status)}</strong>
+        </div>
+      </div>
+
+      {telegramResult && (
+        <div className={`telegramResult ${telegramResult.sent ? "sent" : "disabled"}`}>
+          <strong>{telegramResult.status}</strong>
+          <p>{telegramResult.detail}</p>
+        </div>
+      )}
+      <SafetyBoundary />
+    </section>
+  );
+}
+
+function RiskBriefItem({ item, onOpenMeeting }) {
+  return (
+    <article>
+      <div>
+        <strong>{item.ticker || "UNKNOWN"}</strong>
+        <span>
+          {decisionLabel(item.decision)} · {riskLevelLabel(item.risk_level)} · {item.source_type}
+        </span>
+        <span>
+          리스크 이벤트 {item.top_risk_event || "없음"} · 데이터 품질 {dataQualityLabel(item.data_quality)}
+        </span>
+        <span>주문 실행 허용 여부: {booleanKo(Boolean(item.order_execution_allowed))}</span>
+      </div>
+      <button
+        className="secondaryButton"
+        type="button"
+        disabled={!item.linked_meeting_id}
+        onClick={() => item.linked_meeting_id && onOpenMeeting(item.linked_meeting_id)}
+      >
+        <FileText size={16} aria-hidden="true" />
+        회의 열기
+      </button>
+    </article>
+  );
+}
+
 function DashboardCards({
   health,
   marketDataStatus,
@@ -1531,7 +1844,7 @@ function DashboardCards({
   const latestWatchlistReview = watchlistReviews?.[0];
   const latestScheduleRun = watchlistScheduleRuns?.[0];
   return (
-    <section className="dashboardGrid" id="dashboard">
+    <section className="dashboardGrid" id="dashboard-cards">
       <article>
         <span>Backend 상태</span>
         <strong>{backendOk ? "정상" : "확인 필요"}</strong>

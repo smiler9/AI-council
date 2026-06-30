@@ -22,6 +22,12 @@ from .file_context import (
 from .llm.config import LLMConfig, load_llm_config
 from .llm.providers import LLMProviderError, get_llm_provider
 from .market_data import MarketDataConfig, get_market_data_provider, load_market_data_config
+from .operations import (
+    build_operations_risk_brief,
+    build_operations_summary,
+    build_schedule_health,
+    send_operations_risk_brief_telegram,
+)
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .risk_events import (
     RiskEventConfig,
@@ -697,6 +703,34 @@ def create_app(
     @app.get("/api/watchlist-schedule-runs/{run_id}")
     def get_watchlist_schedule_run_detail(run_id: str) -> dict:
         return _watchlist_schedule_run_or_404(run_id)
+
+    @app.get("/api/operations/summary")
+    def get_operations_summary() -> dict:
+        return build_operations_summary(
+            db_path=app.state.db_path,
+            llm_config=app.state.llm_config,
+            market_data_config=app.state.market_data_config,
+            telegram_service=TelegramService(app.state.telegram_config),
+            webhook_config=app.state.webhook_config,
+        )
+
+    @app.get("/api/operations/risk-brief")
+    def get_operations_risk_brief(limit: int = Query(default=20, ge=1, le=100)) -> dict:
+        return build_operations_risk_brief(db_path=app.state.db_path, limit=limit)
+
+    @app.post("/api/operations/risk-brief/telegram/send")
+    def send_operations_risk_brief_to_telegram(
+        limit: int = Query(default=20, ge=1, le=100),
+    ) -> dict:
+        return send_operations_risk_brief_telegram(
+            db_path=app.state.db_path,
+            telegram_service=TelegramService(app.state.telegram_config),
+            limit=limit,
+        )
+
+    @app.get("/api/operations/schedule-health")
+    def get_operations_schedule_health() -> dict:
+        return build_schedule_health(db_path=app.state.db_path)
 
     @app.get("/api/trade-reviews")
     def get_trade_reviews() -> list[dict]:
