@@ -517,8 +517,10 @@ def market_data_status(config: MarketDataConfig, active_provider: str | None = N
     yfinance_installed = _yfinance_installed()
     yahoo_finance_available = bool(external_calls_allowed and yfinance_installed)
     provider_warning = _provider_status_warning(provider, active, config, yfinance_installed)
-    if provider == "yahoo_finance" and provider_warning:
-        last_check_status = "disabled" if not external_calls_allowed else "unavailable"
+    if provider == "yahoo_finance" and not external_calls_allowed:
+        last_check_status = "disabled"
+    elif provider == "yahoo_finance" and not yfinance_installed:
+        last_check_status = "unavailable"
     elif active == "mock_market_data":
         last_check_status = "ok"
     elif active == "yahoo_finance":

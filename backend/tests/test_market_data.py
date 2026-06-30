@@ -199,6 +199,28 @@ def test_yfinance_missing_graceful_handling(monkeypatch, tmp_path):
     assert quote.json()["order_execution_allowed"] is False
 
 
+def test_yahoo_provider_status_ok_when_external_allowed_and_installed(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.market_data._yfinance_installed", lambda: True)
+
+    with _client_with_market_data(
+        tmp_path,
+        MarketDataConfig(
+            provider="yahoo_finance",
+            enabled=True,
+            allow_external=True,
+        ),
+    ) as client:
+        response = client.get("/api/market-data/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["active_provider"] == "yahoo_finance"
+    assert payload["external_calls_allowed"] is True
+    assert payload["yahoo_finance_available"] is True
+    assert payload["last_check_status"] == "ok"
+    assert payload["order_execution_allowed"] is False
+
+
 def test_yahoo_quote_response_normalization_with_mocked_data(monkeypatch, tmp_path):
     monkeypatch.setattr("app.market_data._yfinance_installed", lambda: True)
     monkeypatch.setattr("app.market_data._load_yfinance", lambda: FakeYahooModule)
