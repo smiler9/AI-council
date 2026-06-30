@@ -1,0 +1,26 @@
+{
+  "source": "generic_bot",
+  "signal_id": "generic_signal_001",
+  "asset": "TESTA",
+  "pattern": "relative_volume_breakout",
+  "direction": "long",
+  "current_price": 0.91,
+  "day_volume": 9800000,
+  "tf": "2m",
+  "ta": {
+    "rsi": 66,
+    "relative_volume": 5.1,
+    "vwap_distance": 0.031
+  },
+  "catalysts": [
+    {
+      "title": "TESTA sample momentum catalyst"
+    }
+  ],
+  "meta": {
+    "spread_pct": 3.4,
+    "premarket": false,
+    "float_rotation": 1.5
+  },
+  "notes": "Generic bot compatibility sample. Direction is review context only."
+}

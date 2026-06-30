@@ -344,6 +344,51 @@ def create_app(
             "order_execution_allowed": False,
         }
 
+    @app.post("/api/webhooks/normalize-preview")
+    def post_webhook_normalize_preview(
+        raw_payload: dict = Body(...),
+        webhook_secret: str | None = Header(default=None, alias=WEBHOOK_SECRET_HEADER),
+    ) -> JSONResponse:
+        status = webhook_status(app.state.webhook_config)
+        if status["enabled"] and not status["configured"]:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "disabled",
+                    "detail": status["disabled_reason"],
+                    "webhook_status": status,
+                    "trade_review_created": False,
+                    "order_execution_allowed": False,
+                },
+            )
+        if status["enabled"] and not validate_webhook_secret(app.state.webhook_config, webhook_secret):
+            raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
+        try:
+            normalized = normalize_trade_signal_payload(raw_payload)
+        except WebhookInputError as exc:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "status": "rejected",
+                    "detail": str(exc),
+                    "adapter_warnings": exc.adapter_warnings,
+                    "trade_review_created": False,
+                    "order_execution_allowed": False,
+                },
+            )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "preview",
+                "normalized_payload": normalized,
+                "adapter_warnings": normalized.get("adapter_warnings", []),
+                "trade_review_created": False,
+                "order_execution_allowed": False,
+            },
+        )
+
     @app.post("/api/webhooks/trade-signal")
     def post_trade_signal_webhook(
         raw_payload: dict = Body(...),
@@ -385,6 +430,7 @@ def create_app(
                 content={
                     "status": "rejected",
                     "detail": str(exc),
+                    "adapter_warnings": exc.adapter_warnings,
                     "event": event,
                     "duplicated": False,
                     "order_execution_allowed": False,

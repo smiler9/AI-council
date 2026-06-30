@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -70,6 +72,7 @@ def test_webhook_status_includes_safe_metadata_without_secret(tmp_path):
     assert response.status_code == 200
     payload = response.json()
     assert payload["endpoint_path"] == "/api/webhooks/trade-signal"
+    assert payload["normalize_preview_endpoint_path"] == "/api/webhooks/normalize-preview"
     assert payload["secret_configured"] is True
     assert payload["order_execution_allowed"] is False
     assert "AI Council does not execute trades or connect to broker APIs" in payload["safety_boundary"]
@@ -124,9 +127,37 @@ def test_valid_secret_creates_trade_review(tmp_path):
     assert payload["duplicated"] is False
     assert payload["event"]["status"] == "reviewed"
     assert payload["trade_review"]["ticker"] == "ABCD"
-    assert payload["trade_review"]["side"] == "buy"
+    assert payload["trade_review"]["side"] == "review_only"
+    assert payload["trade_review"]["input_payload"]["raw_side"] == "buy"
     assert payload["order_execution_allowed"] is False
     assert payload["structured_decision"]["order_execution_allowed"] is False
+
+
+def test_webhook_event_preserves_raw_and_normalized_payload(tmp_path):
+    payload = {
+        **WEBHOOK_PAYLOAD,
+        "signal_id": "sig_raw_payload",
+        "symbol": "TESTA",
+        "quantity": 1000,
+    }
+    payload.pop("ticker")
+    with _webhook_client(tmp_path) as client:
+        response = client.post(
+            "/api/webhooks/trade-signal",
+            json=payload,
+            headers=_secret_headers(),
+        )
+        event_id = response.json()["event"]["id"]
+        detail = client.get(f"/api/webhooks/events/{event_id}")
+
+    assert response.status_code == 201
+    event = detail.json()["event"]
+    assert event["raw_payload"]["symbol"] == "TESTA"
+    assert event["raw_payload"]["quantity"] == 1000
+    assert event["normalized_payload"]["ticker"] == "TESTA"
+    assert event["normalized_payload"]["side"] == "review_only"
+    assert event["normalized_payload"]["input_payload_json"]["quantity"] == 1000
+    assert event["order_execution_allowed"] is False
 
 
 def test_alias_payload_normalization():
@@ -136,27 +167,92 @@ def test_alias_payload_normalization():
             "signal_id": "sig_alias",
             "symbol": "xyz",
             "setup": "gap_break",
-            "side": "sell",
-            "last_price": "1.23",
-            "current_volume": "900000",
-            "interval": "5m",
+            "code": "xyz",
+            "pattern": "gap_break",
+            "action": "sell",
+            "current_price": "1.23",
+            "day_volume": "900000",
+            "tf": "5m",
             "event_time": "2026-06-30T10:00:00Z",
-            "indicators": {"rsi": 72},
-            "headlines": ["Filed 8-K"],
-            "risk": {"spread_pct": 2.5},
+            "ta": {"rsi": 72},
+            "catalysts": [{"title": "Filed 8-K"}],
+            "meta": {"spread_pct": 2.5},
         }
     )
 
     assert normalized["ticker"] == "XYZ"
     assert normalized["strategy_signal"] == "gap_break"
-    assert normalized["side"] == "sell"
+    assert normalized["side"] == "review_only"
+    assert normalized["raw_side"] == "sell"
     assert normalized["price"] == 1.23
     assert normalized["volume"] == 900000
     assert normalized["timeframe"] == "5m"
     assert normalized["technical_indicators"] == {"rsi": 72}
     assert normalized["news_headlines"] == ["Filed 8-K"]
     assert normalized["risk_context"]["event_time"] == "2026-06-30T10:00:00Z"
+    assert normalized["risk_context"]["raw_side"] == "sell"
+    assert any("review context only" in warning for warning in normalized["adapter_warnings"])
     assert normalized["order_execution_allowed"] is False
+
+
+def test_order_like_fields_are_ignored_with_warning():
+    payload = {
+        "source": "compat_bot",
+        "signal_id": "order_like_001",
+        "instrument": "TESTD",
+        "trigger": "halt_watch",
+        "intent": "entry",
+        "trigger_price": 0.29,
+        "vol": 620000,
+        "headlines": [],
+        "quantity": 5000,
+        "order_type": "limit",
+        "stop_loss": 0.22,
+    }
+
+    normalized = normalize_trade_signal_payload(payload)
+
+    assert normalized["side"] == "review_only"
+    assert normalized["raw_side"] == "entry"
+    assert normalized["input_payload_json"]["quantity"] == 5000
+    warnings = " ".join(normalized["adapter_warnings"])
+    assert "order-like fields ignored for safety" in warnings
+    assert "quantity" in warnings
+    assert "order_type" in warnings
+    assert "stop_loss" in warnings
+    assert normalized["order_execution_allowed"] is False
+
+
+def test_normalize_preview_does_not_create_trade_review(tmp_path):
+    payload = {**WEBHOOK_PAYLOAD, "signal_id": "preview_only"}
+    with _webhook_client(tmp_path, enabled=False, secret=None) as client:
+        response = client.post("/api/webhooks/normalize-preview", json=payload)
+        reviews = client.get("/api/trade-reviews")
+        events = client.get("/api/webhooks/events")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "preview"
+    assert body["trade_review_created"] is False
+    assert body["normalized_payload"]["side"] == "review_only"
+    assert body["normalized_payload"]["raw_side"] == "buy"
+    assert reviews.json() == []
+    assert events.json() == []
+    assert body["order_execution_allowed"] is False
+
+
+def test_missing_ticker_validation_returns_adapter_warning(tmp_path):
+    payload = {**WEBHOOK_PAYLOAD}
+    payload.pop("ticker")
+    payload.pop("symbol", None)
+    with _webhook_client(tmp_path, enabled=False, secret=None) as client:
+        response = client.post("/api/webhooks/normalize-preview", json=payload)
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["status"] == "rejected"
+    assert "missing ticker" in body["adapter_warnings"]
+    assert body["order_execution_allowed"] is False
 
 
 def test_sample_payloads_are_valid_json_and_normalize_successfully():
@@ -171,6 +267,10 @@ def test_sample_payloads_are_valid_json_and_normalize_successfully():
         "high_spread_signal.json",
         "missing_news_signal.json",
         "duplicate_signal.json",
+        "generic_bot_signal.json",
+        "penny_bot_v1_signal.json",
+        "order_like_fields_signal.json",
+        "minimal_signal.json",
     }
     found = {path.name for path in payload_dir.glob("*.json")}
     assert found >= expected
@@ -180,6 +280,54 @@ def test_sample_payloads_are_valid_json_and_normalize_successfully():
         assert normalized["ticker"].startswith("TEST")
         assert normalized["strategy_signal"]
         assert normalized["order_execution_allowed"] is False
+
+
+def test_bridge_mapping_profiles_are_valid_json():
+    profile_dir = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "external_bot"
+        / "mapping_profiles"
+    )
+    expected = {"generic.json", "penny_bot_v1.json", "minimal_signal.json"}
+    found = {path.name for path in profile_dir.glob("*.json")}
+    assert found >= expected
+    for path in profile_dir.glob("*.json"):
+        profile = json.loads(path.read_text(encoding="utf-8"))
+        assert isinstance(profile["fields"], dict)
+        assert "ticker" in profile["fields"]
+        assert "strategy_signal" in profile["fields"]
+
+
+def test_bridge_client_dry_run_sample_payload():
+    root = Path(__file__).resolve().parents[2]
+    script = root / "examples" / "external_bot" / "bridge_client.py"
+    payload = root / "examples" / "external_bot" / "sample_payloads" / "order_like_fields_signal.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--payload",
+            str(payload),
+            "--profile",
+            "generic",
+            "--dry-run",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    body = json.loads(result.stdout)
+    assert body["status"] == "dry_run"
+    assert body["webhook_called"] is False
+    assert body["normalized_preview"]["ticker"] == "TESTD"
+    assert body["normalized_preview"]["side"] == "review_only"
+    assert body["normalized_preview"]["order_execution_allowed"] is False
+    assert any(
+        "order-like fields ignored for safety" in warning
+        for warning in body["normalized_preview"]["adapter_warnings"]
+    )
 
 
 def test_duplicate_sample_payload_returns_existing_review(tmp_path):
@@ -255,7 +403,8 @@ def test_buy_sell_side_treated_as_review_context_only(tmp_path):
         )
 
     decision = response.json()["structured_decision"]
-    assert response.json()["trade_review"]["side"] == "sell"
+    assert response.json()["trade_review"]["side"] == "review_only"
+    assert response.json()["trade_review"]["input_payload"]["raw_side"] == "sell"
     assert "execution_language_treated_as_review_context" in decision["risk_flags"]
     assert decision["trade_allowed"] is False
 

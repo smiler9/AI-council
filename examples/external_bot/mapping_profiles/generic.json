@@ -1,0 +1,15 @@
+{
+  "name": "generic",
+  "description": "Broad alias mapping for generic scanner payloads.",
+  "fields": {
+    "ticker": ["ticker", "symbol", "code", "stock", "instrument", "asset"],
+    "strategy_signal": ["strategy_signal", "signal", "setup", "pattern", "trigger", "reason"],
+    "side": ["side", "direction", "action", "intent"],
+    "price": ["price", "last_price", "close", "current_price", "entry_price", "trigger_price"],
+    "volume": ["volume", "current_volume", "vol", "day_volume"],
+    "timeframe": ["timeframe", "interval", "tf", "candle_interval"],
+    "technical_indicators": ["technical_indicators", "indicators", "ta", "metrics"],
+    "news_headlines": ["news_headlines", "headlines", "news", "catalysts"],
+    "risk_context": ["risk_context", "risk", "risk_flags", "meta"]
+  }
+}

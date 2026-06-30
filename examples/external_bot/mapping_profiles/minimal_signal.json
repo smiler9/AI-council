@@ -1,0 +1,15 @@
+{
+  "name": "minimal_signal",
+  "description": "Minimal mapping for ticker and signal-only payloads.",
+  "fields": {
+    "ticker": ["ticker", "symbol"],
+    "strategy_signal": ["signal", "strategy_signal"],
+    "side": ["side"],
+    "price": ["price"],
+    "volume": ["volume"],
+    "timeframe": ["timeframe"],
+    "technical_indicators": ["technical_indicators"],
+    "news_headlines": ["news_headlines"],
+    "risk_context": ["risk_context"]
+  }
+}

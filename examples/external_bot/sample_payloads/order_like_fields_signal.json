@@ -1,0 +1,25 @@
+{
+  "source": "generic_bot",
+  "signal_id": "order_like_fields_001",
+  "stock": "TESTD",
+  "trigger": "halt_resumption_watch",
+  "intent": "entry",
+  "trigger_price": 0.29,
+  "vol": 620000,
+  "interval": "1m",
+  "indicators": {
+    "rsi": 82,
+    "relative_volume": 12.4
+  },
+  "headlines": [],
+  "risk": {
+    "spread_pct": 9.1,
+    "premarket": true
+  },
+  "quantity": 5000,
+  "order_type": "limit",
+  "stop_loss": 0.22,
+  "take_profit": 0.36,
+  "tif": "day",
+  "notes": "Order-like fields must be ignored for safety and retained only in raw payload."
+}

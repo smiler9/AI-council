@@ -89,6 +89,32 @@ const MESSAGE_TYPE_LABELS = {
   decision: "판단"
 };
 
+const WEBHOOK_PREVIEW_SAMPLE = JSON.stringify(
+  {
+    source: "generic_bot",
+    signal_id: "preview_001",
+    symbol: "TESTA",
+    pattern: "breakout",
+    action: "buy",
+    current_price: 0.82,
+    day_volume: 12500000,
+    tf: "1m",
+    ta: {
+      rsi: 68,
+      relative_volume: 5.2
+    },
+    catalysts: ["Mock catalyst headline"],
+    meta: {
+      spread_pct: 4.5,
+      premarket: true
+    },
+    quantity: 1000,
+    order_type: "limit"
+  },
+  null,
+  2
+);
+
 function statusLabel(status) {
   if (status === "completed") return "완료";
   if (status === "failed") return "실패";
@@ -174,6 +200,8 @@ export default function App() {
   const [riskEventStatus, setRiskEventStatus] = useState(null);
   const [webhookStatus, setWebhookStatus] = useState(null);
   const [webhookEvents, setWebhookEvents] = useState([]);
+  const [webhookPreviewInput, setWebhookPreviewInput] = useState(WEBHOOK_PREVIEW_SAMPLE);
+  const [webhookPreviewResult, setWebhookPreviewResult] = useState(null);
   const [operationsSummary, setOperationsSummary] = useState(null);
   const [operationsRiskBrief, setOperationsRiskBrief] = useState(null);
   const [operationsScheduleHealth, setOperationsScheduleHealth] = useState(null);
@@ -246,6 +274,7 @@ export default function App() {
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [riskEventLoading, setRiskEventLoading] = useState(false);
+  const [webhookPreviewLoading, setWebhookPreviewLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -775,6 +804,21 @@ export default function App() {
     }
   }
 
+  async function handleWebhookPreview() {
+    setWebhookPreviewLoading(true);
+    setWebhookPreviewResult(null);
+    setError("");
+    try {
+      const payload = JSON.parse(webhookPreviewInput);
+      const result = await api.normalizeWebhookPreview(payload);
+      setWebhookPreviewResult(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWebhookPreviewLoading(false);
+    }
+  }
+
   async function handleSendTradeReviewTelegram() {
     const reviewId = tradeReviewResult?.trade_review?.id;
     if (!reviewId) return;
@@ -1127,6 +1171,11 @@ export default function App() {
           status={webhookStatus}
           events={webhookEvents}
           tradeReviews={tradeReviews}
+          previewInput={webhookPreviewInput}
+          setPreviewInput={setWebhookPreviewInput}
+          previewResult={webhookPreviewResult}
+          previewLoading={webhookPreviewLoading}
+          onPreview={handleWebhookPreview}
           onRefresh={refreshWebhookData}
           onOpenMeeting={handleSelect}
         />
@@ -2844,7 +2893,18 @@ function ScheduleRunResult({ result, onOpenMeeting }) {
   );
 }
 
-function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }) {
+function WebhookPanel({
+  status,
+  events,
+  tradeReviews,
+  previewInput,
+  setPreviewInput,
+  previewResult,
+  previewLoading,
+  onPreview,
+  onRefresh,
+  onOpenMeeting
+}) {
   const endpoint = `${api.baseUrl}${status?.endpoint || "/api/webhooks/trade-signal"}`;
   const reviewById = new Map(tradeReviews.map((review) => [review.id, review]));
   return (
@@ -2884,6 +2944,64 @@ function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }
         Header: {status?.secret_header || "X-AI-Council-Webhook-Secret"}. Secret 값은 UI에 표시하지 않습니다.
       </p>
       {status?.disabled_reason && <p className="contextHint">{status.disabled_reason}</p>}
+      <div className="webhookPreview">
+        <div className="tradeReviewHeader compact">
+          <div>
+            <p className="eyebrow">Payload 호환성</p>
+            <h4>Payload 정규화 미리보기</h4>
+          </div>
+          <button
+            className="primaryButton"
+            type="button"
+            onClick={onPreview}
+            disabled={previewLoading}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            {previewLoading ? "정규화 중..." : "정규화 미리보기"}
+          </button>
+        </div>
+        <p className="contextHint">
+          외부 봇 JSON을 붙여넣으면 trade review를 생성하지 않고 표준 payload와 adapter warning만 확인합니다.
+          이 기능은 주문을 실행하지 않습니다.
+        </p>
+        <textarea
+          className="jsonTextarea"
+          value={previewInput}
+          onChange={(event) => setPreviewInput(event.target.value)}
+          rows={12}
+          spellCheck="false"
+          aria-label="Webhook payload JSON"
+        />
+        {previewResult && (
+          <div className="jsonResult">
+            <div className="webhookStatusGrid">
+              <div>
+                <span>미리보기 상태</span>
+                <strong>{previewResult.status}</strong>
+              </div>
+              <div>
+                <span>거래 신호 검토 생성</span>
+                <strong>{booleanKo(Boolean(previewResult.trade_review_created))}</strong>
+              </div>
+              <div>
+                <span>주문 실행 허용 여부</span>
+                <strong>{booleanKo(Boolean(previewResult.order_execution_allowed))}</strong>
+              </div>
+            </div>
+            {previewResult.adapter_warnings?.length > 0 && (
+              <div className="warningList">
+                <strong>Adapter warnings</strong>
+                <ul>
+                  {previewResult.adapter_warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <pre>{JSON.stringify(previewResult.normalized_payload || previewResult, null, 2)}</pre>
+          </div>
+        )}
+      </div>
       <div className="webhookEvents">
         <h4>최근 웹훅 이벤트</h4>
         {events.length > 0 ? (

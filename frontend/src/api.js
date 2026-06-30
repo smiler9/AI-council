@@ -51,6 +51,11 @@ export const api = {
   getWebhookStatus: () => request("/api/webhooks/status"),
   getWebhookEvents: () => request("/api/webhooks/events"),
   getWebhookEvent: (eventId) => request(`/api/webhooks/events/${eventId}`),
+  normalizeWebhookPreview: (payload) =>
+    request("/api/webhooks/normalize-preview", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
   getOperationsSummary: () => request("/api/operations/summary"),
   getOperationsRiskBrief: (limit = 20) => request(`/api/operations/risk-brief?limit=${limit}`),
   getOperationsScheduleHealth: () => request("/api/operations/schedule-health"),

@@ -31,6 +31,7 @@ class TradeReviewCreate(BaseModel):
     ticker: str = Field(min_length=1, max_length=16)
     strategy_signal: str = Field(min_length=1, max_length=80)
     side: str = Field(default="review_only", max_length=32)
+    raw_side: str | None = Field(default=None, max_length=64)
     price: float | None = Field(default=None, ge=0)
     volume: int | None = Field(default=None, ge=0)
     timeframe: str | None = Field(default=None, max_length=32)
@@ -40,6 +41,8 @@ class TradeReviewCreate(BaseModel):
     news_headlines: list[str] = Field(default_factory=list)
     risk_context: dict = Field(default_factory=dict)
     auto_research_metadata: dict = Field(default_factory=dict)
+    adapter_warnings: list[str] = Field(default_factory=list)
+    input_payload_json: dict = Field(default_factory=dict)
 
 
 class TickerReviewCreate(BaseModel):

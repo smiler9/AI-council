@@ -518,6 +518,7 @@ def _trade_signal_rules(trade_signal: dict) -> dict:
     volume = _as_float(trade_signal.get("volume"))
     news_headlines = trade_signal.get("news_headlines") or []
     side = str(trade_signal.get("side") or "").strip().lower()
+    raw_side = str(trade_signal.get("raw_side") or risk_context.get("raw_side") or "").strip().lower()
     risk_events = risk_context.get("risk_events") or []
 
     if spread_pct is None:
@@ -551,10 +552,23 @@ def _trade_signal_rules(trade_signal: dict) -> dict:
         rules["required_follow_up"].append("Attach validated news, SEC filing, or catalyst source.")
         rules["data_quality"] = "limited"
 
-    if side in {"buy", "sell", "short", "order", "market_order", "limit_order"}:
+    side_values = {value for value in {side, raw_side} if value}
+    order_language_values = {
+        "buy",
+        "sell",
+        "long",
+        "short",
+        "entry",
+        "exit",
+        "order",
+        "market_order",
+        "limit_order",
+    }
+    if side_values.intersection(order_language_values):
+        display_side = raw_side or side
         rules["risk_flags"].append("execution_language_treated_as_review_context")
         rules["primary_reasons"].append(
-            f"Input side '{side}' was stored only as review context and was not treated as an order."
+            f"Input side '{display_side}' was stored only as review context and was not treated as an order."
         )
 
     for event in risk_events:

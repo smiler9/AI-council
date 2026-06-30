@@ -1,0 +1,7 @@
+{
+  "source": "minimal_signal_bot",
+  "signal_id": "minimal_signal_001",
+  "symbol": "TESTC",
+  "signal": "watchlist_attention",
+  "notes": "Minimal compatibility sample with missing price, volume, and news context."
+}
