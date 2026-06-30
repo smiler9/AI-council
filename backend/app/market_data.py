@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import importlib
+import importlib.util
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Mapping
+from typing import Any, Mapping
 
 from .council import KOREAN_SAFETY_BOUNDARY
 
@@ -13,6 +15,7 @@ AVAILABLE_MARKET_DATA_PROVIDERS = [
     "external_market_data_stub",
     "polygon_stub",
     "alpaca_data_stub",
+    "yahoo_finance",
     "yahoo_finance_stub",
     "news_provider_stub",
     "sec_filing_provider_stub",
@@ -22,7 +25,7 @@ AVAILABLE_MARKET_DATA_PROVIDERS = [
 @dataclass(frozen=True)
 class MarketDataConfig:
     provider: str = "mock_market_data"
-    enabled: bool = False
+    enabled: bool = True
     timeout_seconds: float = 10.0
     allow_external: bool = False
     polygon_api_key: str | None = None
@@ -48,7 +51,7 @@ def load_market_data_config(environ: Mapping[str, str] | None = None) -> MarketD
         timeout_seconds = 10.0
     return MarketDataConfig(
         provider=(values.get("MARKET_DATA_PROVIDER", "mock_market_data").strip() or "mock_market_data"),
-        enabled=_as_bool(values.get("MARKET_DATA_ENABLED", "false")),
+        enabled=_as_bool(values.get("MARKET_DATA_ENABLED", "true")),
         timeout_seconds=timeout_seconds,
         allow_external=_as_bool(values.get("MARKET_DATA_ALLOW_EXTERNAL", "false")),
         polygon_api_key=(values.get("POLYGON_API_KEY") or "").strip() or None,
@@ -289,10 +292,219 @@ class StubMarketDataProvider(MarketDataProvider):
         return MockMarketDataProvider().scan_candidates(universe, review_mode, max_candidates, timeframe)
 
 
+class YahooFinanceMarketDataProvider(MarketDataProvider):
+    name = "yahoo_finance"
+
+    def __init__(self, config: MarketDataConfig):
+        self.config = config
+
+    def quote(self, ticker: str) -> dict:
+        normalized_ticker = _normalize_ticker(ticker)
+        warning = self._provider_warning()
+        if warning:
+            return self._fallback_quote(normalized_ticker, warning)
+
+        try:
+            ticker_obj = self._ticker(normalized_ticker)
+            fast_info = getattr(ticker_obj, "fast_info", None)
+            info = getattr(ticker_obj, "info", None)
+            last_price = _first_number(
+                [fast_info, info],
+                [
+                    "last_price",
+                    "lastPrice",
+                    "regular_market_price",
+                    "regularMarketPrice",
+                    "currentPrice",
+                    "previousClose",
+                ],
+            )
+            bid = _first_number([fast_info, info], ["bid", "bidPrice"])
+            ask = _first_number([fast_info, info], ["ask", "askPrice"])
+            volume = _first_int(
+                [fast_info, info],
+                [
+                    "last_volume",
+                    "lastVolume",
+                    "regular_market_volume",
+                    "regularMarketVolume",
+                    "volume",
+                ],
+            )
+            spread_pct = _spread_pct(bid, ask)
+            data_quality = "sufficient" if last_price is not None and volume is not None else "limited"
+            provider_warning = None
+            if data_quality != "sufficient":
+                provider_warning = "Yahoo Finance quote is missing price or volume fields."
+            return {
+                "ticker": normalized_ticker,
+                "last_price": last_price,
+                "bid": bid,
+                "ask": ask,
+                "spread_pct": spread_pct,
+                "volume": volume,
+                "timestamp": _now_iso(),
+                "provider": self.name,
+                "data_quality": data_quality,
+                "provider_warning": provider_warning,
+                "external_data": True,
+                "order_execution_allowed": False,
+            }
+        except Exception as exc:
+            return self._fallback_quote(
+                normalized_ticker,
+                f"Yahoo Finance quote lookup failed: {exc}",
+            )
+
+    def snapshot(self, ticker: str, review_mode: str = "penny_stock_risk", timeframe: str = "1d") -> dict:
+        normalized_ticker = _normalize_ticker(ticker)
+        quote = self.quote(normalized_ticker)
+        headlines = []
+        headline_warning = None
+        if quote.get("external_data"):
+            try:
+                headlines = _normalize_news_headlines(getattr(self._ticker(normalized_ticker), "news", []) or [])
+            except Exception as exc:
+                headline_warning = f"Yahoo Finance headline lookup failed: {exc}"
+
+        data_quality = quote.get("data_quality") or "limited"
+        market_data_available = quote.get("last_price") is not None or quote.get("volume") is not None
+        if not market_data_available:
+            data_quality = "unavailable"
+        elif not headlines:
+            data_quality = "limited" if data_quality == "sufficient" else data_quality
+
+        provider_warning = quote.get("provider_warning") or headline_warning
+        return {
+            "provider": self.name,
+            "ticker": normalized_ticker,
+            "quote": quote,
+            "last_price": quote.get("last_price"),
+            "volume": quote.get("volume"),
+            "relative_volume": None,
+            "spread_pct": quote.get("spread_pct"),
+            "premarket": False,
+            "mock_news_headlines": headlines,
+            "market_data_available": market_data_available,
+            "news_available": bool(headlines),
+            "risk_context": {
+                "review_mode": review_mode,
+                "timeframe": timeframe,
+                "market_data_provider": self.name,
+                "market_data_available": market_data_available,
+                "news_available": bool(headlines),
+                "data_quality": data_quality,
+                "spread_pct": quote.get("spread_pct"),
+                "premarket": False,
+                "relative_volume": None,
+                "external_data": bool(quote.get("external_data")),
+                "provider_warning": provider_warning,
+            },
+            "data_quality": data_quality,
+            "provider_warning": provider_warning,
+            "notes": "Yahoo Finance read-only market data. Values may be delayed, missing, or incomplete.",
+            "order_execution_allowed": False,
+        }
+
+    def news(self, ticker: str) -> dict:
+        return {
+            "ticker": _normalize_ticker(ticker),
+            "headlines": [],
+            "provider": "news_provider_stub",
+            "data_quality": "limited",
+            "fetched_at": _now_iso(),
+            "provider_warning": "Dedicated Yahoo/news provider endpoint is not implemented in Phase 13.",
+            "order_execution_allowed": False,
+        }
+
+    def filings(self, ticker: str) -> dict:
+        return {
+            "ticker": _normalize_ticker(ticker),
+            "filings": [],
+            "provider": "sec_filing_provider_stub",
+            "data_quality": "limited",
+            "fetched_at": _now_iso(),
+            "provider_warning": "SEC filing provider is a stub in Phase 13 and does not call SEC APIs.",
+            "order_execution_allowed": False,
+        }
+
+    def scan_candidates(self, universe: str, review_mode: str, max_candidates: int, timeframe: str) -> list[dict]:
+        mock_candidates = MockMarketDataProvider().scan_candidates(
+            universe=universe,
+            review_mode=review_mode,
+            max_candidates=max_candidates,
+            timeframe=timeframe,
+        )
+        if self._provider_warning():
+            return mock_candidates
+
+        enriched = []
+        for candidate in mock_candidates:
+            try:
+                snapshot = self.snapshot(
+                    candidate["ticker"],
+                    review_mode=review_mode,
+                    timeframe=timeframe,
+                )
+            except Exception:
+                enriched.append(candidate)
+                continue
+            if not snapshot.get("market_data_available"):
+                enriched.append(candidate)
+                continue
+            snapshot.update(
+                {
+                    "scan_reason": candidate["scan_reason"],
+                    "risk_context": {
+                        **snapshot.get("risk_context", {}),
+                        "universe": universe,
+                        "scan_reason": candidate["scan_reason"],
+                        "autonomous_review": True,
+                    },
+                    "order_execution_allowed": False,
+                }
+            )
+            enriched.append(snapshot)
+        return enriched
+
+    def _ticker(self, ticker: str):
+        yfinance = _load_yfinance()
+        if yfinance is None:
+            raise MarketDataProviderError("yfinance is not installed")
+        return yfinance.Ticker(ticker)
+
+    def _provider_warning(self) -> str | None:
+        if not self.config.enabled:
+            return "MARKET_DATA_ENABLED=false; Yahoo Finance external lookup is disabled."
+        if not self.config.allow_external:
+            return "MARKET_DATA_ALLOW_EXTERNAL=false; Yahoo Finance external lookup is disabled."
+        if not _yfinance_installed():
+            return "yfinance is not installed; Yahoo Finance provider is unavailable."
+        return None
+
+    def _fallback_quote(self, ticker: str, warning: str) -> dict:
+        return {
+            "ticker": ticker,
+            "last_price": None,
+            "bid": None,
+            "ask": None,
+            "spread_pct": None,
+            "volume": None,
+            "timestamp": _now_iso(),
+            "provider": self.name,
+            "data_quality": "unavailable",
+            "provider_warning": warning,
+            "external_data": False,
+            "order_execution_allowed": False,
+        }
+
+
 def get_market_data_provider(config: MarketDataConfig) -> MarketDataProvider:
     provider = config.normalized_provider
     if provider == "mock_market_data":
         return MockMarketDataProvider()
+    if provider == "yahoo_finance":
+        return YahooFinanceMarketDataProvider(config)
     if provider in AVAILABLE_MARKET_DATA_PROVIDERS and config.allow_external:
         return StubMarketDataProvider(provider)
     return MockMarketDataProvider()
@@ -301,14 +513,30 @@ def get_market_data_provider(config: MarketDataConfig) -> MarketDataProvider:
 def market_data_status(config: MarketDataConfig, active_provider: str | None = None) -> dict:
     provider = config.normalized_provider
     active = active_provider or get_market_data_provider(config).name
+    external_calls_allowed = bool(config.enabled and config.allow_external)
+    yfinance_installed = _yfinance_installed()
+    yahoo_finance_available = bool(external_calls_allowed and yfinance_installed)
+    provider_warning = _provider_status_warning(provider, active, config, yfinance_installed)
+    if provider == "yahoo_finance" and provider_warning:
+        last_check_status = "disabled" if not external_calls_allowed else "unavailable"
+    elif active == "mock_market_data":
+        last_check_status = "ok"
+    elif active == "yahoo_finance":
+        last_check_status = "ok" if yahoo_finance_available else "unavailable"
+    else:
+        last_check_status = "stub"
     return {
         "provider": provider,
-        "enabled": True,
-        "external_enabled": bool(config.allow_external and config.enabled),
+        "enabled": True if provider == "mock_market_data" else bool(config.enabled),
+        "external_enabled": external_calls_allowed,
         "available_providers": AVAILABLE_MARKET_DATA_PROVIDERS,
         "active_provider": active,
         "api_key_configured": _api_key_configured(config, provider),
-        "last_check_status": "ok" if active == "mock_market_data" else "stub",
+        "yahoo_finance_available": yahoo_finance_available,
+        "yfinance_installed": yfinance_installed,
+        "external_calls_allowed": external_calls_allowed,
+        "last_check_status": last_check_status,
+        "provider_warning": provider_warning,
         "order_execution_allowed": False,
         "safety_boundary": KOREAN_SAFETY_BOUNDARY,
     }
@@ -467,6 +695,97 @@ def _api_key_configured(config: MarketDataConfig, provider: str) -> bool:
     if provider == "sec_filing_provider_stub":
         return bool(config.sec_provider_enabled)
     return False
+
+
+def _provider_status_warning(
+    provider: str,
+    active: str,
+    config: MarketDataConfig,
+    yfinance_installed: bool,
+) -> str | None:
+    if provider == "yahoo_finance":
+        if not config.enabled:
+            return "MARKET_DATA_ENABLED=false; Yahoo Finance provider is disabled."
+        if not config.allow_external:
+            return "MARKET_DATA_ALLOW_EXTERNAL=false; Yahoo Finance external calls are blocked."
+        if not yfinance_installed:
+            return "yfinance is not installed; Yahoo Finance provider is unavailable."
+        return "Yahoo Finance data may be delayed, missing, or incomplete."
+    if active not in {"mock_market_data", "yahoo_finance"}:
+        return f"{active} is a Phase 13 stub and does not call external APIs."
+    return None
+
+
+def _yfinance_installed() -> bool:
+    try:
+        return importlib.util.find_spec("yfinance") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _load_yfinance():
+    if not _yfinance_installed():
+        return None
+    try:
+        return importlib.import_module("yfinance")
+    except Exception:
+        return None
+
+
+def _first_number(sources: list[Any], keys: list[str]) -> float | None:
+    value = _first_value(sources, keys)
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _first_int(sources: list[Any], keys: list[str]) -> int | None:
+    value = _first_number(sources, keys)
+    if value is None:
+        return None
+    return int(value)
+
+
+def _first_value(sources: list[Any], keys: list[str]) -> Any:
+    for source in sources:
+        if source is None:
+            continue
+        for key in keys:
+            value = _lookup_value(source, key)
+            if value is not None and value != "":
+                return value
+    return None
+
+
+def _lookup_value(source: Any, key: str) -> Any:
+    if isinstance(source, dict):
+        return source.get(key)
+    try:
+        return source[key]
+    except Exception:
+        return getattr(source, key, None)
+
+
+def _spread_pct(bid: float | None, ask: float | None) -> float | None:
+    if bid is None or ask is None:
+        return None
+    midpoint = (bid + ask) / 2
+    if midpoint <= 0:
+        return None
+    return round(((ask - bid) / midpoint) * 100, 4)
+
+
+def _normalize_news_headlines(news_items: list[Any]) -> list[str]:
+    headlines = []
+    for item in news_items[:5]:
+        title = _lookup_value(item, "title") or _lookup_value(item, "headline")
+        if title:
+            headlines.append(str(title))
+    return headlines
 
 
 def _normalize_ticker(ticker: str) -> str:

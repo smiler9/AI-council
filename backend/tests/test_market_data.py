@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.llm.config import LLMConfig
@@ -9,6 +10,44 @@ from app.main import create_app
 from app.market_data import MarketDataConfig, MarketDataProviderError
 from app.services.telegram_service import TelegramConfig
 from app.webhooks import WebhookConfig
+
+
+class FakeYahooTicker:
+    def __init__(self, ticker: str):
+        self.ticker = ticker
+        self.fast_info = {
+            "last_price": 10.0,
+            "bid": 9.9,
+            "ask": 10.1,
+            "last_volume": 1_250_000,
+        }
+        self.info = {}
+        self.news = [{"title": f"{ticker} mocked Yahoo Finance catalyst"}]
+
+
+class FakeYahooModule:
+    @staticmethod
+    def Ticker(ticker: str) -> FakeYahooTicker:
+        return FakeYahooTicker(ticker)
+
+
+class FailingYahooModule:
+    @staticmethod
+    def Ticker(ticker: str):
+        raise RuntimeError(f"{ticker} lookup failed")
+
+
+def _client_with_market_data(tmp_path, config: MarketDataConfig):
+    app = create_app(
+        db_path=tmp_path / "ai_council.sqlite",
+        report_dir=tmp_path / "reports",
+        upload_root=tmp_path / "uploads",
+        llm_config=LLMConfig(provider="mock"),
+        telegram_config=TelegramConfig(enabled=False),
+        webhook_config=WebhookConfig(enabled=False),
+        market_data_config=config,
+    )
+    return TestClient(app)
 
 
 def test_market_data_status_api(client):
@@ -21,9 +60,13 @@ def test_market_data_status_api(client):
     assert payload["external_enabled"] is False
     assert payload["active_provider"] == "mock_market_data"
     assert payload["api_key_configured"] is False
+    assert payload["external_calls_allowed"] is False
+    assert payload["yahoo_finance_available"] is False
+    assert "yfinance_installed" in payload
     assert payload["last_check_status"] == "ok"
     assert payload["order_execution_allowed"] is False
     assert "mock_market_data" in payload["available_providers"]
+    assert "yahoo_finance" in payload["available_providers"]
     assert "polygon_stub" in payload["available_providers"]
     assert "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다" in payload["safety_boundary"]
 
@@ -101,6 +144,161 @@ def test_market_data_filings_api(client):
     assert payload["ticker"] == "TESTA"
     assert payload["filings"]
     assert payload["provider"] == "sec_filing_provider_stub"
+    assert payload["order_execution_allowed"] is False
+
+
+def test_yahoo_provider_disabled_when_external_not_allowed(tmp_path):
+    with _client_with_market_data(
+        tmp_path,
+        MarketDataConfig(
+            provider="yahoo_finance",
+            enabled=True,
+            allow_external=False,
+        ),
+    ) as client:
+        status = client.get("/api/market-data/status")
+        quote = client.get("/api/market-data/quote/TESTA")
+
+    assert status.status_code == 200
+    status_payload = status.json()
+    assert status_payload["active_provider"] == "yahoo_finance"
+    assert status_payload["external_calls_allowed"] is False
+    assert status_payload["last_check_status"] == "disabled"
+    assert "MARKET_DATA_ALLOW_EXTERNAL=false" in status_payload["provider_warning"]
+    assert quote.status_code == 200
+    quote_payload = quote.json()
+    assert quote_payload["provider"] == "yahoo_finance"
+    assert quote_payload["data_quality"] == "unavailable"
+    assert quote_payload["external_data"] is False
+    assert quote_payload["order_execution_allowed"] is False
+
+
+def test_yfinance_missing_graceful_handling(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.market_data._yfinance_installed", lambda: False)
+    monkeypatch.setattr("app.market_data._load_yfinance", lambda: None)
+
+    with _client_with_market_data(
+        tmp_path,
+        MarketDataConfig(
+            provider="yahoo_finance",
+            enabled=True,
+            allow_external=True,
+        ),
+    ) as client:
+        status = client.get("/api/market-data/status")
+        quote = client.get("/api/market-data/quote/TESTA")
+
+    assert status.status_code == 200
+    status_payload = status.json()
+    assert status_payload["yfinance_installed"] is False
+    assert status_payload["yahoo_finance_available"] is False
+    assert status_payload["last_check_status"] == "unavailable"
+    assert "yfinance is not installed" in status_payload["provider_warning"]
+    assert quote.status_code == 200
+    assert quote.json()["data_quality"] == "unavailable"
+    assert quote.json()["order_execution_allowed"] is False
+
+
+def test_yahoo_quote_response_normalization_with_mocked_data(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.market_data._yfinance_installed", lambda: True)
+    monkeypatch.setattr("app.market_data._load_yfinance", lambda: FakeYahooModule)
+
+    with _client_with_market_data(
+        tmp_path,
+        MarketDataConfig(
+            provider="yahoo_finance",
+            enabled=True,
+            allow_external=True,
+        ),
+    ) as client:
+        response = client.get("/api/market-data/quote/TESTA")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ticker"] == "TESTA"
+    assert payload["provider"] == "yahoo_finance"
+    assert payload["last_price"] == 10.0
+    assert payload["bid"] == 9.9
+    assert payload["ask"] == 10.1
+    assert payload["spread_pct"] == pytest.approx(2.0)
+    assert payload["volume"] == 1_250_000
+    assert payload["data_quality"] == "sufficient"
+    assert payload["external_data"] is True
+    assert payload["order_execution_allowed"] is False
+
+
+def test_yahoo_snapshot_response_normalization_with_mocked_data(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.market_data._yfinance_installed", lambda: True)
+    monkeypatch.setattr("app.market_data._load_yfinance", lambda: FakeYahooModule)
+
+    with _client_with_market_data(
+        tmp_path,
+        MarketDataConfig(
+            provider="yahoo_finance",
+            enabled=True,
+            allow_external=True,
+        ),
+    ) as client:
+        response = client.get("/api/market-data/snapshot/TESTA")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "yahoo_finance"
+    assert payload["quote"]["provider"] == "yahoo_finance"
+    assert payload["market_data_available"] is True
+    assert payload["news_available"] is True
+    assert payload["mock_news_headlines"] == ["TESTA mocked Yahoo Finance catalyst"]
+    assert payload["risk_context"]["market_data_provider"] == "yahoo_finance"
+    assert payload["order_execution_allowed"] is False
+
+
+def test_yahoo_provider_failure_does_not_break_ticker_review(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.market_data._yfinance_installed", lambda: True)
+    monkeypatch.setattr("app.market_data._load_yfinance", lambda: FailingYahooModule)
+
+    with _client_with_market_data(
+        tmp_path,
+        MarketDataConfig(
+            provider="yahoo_finance",
+            enabled=True,
+            allow_external=True,
+        ),
+    ) as client:
+        response = client.post("/api/ticker-reviews", json={"ticker": "TESTA"})
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["market_data"]["provider"] == "yahoo_finance"
+    assert payload["market_data"]["data_quality"] == "unavailable"
+    assert "lookup failed" in payload["market_data"]["provider_warning"]
+    assert payload["structured_decision"]["order_execution_allowed"] is False
+    assert payload["order_execution_allowed"] is False
+
+
+def test_ticker_review_uses_yahoo_provider_metadata(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.market_data._yfinance_installed", lambda: True)
+    monkeypatch.setattr("app.market_data._load_yfinance", lambda: FakeYahooModule)
+
+    with _client_with_market_data(
+        tmp_path,
+        MarketDataConfig(
+            provider="yahoo_finance",
+            enabled=True,
+            allow_external=True,
+        ),
+    ) as client:
+        response = client.post(
+            "/api/ticker-reviews",
+            json={"ticker": "TESTA", "review_mode": "penny_stock_risk"},
+        )
+
+    assert response.status_code == 201
+    payload = response.json()
+    risk_context = payload["trade_review"]["input_payload"]["risk_context"]
+    assert payload["market_data"]["provider"] == "yahoo_finance"
+    assert payload["market_data"]["quote"]["provider"] == "yahoo_finance"
+    assert risk_context["market_data_provider"] == "yahoo_finance"
+    assert risk_context["external_data"] is True
     assert payload["order_execution_allowed"] is False
 
 

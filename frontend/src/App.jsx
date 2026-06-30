@@ -41,7 +41,8 @@ const DATA_QUALITY_LABELS = {
   poor: "부족",
   unknown: "알 수 없음",
   moderate: "보통",
-  failed: "실패"
+  failed: "실패",
+  unavailable: "사용 불가"
 };
 
 const AGENT_LABELS = {
@@ -1180,8 +1181,8 @@ function DashboardCards({ health, marketDataStatus, telegramStatus, webhookStatu
       </article>
       <article>
         <span>후보 발굴 provider</span>
-        <strong>mock_market_data</strong>
-        <p>실제 외부 market data API를 호출하지 않습니다.</p>
+        <strong>{marketDataProvider}</strong>
+        <p>후보군은 mock universe를 기준으로 하며 snapshot provider를 반영합니다.</p>
       </article>
       <article>
         <span>텔레그램 상태</span>
@@ -1306,11 +1307,13 @@ function DecisionCard({ decision }) {
 }
 
 function MarketDataPanel({ status, ticker, setTicker, result, loading, onLookup }) {
+  const resultProvider = result?.payload?.provider || result?.payload?.quote?.provider;
+  const resultDataQuality = result?.payload?.data_quality || result?.payload?.quote?.data_quality;
   return (
     <section className="tradeReviewSection" id="market-data">
       <div className="tradeReviewHeader">
         <div>
-          <p className="eyebrow">Phase 12 Market Data Provider Framework</p>
+          <p className="eyebrow">Phase 13 Yahoo Finance Read-only Provider</p>
           <h3>시장 데이터 상태</h3>
         </div>
         <span>주문 실행 허용 여부: false</span>
@@ -1322,15 +1325,27 @@ function MarketDataPanel({ status, ticker, setTicker, result, loading, onLookup 
         </div>
         <div>
           <span>외부 데이터 사용 여부</span>
-          <strong>{booleanKo(Boolean(status?.external_enabled))}</strong>
+          <strong>{booleanKo(Boolean(status?.external_calls_allowed ?? status?.external_enabled))}</strong>
         </div>
         <div>
           <span>API 키 설정 여부</span>
           <strong>{booleanKo(Boolean(status?.api_key_configured))}</strong>
         </div>
         <div>
+          <span>Yahoo Finance 사용 가능 여부</span>
+          <strong>{booleanKo(Boolean(status?.yahoo_finance_available))}</strong>
+        </div>
+        <div>
+          <span>yfinance 설치 여부</span>
+          <strong>{booleanKo(Boolean(status?.yfinance_installed))}</strong>
+        </div>
+        <div>
           <span>상태</span>
           <strong>{status?.last_check_status || "ok"}</strong>
+        </div>
+        <div>
+          <span>Provider 경고</span>
+          <strong>{status?.provider_warning || "없음"}</strong>
         </div>
       </div>
       <form className="marketDataLookup" onSubmit={(event) => event.preventDefault()}>
@@ -1377,13 +1392,23 @@ function MarketDataPanel({ status, ticker, setTicker, result, loading, onLookup 
         </button>
       </form>
       <p className="contextHint">
-        이 기능은 시장 데이터 조회 전용입니다. 주문을 실행하지 않습니다.
+        이 기능은 시장 데이터 조회 전용입니다. 주문을 실행하지 않습니다. 외부 데이터는 지연되거나 부정확할 수 있습니다.
       </p>
       {result && (
         <div className="jsonResult">
           <div className="panelHeading">
             <h3>{result.kind} 결과</h3>
             <span>{booleanKo(Boolean(result.payload?.order_execution_allowed))}</span>
+          </div>
+          <div className="decisionMetrics compactMetrics">
+            <div>
+              <span>결과 Provider</span>
+              <strong>{resultProvider || "알 수 없음"}</strong>
+            </div>
+            <div>
+              <span>데이터 품질</span>
+              <strong>{dataQualityLabel(resultDataQuality)}</strong>
+            </div>
           </div>
           <pre>{JSON.stringify(result.payload, null, 2)}</pre>
         </div>
