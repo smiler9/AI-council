@@ -94,6 +94,33 @@ python3 examples/oracle_sidecar/us_trader_signal_outbox_bridge.py \
 - 주문 생성/전송
 - 포지션 변경
 
+## Phase 24D patch draft와 preflight
+
+Patch draft 위치:
+
+- `patch_drafts/README.md`
+- `patch_drafts/penny_stock_bot_export_hook_patch_draft.md`
+- `patch_drafts/ai_council_signal_exporter_module.py`
+- `patch_drafts/oracle_apply_checklist.md`
+
+Preflight 실행:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_export_hook_preflight.sh
+```
+
+Preflight는 다음을 로컬에서만 확인합니다.
+
+- exporter module import
+- review-only payload 생성
+- temp outbox atomic write
+- sidecar dry-run
+- backend가 켜져 있으면 normalize-preview
+- `order_execution_allowed=false`
+
+Preflight는 Oracle 서버에 접속하지 않고, 운영봇 파일을 수정하지 않고, 실제 주문을 실행하지 않습니다.
+
 ## Sample payloads
 
 - `sample_outbox/us_trader_signal_001.json`

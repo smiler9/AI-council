@@ -4196,6 +4196,28 @@ function WebhookPanel({
   --dry-run \\
   --pretty`}
         </pre>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Export Hook 패치 초안</span>
+            <strong>examples/oracle_sidecar/patch_drafts</strong>
+          </div>
+          <div>
+            <span>적용 전 사전점검</span>
+            <strong>scripts/run_oracle_export_hook_preflight.sh</strong>
+          </div>
+          <div>
+            <span>Outbox Export 방식</span>
+            <strong>JSON atomic write</strong>
+          </div>
+          <div>
+            <span>브로커 API 연결</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          Export Hook 패치 초안은 Oracle 운영봇 직접 수정 전 반드시 검토해야 하는 문서와 helper 예시입니다.
+          적용 전 preflight, sidecar dry-run, preview-only 검증을 먼저 통과해야 합니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

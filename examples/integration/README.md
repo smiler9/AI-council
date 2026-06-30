@@ -209,6 +209,30 @@ python3 examples/integration/run_oracle_sidecar_smoke.py --pretty
 
 이 smoke test는 Oracle 서버에 접속하지 않고, Oracle live bot 파일을 수정하지 않고, systemd service를 조작하지 않고, 실제 주문을 실행하지 않습니다.
 
+## Oracle Export Hook Preflight
+
+Phase 24D preflight는 export hook patch draft가 로컬에서 안전하게 동작하는지 확인합니다.
+
+실행:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_export_hook_preflight.sh
+```
+
+검증 항목:
+
+- `patch_drafts/ai_council_signal_exporter_module.py` import
+- `build_ai_council_signal(...)`
+- `validate_export_payload(...)`
+- temp outbox atomic write
+- generated JSON validation
+- sidecar dry-run
+- backend가 켜져 있으면 sidecar preview
+- `order_execution_allowed=false`
+
+Preflight는 Oracle 서버에 접속하지 않고, 운영봇 파일을 수정하지 않고, 브로커 API를 호출하지 않습니다.
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

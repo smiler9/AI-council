@@ -1554,6 +1554,36 @@ Sidecar 원칙:
 - order-like fields는 adapter warning으로만 처리
 - `order_execution_allowed=false`
 
+## Phase 24D Oracle Export Hook Patch Draft
+
+Phase 24D는 Oracle US Trader 운영봇을 바로 수정하지 않고, 나중에 안전하게 signal export hook을 삽입하기 위한 patch draft, preflight script, 적용 checklist를 추가합니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_EXPORT_HOOK_PATCH_DRAFT.md`
+- `examples/oracle_sidecar/patch_drafts/`
+- `examples/oracle_sidecar/oracle_export_hook_preflight.py`
+- `scripts/run_oracle_export_hook_preflight.sh`
+
+Preflight 실행:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_export_hook_preflight.sh
+```
+
+Patch draft 원칙:
+
+- Oracle live bot 직접 수정 없음
+- `penny_stock_bot.py`에 자동 적용하지 않음
+- `place_order`, `check_exits`, `force_close_all` 내부에 hook 금지
+- exporter module은 outbox JSON 파일만 atomic write
+- HTTP 전송과 review 생성은 sidecar bridge가 담당
+- 기본 검증은 preview-only
+- 실제 주문 실행 없음
+- 브로커 API 연결 없음
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash
