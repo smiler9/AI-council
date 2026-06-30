@@ -53,6 +53,31 @@ export const api = {
   getWebhookEvent: (eventId) => request(`/api/webhooks/events/${eventId}`),
   getMeetings: () => request("/api/meetings"),
   getTradeReviews: () => request("/api/trade-reviews"),
+  getWatchlists: () => request("/api/watchlists"),
+  createWatchlist: (payload) =>
+    request("/api/watchlists", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  updateWatchlist: (watchlistId, payload) =>
+    request(`/api/watchlists/${watchlistId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+  deleteWatchlist: (watchlistId) =>
+    request(`/api/watchlists/${watchlistId}`, {
+      method: "DELETE"
+    }),
+  runWatchlistReview: (watchlistId) =>
+    request(`/api/watchlists/${watchlistId}/run-review`, {
+      method: "POST"
+    }),
+  getWatchlistReviews: () => request("/api/watchlist-reviews"),
+  getWatchlistReview: (reviewId) => request(`/api/watchlist-reviews/${reviewId}`),
+  sendWatchlistReviewTelegram: (reviewId) =>
+    request(`/api/watchlist-reviews/${reviewId}/telegram/send`, {
+      method: "POST"
+    }),
   createTickerReview: (payload) =>
     request("/api/ticker-reviews", {
       method: "POST",

@@ -164,6 +164,34 @@ def init_db(db_path: str | Path | None = None) -> None:
                 order_execution_allowed INTEGER NOT NULL,
                 created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS watchlists (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                tickers_json TEXT NOT NULL,
+                review_mode TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS watchlist_reviews (
+                id TEXT PRIMARY KEY,
+                watchlist_id TEXT NOT NULL,
+                review_mode TEXT NOT NULL,
+                ticker_count INTEGER NOT NULL,
+                result_summary_json TEXT NOT NULL,
+                ticker_review_ids_json TEXT NOT NULL,
+                trade_review_ids_json TEXT NOT NULL,
+                highest_risk_level TEXT NOT NULL,
+                blocked_count INTEGER NOT NULL,
+                hold_count INTEGER NOT NULL,
+                need_more_data_count INTEGER NOT NULL,
+                allow_count INTEGER NOT NULL,
+                order_execution_allowed INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (watchlist_id) REFERENCES watchlists(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_column(

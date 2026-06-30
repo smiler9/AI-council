@@ -71,3 +71,26 @@ class AutonomousReviewCreate(BaseModel):
     max_candidates: int = Field(default=5, ge=1, le=20)
     timeframe: str = Field(default="1d", max_length=32)
     notes: str | None = Field(default=None, max_length=2000)
+
+
+WatchlistReviewMode = Literal[
+    "penny_stock_risk",
+    "momentum_review",
+    "long_term_review",
+    "news_catalyst_review",
+    "general_review",
+]
+
+
+class WatchlistCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    tickers: list[str] = Field(min_length=1, max_length=50)
+    review_mode: WatchlistReviewMode = "penny_stock_risk"
+
+
+class WatchlistUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    tickers: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    review_mode: WatchlistReviewMode | None = None

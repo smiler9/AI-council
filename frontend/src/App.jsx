@@ -129,6 +129,8 @@ export default function App() {
   const [agents, setAgents] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [tradeReviews, setTradeReviews] = useState([]);
+  const [watchlists, setWatchlists] = useState([]);
+  const [watchlistReviews, setWatchlistReviews] = useState([]);
   const [health, setHealth] = useState(null);
   const [marketDataStatus, setMarketDataStatus] = useState(null);
   const [riskEventStatus, setRiskEventStatus] = useState(null);
@@ -166,6 +168,13 @@ export default function App() {
     timeframe: "1d",
     notes: "자율 후보 발굴 및 검토"
   });
+  const [watchlistForm, setWatchlistForm] = useState({
+    name: "Penny Stock Watchlist",
+    description: "관심 penny stock 후보군",
+    tickers: "TESTA\nTESTB\nTESTC\nTESTD\nTESTE",
+    review_mode: "penny_stock_risk"
+  });
+  const [selectedWatchlistId, setSelectedWatchlistId] = useState(null);
   const [marketDataTicker, setMarketDataTicker] = useState("TESTA");
   const [marketDataResult, setMarketDataResult] = useState(null);
   const [riskEventTicker, setRiskEventTicker] = useState("TESTB");
@@ -173,11 +182,14 @@ export default function App() {
   const [tradeReviewResult, setTradeReviewResult] = useState(null);
   const [tickerReviewResult, setTickerReviewResult] = useState(null);
   const [autonomousReviewResult, setAutonomousReviewResult] = useState(null);
+  const [watchlistReviewResult, setWatchlistReviewResult] = useState(null);
+  const [watchlistTelegramResult, setWatchlistTelegramResult] = useState(null);
   const [tradeReviewTelegramResult, setTradeReviewTelegramResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tradeReviewLoading, setTradeReviewLoading] = useState(false);
   const [tickerReviewLoading, setTickerReviewLoading] = useState(false);
   const [autonomousReviewLoading, setAutonomousReviewLoading] = useState(false);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [riskEventLoading, setRiskEventLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -224,6 +236,8 @@ export default function App() {
         agentList,
         telegram,
         reviewList,
+        watchlistList,
+        watchlistReviewList,
         hooks,
         events
       ] = await Promise.all([
@@ -233,6 +247,8 @@ export default function App() {
         api.getAgents(),
         api.getTelegramStatus(),
         api.getTradeReviews(),
+        api.getWatchlists(),
+        api.getWatchlistReviews(),
         api.getWebhookStatus(),
         api.getWebhookEvents()
       ]);
@@ -242,6 +258,9 @@ export default function App() {
       setAgents(agentList);
       setTelegramStatus(telegram);
       setTradeReviews(reviewList);
+      setWatchlists(watchlistList);
+      setWatchlistReviews(watchlistReviewList);
+      setSelectedWatchlistId((current) => current || watchlistList[0]?.id || null);
       setWebhookStatus(hooks);
       setWebhookEvents(events);
       await loadMeetings();
@@ -295,6 +314,20 @@ export default function App() {
       ...current,
       [field]: value
     }));
+  }
+
+  function updateWatchlistField(field, value) {
+    setWatchlistForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function parseWatchlistTickers(value) {
+    return value
+      .split(/[\n,]/)
+      .map((item) => item.trim().toUpperCase())
+      .filter(Boolean);
   }
 
   function buildTradeReviewPayload() {
@@ -397,6 +430,81 @@ export default function App() {
       setError(err.message);
     } finally {
       setAutonomousReviewLoading(false);
+    }
+  }
+
+  async function handleWatchlistCreate(event) {
+    event.preventDefault();
+    if (!watchlistForm.name.trim()) return;
+    setWatchlistLoading(true);
+    setError("");
+    try {
+      const watchlist = await api.createWatchlist({
+        name: watchlistForm.name.trim(),
+        description: watchlistForm.description.trim() || null,
+        tickers: parseWatchlistTickers(watchlistForm.tickers),
+        review_mode: watchlistForm.review_mode
+      });
+      const nextWatchlists = await api.getWatchlists();
+      setWatchlists(nextWatchlists);
+      setSelectedWatchlistId(watchlist.id);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWatchlistLoading(false);
+    }
+  }
+
+  async function handleWatchlistDelete(watchlistId) {
+    setWatchlistLoading(true);
+    setError("");
+    try {
+      await api.deleteWatchlist(watchlistId);
+      const nextWatchlists = await api.getWatchlists();
+      setWatchlists(nextWatchlists);
+      setSelectedWatchlistId(nextWatchlists[0]?.id || null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWatchlistLoading(false);
+    }
+  }
+
+  async function handleWatchlistRun(watchlistId = selectedWatchlistId) {
+    if (!watchlistId) return;
+    setWatchlistLoading(true);
+    setWatchlistTelegramResult(null);
+    setError("");
+    try {
+      const result = await api.runWatchlistReview(watchlistId);
+      setWatchlistReviewResult(result);
+      setWatchlistReviews(await api.getWatchlistReviews());
+      setTradeReviews(await api.getTradeReviews());
+      const firstMeetingId = result.results?.[0]?.linked_meeting_id;
+      if (firstMeetingId) {
+        await loadMeetings(firstMeetingId);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWatchlistLoading(false);
+    }
+  }
+
+  async function handleWatchlistTelegramSend() {
+    const reviewId = watchlistReviewResult?.id;
+    if (!reviewId) return;
+    setWatchlistLoading(true);
+    setWatchlistTelegramResult(null);
+    setError("");
+    try {
+      const result = await api.sendWatchlistReviewTelegram(reviewId);
+      setWatchlistTelegramResult(result);
+      await refreshTelegramStatus();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWatchlistLoading(false);
     }
   }
 
@@ -580,6 +688,7 @@ export default function App() {
           <a href="#meetings">회의</a>
           <a href="#market-data">시장 데이터 상태</a>
           <a href="#risk-events">뉴스/공시 리스크</a>
+          <a href="#watchlists">관심종목</a>
           <a href="#autonomous-review">자율 트레이더 검토</a>
           <a href="#ticker-review">종목 자동 분석</a>
           <a href="#trade-review">거래 신호 검토</a>
@@ -717,6 +826,8 @@ export default function App() {
           webhookStatus={webhookStatus}
           meetings={meetings}
           tradeReviews={tradeReviews}
+          watchlists={watchlists}
+          watchlistReviews={watchlistReviews}
         />
 
         <SettingsGuidePanel health={health} />
@@ -737,6 +848,23 @@ export default function App() {
           result={riskEventResult}
           loading={riskEventLoading}
           onLookup={handleRiskEventLookup}
+        />
+
+        <WatchlistPanel
+          watchlists={watchlists}
+          selectedWatchlistId={selectedWatchlistId}
+          setSelectedWatchlistId={setSelectedWatchlistId}
+          form={watchlistForm}
+          updateField={updateWatchlistField}
+          loading={watchlistLoading}
+          result={watchlistReviewResult}
+          telegramResult={watchlistTelegramResult}
+          telegramConfigured={Boolean(telegramStatus?.configured)}
+          onCreate={handleWatchlistCreate}
+          onDelete={handleWatchlistDelete}
+          onRun={handleWatchlistRun}
+          onSendTelegram={handleWatchlistTelegramSend}
+          onOpenMeeting={handleSelect}
         />
 
         <WebhookPanel
@@ -1205,12 +1333,15 @@ function DashboardCards({
   telegramStatus,
   webhookStatus,
   meetings,
-  tradeReviews
+  tradeReviews,
+  watchlists,
+  watchlistReviews
 }) {
   const backendOk = health?.status === "ok";
   const llmProvider = health?.llm_provider || "mock";
   const marketDataProvider =
     marketDataStatus?.active_provider || health?.market_data?.provider || "mock_market_data";
+  const latestWatchlistReview = watchlistReviews?.[0];
   return (
     <section className="dashboardGrid" id="dashboard">
       <article>
@@ -1264,6 +1395,26 @@ function DashboardCards({
         <span>최근 거래 신호 검토 수</span>
         <strong>{tradeReviews.length}</strong>
         <p>읽기 전용 검토 기록</p>
+      </article>
+      <article>
+        <span>Watchlist 수</span>
+        <strong>{watchlists.length}</strong>
+        <p>관심종목 묶음</p>
+      </article>
+      <article>
+        <span>최근 Watchlist 분석 수</span>
+        <strong>{watchlistReviews.length}</strong>
+        <p>Batch review 기록</p>
+      </article>
+      <article>
+        <span>최근 위험 종목 수</span>
+        <strong>{latestWatchlistReview?.blocked_count || 0}</strong>
+        <p>BLOCK 또는 critical 후보 중심</p>
+      </article>
+      <article>
+        <span>최고 리스크 수준</span>
+        <strong>{latestWatchlistReview?.highest_risk_level || "없음"}</strong>
+        <p>최근 Watchlist 분석 기준</p>
       </article>
       <article className="safetyCard">
         <span>주문 실행 상태</span>
@@ -1597,6 +1748,263 @@ function RiskEventPanel({ status, ticker, setTicker, result, loading, onLookup }
           <pre>{JSON.stringify(result.payload, null, 2)}</pre>
         </div>
       )}
+    </section>
+  );
+}
+
+function WatchlistPanel({
+  watchlists,
+  selectedWatchlistId,
+  setSelectedWatchlistId,
+  form,
+  updateField,
+  loading,
+  result,
+  telegramResult,
+  telegramConfigured,
+  onCreate,
+  onDelete,
+  onRun,
+  onSendTelegram,
+  onOpenMeeting
+}) {
+  const selectedWatchlist = watchlists.find((item) => item.id === selectedWatchlistId);
+  return (
+    <section className="tradeReviewSection" id="watchlists">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">Phase 15 Watchlist Batch Review</p>
+          <h3>관심종목 Watchlist</h3>
+        </div>
+        <span>주문 실행 허용 여부: false</span>
+      </div>
+      <form className="tickerReviewForm" onSubmit={onCreate}>
+        <label>
+          <span>Watchlist 이름</span>
+          <input
+            value={form.name}
+            onChange={(event) => updateField("name", event.target.value)}
+            placeholder="Penny Stock Watchlist"
+          />
+        </label>
+        <label>
+          <span>분석 모드</span>
+          <select value={form.review_mode} onChange={(event) => updateField("review_mode", event.target.value)}>
+            <option value="penny_stock_risk">페니주 리스크 검토 (penny_stock_risk)</option>
+            <option value="momentum_review">모멘텀 검토 (momentum_review)</option>
+            <option value="long_term_review">장기 관점 검토 (long_term_review)</option>
+            <option value="news_catalyst_review">뉴스 촉매 검토 (news_catalyst_review)</option>
+            <option value="general_review">일반 검토 (general_review)</option>
+          </select>
+        </label>
+        <label className="wideField">
+          <span>설명</span>
+          <input
+            value={form.description}
+            onChange={(event) => updateField("description", event.target.value)}
+            placeholder="관심 penny stock 후보군"
+          />
+        </label>
+        <label className="wideField">
+          <span>종목 목록</span>
+          <textarea
+            value={form.tickers}
+            onChange={(event) => updateField("tickers", event.target.value)}
+            rows={5}
+            placeholder={"TESTA\nTESTB\nTESTC"}
+          />
+        </label>
+        <button className="primaryButton" type="submit" disabled={loading || !form.name.trim()}>
+          <Plus size={18} aria-hidden="true" />
+          새 Watchlist 만들기
+        </button>
+      </form>
+      <p className="contextHint">
+        관심종목을 한 번에 Risk Gate Review로 검토합니다. ALLOW는 검토상 허용일 뿐 실제 매수 허용이 아닙니다.
+      </p>
+      <div className="recentTradeReviews">
+        <h4>Watchlist 목록</h4>
+        <div>
+          {watchlists.map((watchlist) => (
+            <button
+              type="button"
+              key={watchlist.id}
+              className={selectedWatchlistId === watchlist.id ? "active" : ""}
+              onClick={() => setSelectedWatchlistId(watchlist.id)}
+            >
+              <strong>{watchlist.name}</strong>
+              <span>
+                {watchlist.ticker_count}개 · {watchlist.review_mode}
+              </span>
+            </button>
+          ))}
+          {watchlists.length === 0 && <div className="emptyState">아직 Watchlist가 없습니다.</div>}
+        </div>
+      </div>
+      {selectedWatchlist && (
+        <div className="tradeReviewResultCard">
+          <div className="decisionHeader">
+            <div>
+              <p className="eyebrow">Watchlist 상세</p>
+              <h3>{selectedWatchlist.name}</h3>
+            </div>
+            <div className="badgeGroup">
+              <span className="decisionBadge hold">{selectedWatchlist.ticker_count}개</span>
+              <span className="riskBadge medium">주문 없음</span>
+            </div>
+          </div>
+          <div className="decisionMetrics">
+            <div>
+              <span>분석 모드</span>
+              <strong>{selectedWatchlist.review_mode}</strong>
+            </div>
+            <div>
+              <span>종목</span>
+              <strong>{selectedWatchlist.tickers.join(", ")}</strong>
+            </div>
+            <div>
+              <span>주문 실행 허용 여부</span>
+              <strong>{booleanKo(Boolean(selectedWatchlist.order_execution_allowed))}</strong>
+            </div>
+          </div>
+          <div className="tradeReviewActions">
+            <button className="primaryButton" type="button" disabled={loading} onClick={() => onRun(selectedWatchlist.id)}>
+              <Shield size={18} aria-hidden="true" />
+              Watchlist 분석 실행
+            </button>
+            <button className="secondaryButton" type="button" disabled={loading} onClick={() => onDelete(selectedWatchlist.id)}>
+              <Trash2 size={17} aria-hidden="true" />
+              삭제
+            </button>
+          </div>
+        </div>
+      )}
+      {result && (
+        <WatchlistReviewResult
+          result={result}
+          telegramResult={telegramResult}
+          telegramConfigured={telegramConfigured}
+          loading={loading}
+          onSendTelegram={onSendTelegram}
+          onOpenMeeting={onOpenMeeting}
+        />
+      )}
+    </section>
+  );
+}
+
+function WatchlistReviewResult({
+  result,
+  telegramResult,
+  telegramConfigured,
+  loading,
+  onSendTelegram,
+  onOpenMeeting
+}) {
+  const summary = result.summary || {};
+  const groups = [
+    ["위험 종목", result.results?.filter((item) => item.decision === "BLOCK" || item.risk_level === "critical") || []],
+    ["주의 종목", result.results?.filter((item) => item.decision === "HOLD" || item.risk_level === "high") || []],
+    ["추가 데이터 필요", result.results?.filter((item) => item.decision === "NEED_MORE_DATA") || []],
+    ["검토상 허용", result.results?.filter((item) => item.decision === "ALLOW") || []]
+  ];
+  return (
+    <section className="tradeReviewResultCard">
+      <div className="decisionHeader">
+        <div>
+          <p className="eyebrow">Watchlist Risk Brief</p>
+          <h3>
+            {result.watchlist_name} · {result.ticker_count}개 분석
+          </h3>
+        </div>
+        <div className="badgeGroup">
+          <span className="decisionBadge hold">HOLD {summary.hold_count || 0}</span>
+          <span className="riskBadge critical">BLOCK {summary.block_count || 0}</span>
+        </div>
+      </div>
+      <div className="decisionMetrics">
+        <div>
+          <span>위험 종목</span>
+          <strong>{summary.block_count || 0}</strong>
+        </div>
+        <div>
+          <span>주의 종목</span>
+          <strong>{summary.hold_count || 0}</strong>
+        </div>
+        <div>
+          <span>추가 데이터 필요</span>
+          <strong>{summary.need_more_data_count || 0}</strong>
+        </div>
+        <div>
+          <span>검토상 허용</span>
+          <strong>{summary.allow_count || 0}</strong>
+        </div>
+        <div>
+          <span>최고 리스크 수준</span>
+          <strong>{riskLevelLabel(summary.highest_risk_level || result.highest_risk_level)}</strong>
+        </div>
+        <div>
+          <span>주문 실행 허용 여부</span>
+          <strong>{booleanKo(Boolean(result.order_execution_allowed))}</strong>
+        </div>
+      </div>
+      <div className="autonomousGroups">
+        {groups.map(([title, items]) => (
+          <div className="autonomousGroup" key={title}>
+            <h4>{title}</h4>
+            {items.length > 0 ? (
+              items.map((item) => (
+                <article key={`${title}-${item.ticker}-${item.linked_meeting_id}`}>
+                  <div>
+                    <strong>{item.ticker}</strong>
+                    <span>
+                      {decisionLabel(item.decision)} · {riskLevelLabel(item.risk_level)}
+                    </span>
+                    <span>
+                      리스크 이벤트 {item.top_risk_event || "없음"} · {item.risk_event_severity ? riskLevelLabel(item.risk_event_severity) : "없음"}
+                    </span>
+                    <span>주문 실행 허용 여부: {booleanKo(Boolean(item.order_execution_allowed))}</span>
+                  </div>
+                  <button
+                    className="secondaryButton"
+                    type="button"
+                    disabled={!item.linked_meeting_id}
+                    onClick={() => item.linked_meeting_id && onOpenMeeting(item.linked_meeting_id)}
+                  >
+                    <FileText size={16} aria-hidden="true" />
+                    회의 열기
+                  </button>
+                </article>
+              ))
+            ) : (
+              <div className="emptyState">해당 종목이 없습니다.</div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="tradeReviewActions">
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !telegramConfigured}
+          onClick={onSendTelegram}
+        >
+          <Send size={17} aria-hidden="true" />
+          텔레그램으로 보내기
+        </button>
+        {result.report?.path && (
+          <span className="contextHint">Report: {result.report.path}</span>
+        )}
+      </div>
+      {telegramResult && (
+        <div className={`telegramResult ${telegramResult.sent ? "sent" : "disabled"}`}>
+          <strong>{telegramResult.status}</strong>
+          <p>{telegramResult.detail}</p>
+        </div>
+      )}
+      <p className="contextHint">
+        이 기능은 주문을 실행하지 않습니다. 모든 결과의 order_execution_allowed는 false입니다.
+      </p>
     </section>
   );
 }

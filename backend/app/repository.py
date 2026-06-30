@@ -741,6 +741,267 @@ def _autonomous_review_row_to_dict(row) -> dict:
     return review
 
 
+def create_watchlist(
+    *,
+    name: str,
+    description: str | None,
+    tickers: list[str],
+    review_mode: str,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    watchlist_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO watchlists (
+                id,
+                name,
+                description,
+                tickers_json,
+                review_mode,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                watchlist_id,
+                name,
+                description,
+                json.dumps(tickers, sort_keys=True),
+                review_mode,
+                timestamp,
+                timestamp,
+            ),
+        )
+    return get_watchlist(watchlist_id, db_path)
+
+
+def list_watchlists(db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT id, name, description, tickers_json, review_mode, created_at, updated_at
+            FROM watchlists
+            ORDER BY updated_at DESC, created_at DESC
+            """
+        ).fetchall()
+    return [_watchlist_row_to_dict(row) for row in rows]
+
+
+def get_watchlist(watchlist_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT id, name, description, tickers_json, review_mode, created_at, updated_at
+            FROM watchlists
+            WHERE id = ?
+            """,
+            (watchlist_id,),
+        ).fetchone()
+    return _watchlist_row_to_dict(row) if row else None
+
+
+def update_watchlist(
+    watchlist_id: str,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    tickers: list[str] | None = None,
+    review_mode: str | None = None,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    existing = get_watchlist(watchlist_id, db_path)
+    if not existing:
+        return None
+    updated = {
+        "name": name if name is not None else existing["name"],
+        "description": description if description is not None else existing.get("description"),
+        "tickers": tickers if tickers is not None else existing["tickers"],
+        "review_mode": review_mode if review_mode is not None else existing["review_mode"],
+    }
+    timestamp = now_iso()
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE watchlists
+            SET name = ?, description = ?, tickers_json = ?, review_mode = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                updated["name"],
+                updated["description"],
+                json.dumps(updated["tickers"], sort_keys=True),
+                updated["review_mode"],
+                timestamp,
+                watchlist_id,
+            ),
+        )
+    return get_watchlist(watchlist_id, db_path)
+
+
+def delete_watchlist(watchlist_id: str, db_path: str | Path | None = None) -> dict | None:
+    existing = get_watchlist(watchlist_id, db_path)
+    if not existing:
+        return None
+    with get_connection(db_path) as connection:
+        connection.execute("DELETE FROM watchlists WHERE id = ?", (watchlist_id,))
+    return existing
+
+
+def create_watchlist_review(
+    *,
+    watchlist_id: str,
+    review_mode: str,
+    ticker_count: int,
+    result_summary: dict,
+    ticker_review_ids: list[str],
+    trade_review_ids: list[str],
+    highest_risk_level: str,
+    blocked_count: int,
+    hold_count: int,
+    need_more_data_count: int,
+    allow_count: int,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    review_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO watchlist_reviews (
+                id,
+                watchlist_id,
+                review_mode,
+                ticker_count,
+                result_summary_json,
+                ticker_review_ids_json,
+                trade_review_ids_json,
+                highest_risk_level,
+                blocked_count,
+                hold_count,
+                need_more_data_count,
+                allow_count,
+                order_execution_allowed,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                review_id,
+                watchlist_id,
+                review_mode,
+                ticker_count,
+                json.dumps(result_summary, sort_keys=True),
+                json.dumps(ticker_review_ids, sort_keys=True),
+                json.dumps(trade_review_ids, sort_keys=True),
+                highest_risk_level,
+                blocked_count,
+                hold_count,
+                need_more_data_count,
+                allow_count,
+                0,
+                timestamp,
+            ),
+        )
+    return get_watchlist_review(review_id, db_path)
+
+
+def list_watchlist_reviews(db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                watchlist_id,
+                review_mode,
+                ticker_count,
+                result_summary_json,
+                ticker_review_ids_json,
+                trade_review_ids_json,
+                highest_risk_level,
+                blocked_count,
+                hold_count,
+                need_more_data_count,
+                allow_count,
+                order_execution_allowed,
+                created_at
+            FROM watchlist_reviews
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+    return [_watchlist_review_row_to_dict(row) for row in rows]
+
+
+def get_watchlist_review(review_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                watchlist_id,
+                review_mode,
+                ticker_count,
+                result_summary_json,
+                ticker_review_ids_json,
+                trade_review_ids_json,
+                highest_risk_level,
+                blocked_count,
+                hold_count,
+                need_more_data_count,
+                allow_count,
+                order_execution_allowed,
+                created_at
+            FROM watchlist_reviews
+            WHERE id = ?
+            """,
+            (review_id,),
+        ).fetchone()
+    return _watchlist_review_row_to_dict(row) if row else None
+
+
+def update_watchlist_review_summary(
+    review_id: str,
+    result_summary: dict,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    if not get_watchlist_review(review_id, db_path):
+        return None
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE watchlist_reviews
+            SET result_summary_json = ?
+            WHERE id = ?
+            """,
+            (json.dumps(result_summary, sort_keys=True), review_id),
+        )
+    return get_watchlist_review(review_id, db_path)
+
+
+def _watchlist_row_to_dict(row) -> dict:
+    watchlist = row_to_dict(row)
+    watchlist["tickers"] = json.loads(watchlist.pop("tickers_json"))
+    watchlist["ticker_count"] = len(watchlist["tickers"])
+    watchlist["order_execution_allowed"] = False
+    return watchlist
+
+
+def _watchlist_review_row_to_dict(row) -> dict:
+    review = row_to_dict(row)
+    summary = json.loads(review.pop("result_summary_json"))
+    review["summary"] = summary.get("summary", {})
+    review["results"] = summary.get("results", [])
+    review["watchlist_name"] = summary.get("watchlist_name")
+    review["report"] = summary.get("report", {})
+    review["safety_boundary"] = summary.get("safety_boundary")
+    review["ticker_review_ids"] = json.loads(review.pop("ticker_review_ids_json"))
+    review["trade_review_ids"] = json.loads(review.pop("trade_review_ids_json"))
+    review["order_execution_allowed"] = False
+    return review
+
+
 def _ticker_review_row_to_dict(row) -> dict:
     review = row_to_dict(row)
     review["auto_payload"] = json.loads(review.pop("auto_payload_json"))

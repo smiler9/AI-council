@@ -42,14 +42,21 @@ from .repository import (
     get_meeting_outputs,
     get_report,
     get_trade_review,
+    get_watchlist,
+    get_watchlist_review,
     get_webhook_event,
     get_webhook_event_by_source_signal,
     list_agents,
     list_context_files,
     list_meetings,
     list_trade_reviews,
+    list_watchlist_reviews,
+    list_watchlists,
     list_webhook_events,
     replace_meeting_outputs,
+    create_watchlist,
+    update_watchlist,
+    delete_watchlist,
     update_webhook_event,
     upsert_report,
 )
@@ -59,6 +66,8 @@ from .schemas import (
     MeetingRunResponse,
     TickerReviewCreate,
     TradeReviewCreate,
+    WatchlistCreate,
+    WatchlistUpdate,
 )
 from .seed import seed_agents
 from .services.telegram_service import (
@@ -68,6 +77,13 @@ from .services.telegram_service import (
 )
 from .ticker_reviews import run_ticker_review
 from .trade_reviews import run_trade_review
+from .watchlists import (
+    WatchlistInputError,
+    format_watchlist_review_response,
+    normalize_tickers,
+    run_watchlist_review,
+    send_watchlist_review_telegram,
+)
 from .webhooks import (
     WEBHOOK_SECRET_HEADER,
     WebhookConfig,
@@ -144,6 +160,18 @@ def create_app(
         if not event:
             raise HTTPException(status_code=404, detail="Webhook event not found")
         return event
+
+    def _watchlist_or_404(watchlist_id: str) -> dict:
+        watchlist = get_watchlist(watchlist_id, app.state.db_path)
+        if not watchlist:
+            raise HTTPException(status_code=404, detail="Watchlist not found")
+        return watchlist
+
+    def _watchlist_review_or_404(review_id: str) -> dict:
+        review = get_watchlist_review(review_id, app.state.db_path)
+        if not review:
+            raise HTTPException(status_code=404, detail="Watchlist review not found")
+        return review
 
     @app.get("/health")
     def health() -> dict:
@@ -461,6 +489,98 @@ def create_app(
     @app.post("/api/autonomous-reviews/{review_id}/telegram/send")
     def send_autonomous_review_to_telegram(review_id: str) -> dict:
         return send_autonomous_review_telegram(
+            review_id,
+            db_path=app.state.db_path,
+            telegram_service=TelegramService(app.state.telegram_config),
+        )
+
+    @app.post("/api/watchlists", status_code=201)
+    def post_watchlist(payload: WatchlistCreate) -> dict:
+        try:
+            tickers = normalize_tickers(payload.tickers)
+        except WatchlistInputError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return create_watchlist(
+            name=payload.name.strip(),
+            description=(payload.description or "").strip() or None,
+            tickers=tickers,
+            review_mode=payload.review_mode,
+            db_path=app.state.db_path,
+        )
+
+    @app.get("/api/watchlists")
+    def get_watchlists() -> list[dict]:
+        return list_watchlists(app.state.db_path)
+
+    @app.get("/api/watchlists/{watchlist_id}")
+    def get_watchlist_detail(watchlist_id: str) -> dict:
+        return _watchlist_or_404(watchlist_id)
+
+    @app.patch("/api/watchlists/{watchlist_id}")
+    def patch_watchlist(watchlist_id: str, payload: WatchlistUpdate) -> dict:
+        _watchlist_or_404(watchlist_id)
+        update_data = payload.model_dump(exclude_unset=True)
+        tickers = None
+        if "tickers" in update_data:
+            try:
+                tickers = normalize_tickers(update_data["tickers"] or [])
+            except WatchlistInputError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        updated = update_watchlist(
+            watchlist_id,
+            name=update_data.get("name", None).strip() if update_data.get("name") else None,
+            description=(
+                update_data.get("description").strip()
+                if isinstance(update_data.get("description"), str)
+                else update_data.get("description")
+            ),
+            tickers=tickers,
+            review_mode=update_data.get("review_mode"),
+            db_path=app.state.db_path,
+        )
+        return updated
+
+    @app.delete("/api/watchlists/{watchlist_id}")
+    def delete_watchlist_endpoint(watchlist_id: str) -> dict:
+        deleted = delete_watchlist(watchlist_id, app.state.db_path)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Watchlist not found")
+        return {
+            "deleted": True,
+            "watchlist": deleted,
+            "order_execution_allowed": False,
+        }
+
+    @app.post("/api/watchlists/{watchlist_id}/run-review", status_code=201)
+    def run_watchlist_review_endpoint(watchlist_id: str) -> dict:
+        try:
+            return run_watchlist_review(
+                watchlist_id,
+                db_path=app.state.db_path,
+                report_dir=app.state.report_dir,
+                llm_config=app.state.llm_config,
+                market_data_config=app.state.market_data_config,
+                risk_event_config=app.state.risk_event_config,
+            )
+        except WatchlistInputError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/watchlist-reviews")
+    def get_watchlist_reviews() -> list[dict]:
+        return [
+            format_watchlist_review_response(review, get_watchlist(review["watchlist_id"], app.state.db_path))
+            for review in list_watchlist_reviews(app.state.db_path)
+        ]
+
+    @app.get("/api/watchlist-reviews/{review_id}")
+    def get_watchlist_review_detail(review_id: str) -> dict:
+        review = _watchlist_review_or_404(review_id)
+        watchlist = get_watchlist(review["watchlist_id"], app.state.db_path)
+        return format_watchlist_review_response(review, watchlist)
+
+    @app.post("/api/watchlist-reviews/{review_id}/telegram/send")
+    def send_watchlist_review_to_telegram(review_id: str) -> dict:
+        return send_watchlist_review_telegram(
             review_id,
             db_path=app.state.db_path,
             telegram_service=TelegramService(app.state.telegram_config),
