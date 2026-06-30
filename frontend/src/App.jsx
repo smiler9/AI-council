@@ -128,6 +128,7 @@ export default function App() {
   const [meetings, setMeetings] = useState([]);
   const [tradeReviews, setTradeReviews] = useState([]);
   const [health, setHealth] = useState(null);
+  const [marketDataStatus, setMarketDataStatus] = useState(null);
   const [webhookStatus, setWebhookStatus] = useState(null);
   const [webhookEvents, setWebhookEvents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -162,6 +163,8 @@ export default function App() {
     timeframe: "1d",
     notes: "자율 후보 발굴 및 검토"
   });
+  const [marketDataTicker, setMarketDataTicker] = useState("TESTA");
+  const [marketDataResult, setMarketDataResult] = useState(null);
   const [tradeReviewResult, setTradeReviewResult] = useState(null);
   const [tickerReviewResult, setTickerReviewResult] = useState(null);
   const [autonomousReviewResult, setAutonomousReviewResult] = useState(null);
@@ -170,6 +173,7 @@ export default function App() {
   const [tradeReviewLoading, setTradeReviewLoading] = useState(false);
   const [tickerReviewLoading, setTickerReviewLoading] = useState(false);
   const [autonomousReviewLoading, setAutonomousReviewLoading] = useState(false);
+  const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -207,8 +211,9 @@ export default function App() {
   async function loadInitialData() {
     setError("");
     try {
-      const [healthStatus, agentList, telegram, reviewList, hooks, events] = await Promise.all([
+      const [healthStatus, marketStatus, agentList, telegram, reviewList, hooks, events] = await Promise.all([
         api.getHealth(),
+        api.getMarketDataStatus(),
         api.getAgents(),
         api.getTelegramStatus(),
         api.getTradeReviews(),
@@ -216,6 +221,7 @@ export default function App() {
         api.getWebhookEvents()
       ]);
       setHealth(healthStatus);
+      setMarketDataStatus(marketStatus);
       setAgents(agentList);
       setTelegramStatus(telegram);
       setTradeReviews(reviewList);
@@ -377,6 +383,28 @@ export default function App() {
     }
   }
 
+  async function handleMarketDataLookup(kind) {
+    const tickerValue = marketDataTicker.trim();
+    if (!tickerValue) return;
+    setMarketDataLoading(true);
+    setError("");
+    try {
+      const requestMap = {
+        quote: api.getMarketDataQuote,
+        snapshot: api.getMarketDataSnapshot,
+        news: api.getMarketDataNews,
+        filings: api.getMarketDataFilings
+      };
+      const payload = await requestMap[kind](tickerValue);
+      setMarketDataResult({ kind, payload });
+      setMarketDataStatus(await api.getMarketDataStatus());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMarketDataLoading(false);
+    }
+  }
+
   async function handleSendTradeReviewTelegram() {
     const reviewId = tradeReviewResult?.trade_review?.id;
     if (!reviewId) return;
@@ -512,6 +540,7 @@ export default function App() {
         <nav className="sectionNav" aria-label="AI Council 주요 섹션">
           <a href="#dashboard">대시보드</a>
           <a href="#meetings">회의</a>
+          <a href="#market-data">시장 데이터 상태</a>
           <a href="#autonomous-review">자율 트레이더 검토</a>
           <a href="#ticker-review">종목 자동 분석</a>
           <a href="#trade-review">거래 신호 검토</a>
@@ -643,6 +672,7 @@ export default function App() {
 
         <DashboardCards
           health={health}
+          marketDataStatus={marketDataStatus}
           telegramStatus={telegramStatus}
           webhookStatus={webhookStatus}
           meetings={meetings}
@@ -650,6 +680,15 @@ export default function App() {
         />
 
         <SettingsGuidePanel health={health} />
+
+        <MarketDataPanel
+          status={marketDataStatus}
+          ticker={marketDataTicker}
+          setTicker={setMarketDataTicker}
+          result={marketDataResult}
+          loading={marketDataLoading}
+          onLookup={handleMarketDataLookup}
+        />
 
         <WebhookPanel
           status={webhookStatus}
@@ -1110,10 +1149,11 @@ export default function App() {
   );
 }
 
-function DashboardCards({ health, telegramStatus, webhookStatus, meetings, tradeReviews }) {
+function DashboardCards({ health, marketDataStatus, telegramStatus, webhookStatus, meetings, tradeReviews }) {
   const backendOk = health?.status === "ok";
   const llmProvider = health?.llm_provider || "mock";
-  const marketDataProvider = health?.market_data?.provider || "mock";
+  const marketDataProvider =
+    marketDataStatus?.active_provider || health?.market_data?.provider || "mock_market_data";
   return (
     <section className="dashboardGrid" id="dashboard">
       <article>
@@ -1129,7 +1169,9 @@ function DashboardCards({ health, telegramStatus, webhookStatus, meetings, trade
       <article>
         <span>Market Data Provider 상태</span>
         <strong>{marketDataProvider}</strong>
-        <p>Phase 11 기본값은 mock market data입니다.</p>
+        <p>
+          외부 데이터 사용 여부: {booleanKo(Boolean(marketDataStatus?.external_enabled))}
+        </p>
       </article>
       <article>
         <span>자율 검토 모드</span>
@@ -1257,6 +1299,93 @@ function DecisionCard({ decision }) {
               <p key={item}>{item}</p>
             ))}
           </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MarketDataPanel({ status, ticker, setTicker, result, loading, onLookup }) {
+  return (
+    <section className="tradeReviewSection" id="market-data">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">Phase 12 Market Data Provider Framework</p>
+          <h3>시장 데이터 상태</h3>
+        </div>
+        <span>주문 실행 허용 여부: false</span>
+      </div>
+      <div className="webhookStatusGrid">
+        <div>
+          <span>현재 Provider</span>
+          <strong>{status?.active_provider || "mock_market_data"}</strong>
+        </div>
+        <div>
+          <span>외부 데이터 사용 여부</span>
+          <strong>{booleanKo(Boolean(status?.external_enabled))}</strong>
+        </div>
+        <div>
+          <span>API 키 설정 여부</span>
+          <strong>{booleanKo(Boolean(status?.api_key_configured))}</strong>
+        </div>
+        <div>
+          <span>상태</span>
+          <strong>{status?.last_check_status || "ok"}</strong>
+        </div>
+      </div>
+      <form className="marketDataLookup" onSubmit={(event) => event.preventDefault()}>
+        <label>
+          <span>데이터 조회 테스트</span>
+          <input
+            value={ticker}
+            onChange={(event) => setTicker(event.target.value)}
+            placeholder="TESTA"
+            maxLength={16}
+          />
+        </label>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !ticker.trim()}
+          onClick={() => onLookup("quote")}
+        >
+          종목 Quote 조회
+        </button>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !ticker.trim()}
+          onClick={() => onLookup("snapshot")}
+        >
+          종목 Snapshot 조회
+        </button>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !ticker.trim()}
+          onClick={() => onLookup("news")}
+        >
+          뉴스 조회
+        </button>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading || !ticker.trim()}
+          onClick={() => onLookup("filings")}
+        >
+          공시 조회
+        </button>
+      </form>
+      <p className="contextHint">
+        이 기능은 시장 데이터 조회 전용입니다. 주문을 실행하지 않습니다.
+      </p>
+      {result && (
+        <div className="jsonResult">
+          <div className="panelHeading">
+            <h3>{result.kind} 결과</h3>
+            <span>{booleanKo(Boolean(result.payload?.order_execution_allowed))}</span>
+          </div>
+          <pre>{JSON.stringify(result.payload, null, 2)}</pre>
         </div>
       )}
     </section>

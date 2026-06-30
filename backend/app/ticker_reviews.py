@@ -4,7 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from .llm.config import LLMConfig
-from .market_data import MarketDataConfig, get_market_data_provider
+from .market_data import (
+    MarketDataConfig,
+    MarketDataProviderError,
+    get_market_data_provider,
+    safe_fallback_snapshot,
+)
 from .repository import create_ticker_review
 from .schemas import TickerReviewCreate, TradeReviewCreate
 from .trade_reviews import run_trade_review
@@ -26,7 +31,15 @@ def run_ticker_review(
     ticker = payload.ticker.strip().upper()
     timeframe = payload.timeframe.strip() or "1d"
     provider = get_market_data_provider(market_data_config)
-    market_data = market_data_override or provider.fetch(ticker, payload.review_mode, timeframe)
+    try:
+        market_data = market_data_override or provider.snapshot(
+            ticker,
+            review_mode=payload.review_mode,
+            timeframe=timeframe,
+        )
+    except (MarketDataProviderError, RuntimeError, ValueError) as exc:
+        market_data = safe_fallback_snapshot(ticker, provider_name=provider.name)
+        market_data["notes"] = f"{market_data['notes']} Error: {exc}"
     provider_name = str(market_data.get("provider") or provider.name)
     auto_payload = build_auto_research_payload(
         payload=payload,
@@ -92,6 +105,8 @@ def build_auto_research_payload(
             risk_context[key] = market_data[key]
     if market_data.get("risk_context"):
         risk_context.update(market_data["risk_context"])
+    risk_context["review_mode"] = payload.review_mode
+    risk_context["timeframe"] = timeframe
 
     return {
         "ticker": ticker,

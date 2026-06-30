@@ -34,6 +34,13 @@ export const api = {
   baseUrl: API_BASE_URL,
   getHealth: () => request("/health"),
   getAgents: () => request("/api/agents"),
+  getMarketDataStatus: () => request("/api/market-data/status"),
+  getMarketDataQuote: (ticker) => request(`/api/market-data/quote/${encodeURIComponent(ticker)}`),
+  getMarketDataSnapshot: (ticker) =>
+    request(`/api/market-data/snapshot/${encodeURIComponent(ticker)}`),
+  getMarketDataNews: (ticker) => request(`/api/market-data/news/${encodeURIComponent(ticker)}`),
+  getMarketDataFilings: (ticker) =>
+    request(`/api/market-data/filings/${encodeURIComponent(ticker)}`),
   getTelegramStatus: () => request("/api/telegram/status"),
   getWebhookStatus: () => request("/api/webhooks/status"),
   getWebhookEvents: () => request("/api/webhooks/events"),

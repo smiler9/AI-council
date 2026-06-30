@@ -21,7 +21,7 @@ from .file_context import (
 )
 from .llm.config import LLMConfig, load_llm_config
 from .llm.providers import LLMProviderError, get_llm_provider
-from .market_data import MarketDataConfig, load_market_data_config
+from .market_data import MarketDataConfig, get_market_data_provider, load_market_data_config
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .repository import (
     create_context_file,
@@ -145,6 +145,7 @@ def create_app(
             "market_data": {
                 "provider": app.state.market_data_config.provider,
                 "timeout_seconds": app.state.market_data_config.timeout_seconds,
+                "external_enabled": app.state.market_data_config.allow_external,
                 "order_execution_allowed": False,
             },
             "autonomous_review": {
@@ -201,6 +202,31 @@ def create_app(
     @app.get("/api/telegram/status")
     def get_telegram_status() -> dict:
         return TelegramService(app.state.telegram_config).status()
+
+    @app.get("/api/market-data/status")
+    def get_market_data_status() -> dict:
+        provider = get_market_data_provider(app.state.market_data_config)
+        return provider.status(app.state.market_data_config)
+
+    @app.get("/api/market-data/quote/{ticker}")
+    def get_market_data_quote(ticker: str) -> dict:
+        provider = get_market_data_provider(app.state.market_data_config)
+        return provider.quote(ticker)
+
+    @app.get("/api/market-data/snapshot/{ticker}")
+    def get_market_data_snapshot(ticker: str) -> dict:
+        provider = get_market_data_provider(app.state.market_data_config)
+        return provider.snapshot(ticker)
+
+    @app.get("/api/market-data/news/{ticker}")
+    def get_market_data_news(ticker: str) -> dict:
+        provider = get_market_data_provider(app.state.market_data_config)
+        return provider.news(ticker)
+
+    @app.get("/api/market-data/filings/{ticker}")
+    def get_market_data_filings(ticker: str) -> dict:
+        provider = get_market_data_provider(app.state.market_data_config)
+        return provider.filings(ticker)
 
     @app.get("/api/webhooks/status")
     def get_webhook_status() -> dict:

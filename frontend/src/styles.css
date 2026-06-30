@@ -533,18 +533,47 @@ select:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.marketDataLookup {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(4, auto);
+  gap: 10px;
+  align-items: end;
+}
+
 .tradeReviewForm label,
-.tickerReviewForm label {
+.tickerReviewForm label,
+.marketDataLookup label {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
 
 .tradeReviewForm label > span,
-.tickerReviewForm label > span {
+.tickerReviewForm label > span,
+.marketDataLookup label > span {
   color: #314253;
   font-size: 13px;
   font-weight: 780;
+}
+
+.jsonResult {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #d9e0e7;
+  padding-top: 12px;
+}
+
+.jsonResult pre {
+  max-height: 360px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 12px;
 }
 
 .checkboxLabel {
@@ -1110,6 +1139,7 @@ select:focus {
 
   .tradeReviewForm,
   .tickerReviewForm,
+  .marketDataLookup,
   .webhookStatusGrid,
   .settingsGuide dl,
   .recentTradeReviews > div {
@@ -1170,6 +1200,7 @@ select:focus {
 
   .tradeReviewForm,
   .tickerReviewForm,
+  .marketDataLookup,
   .webhookStatusGrid,
   .settingsGuide dl,
   .recentTradeReviews > div {

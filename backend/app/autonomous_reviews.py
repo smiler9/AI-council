@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .council import KOREAN_SAFETY_BOUNDARY
 from .llm.config import LLMConfig
-from .market_data import MarketDataConfig
+from .market_data import MarketDataConfig, get_market_data_provider
 from .repository import create_autonomous_review, get_autonomous_review
 from .schemas import AutonomousReviewCreate, TickerReviewCreate
 from .services.telegram_service import TelegramService
@@ -18,34 +18,14 @@ class MockCandidateScanner:
     name = "mock_market_data"
 
     def scan(self, universe: str, review_mode: str, max_candidates: int, timeframe: str) -> list[dict]:
-        candidates = _candidate_universe(universe)
-        normalized = []
-        for candidate in candidates[:max_candidates]:
-            normalized.append(
-                {
-                    "provider": self.name,
-                    "ticker": candidate["ticker"],
-                    "last_price": candidate["last_price"],
-                    "volume": candidate["volume"],
-                    "relative_volume": candidate["relative_volume"],
-                    "spread_pct": candidate["spread_pct"],
-                    "premarket": candidate["premarket"],
-                    "mock_news_headlines": candidate["mock_news_headlines"],
-                    "market_data_available": candidate["market_data_available"],
-                    "news_available": bool(candidate["mock_news_headlines"]),
-                    "data_quality": candidate["data_quality"],
-                    "scan_reason": candidate["scan_reason"],
-                    "risk_context": {
-                        "universe": universe,
-                        "scan_reason": candidate["scan_reason"],
-                        "autonomous_review": True,
-                        "timeframe": timeframe,
-                        "review_mode": review_mode,
-                    },
-                    "notes": f"Mock autonomous candidate generated for {universe}.",
-                }
-            )
-        return normalized
+        from .market_data import MockMarketDataProvider
+
+        return MockMarketDataProvider().scan_candidates(
+            universe=universe,
+            review_mode=review_mode,
+            max_candidates=max_candidates,
+            timeframe=timeframe,
+        )
 
 
 def run_autonomous_review(
@@ -57,8 +37,8 @@ def run_autonomous_review(
     market_data_config: MarketDataConfig,
 ) -> dict:
     timeframe = payload.timeframe.strip() or "1d"
-    scanner = MockCandidateScanner()
-    candidates = scanner.scan(
+    provider = get_market_data_provider(market_data_config)
+    candidates = provider.scan_candidates(
         universe=payload.universe,
         review_mode=payload.review_mode,
         max_candidates=payload.max_candidates,
@@ -227,83 +207,3 @@ def format_autonomous_review_message(review: dict) -> str:
             f"Safety Boundary: {KOREAN_SAFETY_BOUNDARY}",
         ]
     )
-
-
-def _candidate_universe(universe: str) -> list[dict]:
-    base = [
-        {
-            "ticker": "TESTA",
-            "last_price": 0.82,
-            "volume": 12_500_000,
-            "relative_volume": 4.8,
-            "spread_pct": 2.2,
-            "premarket": False,
-            "mock_news_headlines": ["TESTA sample catalyst requires validation"],
-            "market_data_available": True,
-            "data_quality": "sufficient",
-            "scan_reason": "relative_volume_spike",
-        },
-        {
-            "ticker": "TESTB",
-            "last_price": 0.47,
-            "volume": 850_000,
-            "relative_volume": 7.4,
-            "spread_pct": 8.4,
-            "premarket": True,
-            "mock_news_headlines": ["TESTB sample premarket attention increases"],
-            "market_data_available": True,
-            "data_quality": "limited",
-            "scan_reason": "high_spread_risk",
-        },
-        {
-            "ticker": "TESTC",
-            "last_price": 1.14,
-            "volume": 2_400_000,
-            "relative_volume": 3.1,
-            "spread_pct": 2.9,
-            "premarket": False,
-            "mock_news_headlines": [],
-            "market_data_available": True,
-            "data_quality": "limited",
-            "scan_reason": "insufficient_news",
-        },
-        {
-            "ticker": "TESTD",
-            "last_price": 2.08,
-            "volume": 4_900_000,
-            "relative_volume": 5.9,
-            "spread_pct": 1.4,
-            "premarket": False,
-            "mock_news_headlines": ["TESTD mock product update"],
-            "market_data_available": True,
-            "data_quality": "sufficient",
-            "scan_reason": "price_momentum",
-        },
-        {
-            "ticker": "TESTE",
-            "last_price": 0.31,
-            "volume": 1_200_000,
-            "relative_volume": 6.6,
-            "spread_pct": 4.1,
-            "premarket": True,
-            "mock_news_headlines": ["TESTE mock catalyst watch"],
-            "market_data_available": True,
-            "data_quality": "limited",
-            "scan_reason": "news_catalyst",
-        },
-    ]
-    if universe == "mock_momentum_stocks":
-        return [base[3], base[0], base[4], base[2], base[1]]
-    if universe == "mock_watchlist":
-        return [base[0], base[2], base[3]]
-    if universe == "custom_stub":
-        return [
-            {
-                **base[0],
-                "ticker": "TESTX",
-                "scan_reason": "custom_stub",
-                "mock_news_headlines": [],
-                "data_quality": "limited",
-            }
-        ]
-    return base
