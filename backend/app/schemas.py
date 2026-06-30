@@ -155,3 +155,34 @@ class PaperSimulationCreate(BaseModel):
     ] = "risk_gate_conservative"
     max_notional_per_trade: float = Field(default=100, gt=0)
     allow_only_decision: bool = False
+    slippage_bps: float = Field(default=25, ge=0)
+    spread_bps: float = Field(default=50, ge=0)
+    max_spread_pct: float = Field(default=5.0, ge=0)
+    take_profit_pct: float = Field(default=8.0, gt=0)
+    stop_loss_pct: float = Field(default=5.0, gt=0)
+    max_holding_minutes: int = Field(default=240, ge=1)
+    allow_partial_fill_simulation: bool = False
+    simulation_only: bool = True
+
+
+class PaperExitSimulationCreate(BaseModel):
+    exit_reason: Literal[
+        "manual_simulated_exit",
+        "simulated_take_profit",
+        "simulated_stop_loss",
+        "simulated_risk_exit",
+        "simulated_data_quality_exit",
+    ] = "manual_simulated_exit"
+    exit_price: float | None = Field(default=None, gt=0)
+    slippage_bps: float = Field(default=25, ge=0)
+    spread_bps: float = Field(default=50, ge=0)
+    simulation_only: bool = True
+
+
+class PaperExitEvaluationCreate(BaseModel):
+    execute_simulated_exits: bool = False
+    take_profit_pct: float = Field(default=8.0, gt=0)
+    stop_loss_pct: float = Field(default=5.0, gt=0)
+    slippage_bps: float = Field(default=25, ge=0)
+    spread_bps: float = Field(default=50, ge=0)
+    simulation_only: bool = True

@@ -261,6 +261,10 @@ def init_db(db_path: str | Path | None = None) -> None:
                 action TEXT NOT NULL,
                 quantity REAL NOT NULL,
                 price REAL,
+                base_price REAL,
+                simulated_price REAL,
+                slippage_bps REAL NOT NULL DEFAULT 0,
+                spread_bps REAL NOT NULL DEFAULT 0,
                 notional REAL NOT NULL,
                 source_type TEXT NOT NULL,
                 source_id TEXT NOT NULL,
@@ -268,6 +272,7 @@ def init_db(db_path: str | Path | None = None) -> None:
                 risk_level TEXT NOT NULL,
                 simulation_status TEXT NOT NULL,
                 simulation_policy TEXT NOT NULL,
+                realized_pnl REAL NOT NULL DEFAULT 0,
                 notes TEXT,
                 created_at TEXT NOT NULL,
                 order_execution_allowed INTEGER NOT NULL,
@@ -298,6 +303,36 @@ def init_db(db_path: str | Path | None = None) -> None:
             table="agent_outputs",
             column="structured_response_json",
             definition="TEXT NOT NULL DEFAULT '{}'",
+        )
+        _ensure_column(
+            connection,
+            table="paper_trades",
+            column="base_price",
+            definition="REAL",
+        )
+        _ensure_column(
+            connection,
+            table="paper_trades",
+            column="simulated_price",
+            definition="REAL",
+        )
+        _ensure_column(
+            connection,
+            table="paper_trades",
+            column="slippage_bps",
+            definition="REAL NOT NULL DEFAULT 0",
+        )
+        _ensure_column(
+            connection,
+            table="paper_trades",
+            column="spread_bps",
+            definition="REAL NOT NULL DEFAULT 0",
+        )
+        _ensure_column(
+            connection,
+            table="paper_trades",
+            column="realized_pnl",
+            definition="REAL NOT NULL DEFAULT 0",
         )
 
 

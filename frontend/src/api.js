@@ -87,6 +87,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
+  simulatePaperExit: (portfolioId, positionId, payload) =>
+    request(`/api/paper/portfolios/${portfolioId}/positions/${positionId}/simulate-exit`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  evaluatePaperExits: (portfolioId, payload) =>
+    request(`/api/paper/portfolios/${portfolioId}/evaluate-exits`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
   getPaperPositions: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/positions`),
   getPaperTrades: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/trades`),
   getPaperSummary: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/summary`),

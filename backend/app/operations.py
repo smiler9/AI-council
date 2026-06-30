@@ -236,14 +236,19 @@ def _paper_operations_summary(
     )
     unrealized_pnl = sum(float(position.get("unrealized_pnl") or 0) for position in positions)
     realized_pnl = sum(float(position.get("realized_pnl") or 0) for position in positions)
+    cash_balance = sum(float(portfolio.get("cash_balance") or 0) for portfolio in portfolios)
+    simulated_exits = [trade for trade in trades if trade.get("action") == "simulated_exit"]
     return {
         "portfolio_count": len(portfolios),
         "recent_trade_count": len(trades[:10]),
+        "recent_simulated_exit_count": len(simulated_exits[:10]),
         "total_trade_count": len(trades),
         "open_position_count": len([position for position in positions if position.get("status") == "open"]),
         "virtual_exposure": exposure,
+        "total_virtual_equity": cash_balance + exposure,
         "virtual_unrealized_pnl": unrealized_pnl,
         "virtual_realized_pnl": realized_pnl,
+        "total_virtual_pnl": unrealized_pnl + realized_pnl,
         "simulation_only": True,
         "paper_trade_execution_allowed": "simulation_only",
         "order_execution_allowed": False,

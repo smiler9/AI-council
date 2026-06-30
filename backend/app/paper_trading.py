@@ -8,6 +8,7 @@ from .market_data import MarketDataConfig, get_market_data_provider
 from .repository import (
     create_paper_trade,
     get_autonomous_review,
+    get_paper_position,
     get_paper_portfolio,
     get_ticker_review,
     get_trade_review,
@@ -15,10 +16,11 @@ from .repository import (
     get_webhook_event,
     list_paper_positions,
     list_paper_trades,
+    update_paper_position_after_exit,
     update_paper_portfolio,
     upsert_paper_position,
 )
-from .schemas import PaperSimulationCreate
+from .schemas import PaperExitEvaluationCreate, PaperExitSimulationCreate, PaperSimulationCreate
 
 
 PAPER_POLICIES = {
@@ -70,7 +72,13 @@ def simulate_review(
         "source_id": payload.source_id,
         "simulation_policy": payload.simulation_policy,
         "trades": trades,
-        "positions": list_paper_positions(portfolio_id, db_path),
+        "positions": list_enriched_paper_positions(
+            portfolio_id,
+            db_path=db_path,
+            market_data_config=market_data_config,
+            take_profit_pct=payload.take_profit_pct,
+            stop_loss_pct=payload.stop_loss_pct,
+        ),
         "summary": build_paper_summary(
             portfolio_id,
             db_path=db_path,
@@ -92,54 +100,268 @@ def build_paper_summary(
     portfolio = get_paper_portfolio(portfolio_id, db_path)
     if not portfolio:
         raise PaperSimulationError("Paper portfolio not found")
-    positions = list_paper_positions(portfolio_id, db_path)
+    positions = list_enriched_paper_positions(
+        portfolio_id,
+        db_path=db_path,
+        market_data_config=market_data_config,
+    )
     trades = list_paper_trades(portfolio_id, db_path)
-    provider = get_market_data_provider(market_data_config)
-    exposure = 0.0
-    unrealized_pnl = 0.0
-    marked_positions = []
-    for position in positions:
-        market_price = position.get("market_price")
-        data_quality = "stored"
-        try:
-            quote = provider.quote(position["ticker"])
-            if quote.get("last_price") is not None:
-                market_price = float(quote["last_price"])
-                data_quality = quote.get("data_quality") or "limited"
-        except Exception:
-            data_quality = "limited"
-        position_exposure = float(position["quantity"]) * float(market_price or position["average_price"])
-        position_unrealized = (
-            (float(market_price or position["average_price"]) - float(position["average_price"]))
-            * float(position["quantity"])
-        )
-        exposure += position_exposure
-        unrealized_pnl += position_unrealized
-        marked_positions.append(
-            {
-                **position,
-                "market_price": market_price,
-                "market_data_quality": data_quality,
-                "exposure": position_exposure,
-                "unrealized_pnl": position_unrealized,
-                "order_execution_allowed": False,
-            }
-        )
-    equity = float(portfolio["cash_balance"]) + exposure
+    total_position_value = sum(float(position.get("position_value") or 0) for position in positions)
+    unrealized_pnl = sum(float(position.get("unrealized_pnl") or 0) for position in positions)
+    realized_pnl = sum(float(trade.get("realized_pnl") or 0) for trade in trades)
+    total_equity = float(portfolio["cash_balance"]) + total_position_value
+    closed_trades = [trade for trade in trades if trade.get("action") == "simulated_exit"]
     return {
         "portfolio_id": portfolio_id,
         "cash_balance": float(portfolio["cash_balance"]),
         "starting_cash": float(portfolio["starting_cash"]),
         "position_count": len([position for position in positions if position["status"] == "open"]),
+        "open_position_count": len([position for position in positions if position["status"] == "open"]),
+        "closed_trade_count": len(closed_trades),
         "trade_count": len(trades),
         "recent_trade_count": len(trades[:10]),
-        "exposure": exposure,
+        "exposure": total_position_value,
+        "total_position_value": total_position_value,
         "unrealized_pnl": unrealized_pnl,
-        "realized_pnl": sum(float(position.get("realized_pnl") or 0) for position in positions),
-        "equity": equity,
-        "total_return": equity - float(portfolio["starting_cash"]),
-        "positions": marked_positions,
-        "data_quality": "limited" if any(p["market_data_quality"] == "limited" for p in marked_positions) else "sufficient",
+        "realized_pnl": realized_pnl,
+        "total_pnl": unrealized_pnl + realized_pnl,
+        "equity": total_equity,
+        "total_equity": total_equity,
+        "total_return": total_equity - float(portfolio["starting_cash"]),
+        "exposure_pct": (
+            (total_position_value / total_equity) * 100 if total_equity > 0 else 0.0
+        ),
+        "simulated_win_count": len([trade for trade in closed_trades if float(trade.get("realized_pnl") or 0) > 0]),
+        "simulated_loss_count": len([trade for trade in closed_trades if float(trade.get("realized_pnl") or 0) < 0]),
+        "positions": positions,
+        "data_quality": "limited" if any(p["data_quality"] == "limited" for p in positions) else "sufficient",
+        "simulation_only": True,
+        "paper_trade_execution_allowed": "simulation_only",
+        "order_execution_allowed": False,
+        "safety_boundary": KOREAN_SAFETY_BOUNDARY,
+    }
+
+
+def list_enriched_paper_positions(
+    portfolio_id: str,
+    *,
+    db_path: str | Path | None,
+    market_data_config: MarketDataConfig,
+    take_profit_pct: float = 8.0,
+    stop_loss_pct: float = 5.0,
+) -> list[dict]:
+    provider = get_market_data_provider(market_data_config)
+    enriched = []
+    for position in list_paper_positions(portfolio_id, db_path):
+        current_price = position.get("market_price") or position.get("average_price")
+        data_quality = "stored"
+        try:
+            quote = provider.quote(position["ticker"])
+            if quote.get("last_price") is not None:
+                current_price = float(quote["last_price"])
+                data_quality = quote.get("data_quality") or "limited"
+        except Exception:
+            data_quality = "limited"
+        average_price = float(position["average_price"])
+        quantity = float(position["quantity"])
+        position_value = quantity * float(current_price or average_price)
+        unrealized_pnl = (float(current_price or average_price) - average_price) * quantity
+        unrealized_pnl_pct = (
+            ((float(current_price or average_price) - average_price) / average_price) * 100
+            if average_price > 0
+            else 0.0
+        )
+        take_profit_price = average_price * (1 + float(take_profit_pct) / 100)
+        stop_loss_price = average_price * (1 - float(stop_loss_pct) / 100)
+        enriched.append(
+            {
+                **position,
+                "current_price": current_price,
+                "market_price": current_price,
+                "position_value": position_value,
+                "unrealized_pnl": unrealized_pnl,
+                "unrealized_pnl_pct": unrealized_pnl_pct,
+                "take_profit_price": take_profit_price,
+                "stop_loss_price": stop_loss_price,
+                "distance_to_take_profit_pct": (
+                    ((take_profit_price - float(current_price or average_price)) / float(current_price or average_price)) * 100
+                    if current_price
+                    else None
+                ),
+                "distance_to_stop_loss_pct": (
+                    ((float(current_price or average_price) - stop_loss_price) / float(current_price or average_price)) * 100
+                    if current_price
+                    else None
+                ),
+                "data_quality": data_quality,
+                "simulation_only": True,
+                "order_execution_allowed": False,
+            }
+        )
+    return enriched
+
+
+def simulate_exit(
+    portfolio_id: str,
+    position_id: str,
+    payload: PaperExitSimulationCreate,
+    *,
+    db_path: str | Path | None,
+    market_data_config: MarketDataConfig,
+) -> dict:
+    portfolio = get_paper_portfolio(portfolio_id, db_path)
+    if not portfolio:
+        raise PaperSimulationError("Paper portfolio not found")
+    position = get_paper_position(position_id, db_path)
+    if not position or position["portfolio_id"] != portfolio_id:
+        raise PaperSimulationError("Paper position not found")
+    if position["status"] != "open" or float(position["quantity"]) <= 0:
+        raise PaperSimulationError("Paper position is not open")
+
+    base_exit_price = _exit_base_price(position, payload.exit_price, market_data_config)
+    if base_exit_price is None or base_exit_price <= 0:
+        raise PaperSimulationError("No exit price or read-only market data quote is available")
+    simulated_exit_price = _simulated_exit_price(
+        base_exit_price,
+        slippage_bps=payload.slippage_bps,
+        spread_bps=payload.spread_bps,
+    )
+    quantity = float(position["quantity"])
+    notional = simulated_exit_price * quantity
+    realized_pnl = (simulated_exit_price - float(position["average_price"])) * quantity
+
+    trade = create_paper_trade(
+        portfolio_id=portfolio_id,
+        ticker=position["ticker"],
+        action="simulated_exit",
+        quantity=quantity,
+        price=simulated_exit_price,
+        notional=notional,
+        source_type="paper_position",
+        source_id=position_id,
+        decision="SIMULATED_EXIT",
+        risk_level="simulation",
+        simulation_status=payload.exit_reason,
+        simulation_policy="paper_exit_simulation",
+        notes="Internal simulated exit only. No broker, account, order, or external execution API was used.",
+        base_price=base_exit_price,
+        simulated_price=simulated_exit_price,
+        slippage_bps=payload.slippage_bps,
+        spread_bps=payload.spread_bps,
+        realized_pnl=realized_pnl,
+        db_path=db_path,
+    )
+    update_paper_portfolio(
+        portfolio_id,
+        cash_balance=float(portfolio["cash_balance"]) + notional,
+        db_path=db_path,
+    )
+    updated_position = update_paper_position_after_exit(
+        position_id=position_id,
+        exit_quantity=quantity,
+        exit_price=simulated_exit_price,
+        realized_pnl_delta=realized_pnl,
+        db_path=db_path,
+    )
+    return {
+        "portfolio": get_paper_portfolio(portfolio_id, db_path),
+        "position": updated_position,
+        "trade": trade,
+        "summary": build_paper_summary(
+            portfolio_id,
+            db_path=db_path,
+            market_data_config=market_data_config,
+        ),
+        "base_price": base_exit_price,
+        "simulated_exit_price": simulated_exit_price,
+        "realized_pnl": realized_pnl,
+        "simulation_only": True,
+        "paper_trade_execution_allowed": "simulation_only",
+        "order_execution_allowed": False,
+        "safety_boundary": KOREAN_SAFETY_BOUNDARY,
+    }
+
+
+def evaluate_exits(
+    portfolio_id: str,
+    payload: PaperExitEvaluationCreate,
+    *,
+    db_path: str | Path | None,
+    market_data_config: MarketDataConfig,
+) -> dict:
+    portfolio = get_paper_portfolio(portfolio_id, db_path)
+    if not portfolio:
+        raise PaperSimulationError("Paper portfolio not found")
+    positions = [
+        position
+        for position in list_enriched_paper_positions(
+            portfolio_id,
+            db_path=db_path,
+            market_data_config=market_data_config,
+            take_profit_pct=payload.take_profit_pct,
+            stop_loss_pct=payload.stop_loss_pct,
+        )
+        if position.get("status") == "open" and float(position.get("quantity") or 0) > 0
+    ]
+    candidates = []
+    executed = []
+    for position in positions:
+        current_price = position.get("current_price")
+        if current_price is None:
+            continue
+        current_price = float(current_price)
+        take_profit_price = float(position["take_profit_price"])
+        stop_loss_price = float(position["stop_loss_price"])
+        exit_reason = None
+        if current_price >= take_profit_price:
+            exit_reason = "simulated_take_profit"
+        elif current_price <= stop_loss_price:
+            exit_reason = "simulated_stop_loss"
+        if not exit_reason:
+            continue
+        candidate = {
+            "position_id": position["id"],
+            "ticker": position["ticker"],
+            "current_price": current_price,
+            "average_price": position["average_price"],
+            "take_profit_price": take_profit_price,
+            "stop_loss_price": stop_loss_price,
+            "exit_reason": exit_reason,
+            "would_execute_simulated_exit": bool(payload.execute_simulated_exits),
+            "simulation_only": True,
+            "order_execution_allowed": False,
+        }
+        candidates.append(candidate)
+        if payload.execute_simulated_exits:
+            executed.append(
+                simulate_exit(
+                    portfolio_id,
+                    position["id"],
+                    PaperExitSimulationCreate(
+                        exit_reason=exit_reason,
+                        exit_price=current_price,
+                        slippage_bps=payload.slippage_bps,
+                        spread_bps=payload.spread_bps,
+                    ),
+                    db_path=db_path,
+                    market_data_config=market_data_config,
+                )
+            )
+
+    return {
+        "portfolio_id": portfolio_id,
+        "exit_candidates": candidates,
+        "executed_exits": executed,
+        "execute_simulated_exits": payload.execute_simulated_exits,
+        "take_profit_pct": payload.take_profit_pct,
+        "stop_loss_pct": payload.stop_loss_pct,
+        "slippage_bps": payload.slippage_bps,
+        "spread_bps": payload.spread_bps,
+        "summary": build_paper_summary(
+            portfolio_id,
+            db_path=db_path,
+            market_data_config=market_data_config,
+        ),
         "simulation_only": True,
         "paper_trade_execution_allowed": "simulation_only",
         "order_execution_allowed": False,
@@ -158,13 +380,16 @@ def _simulate_candidate(
     portfolio = get_paper_portfolio(portfolio_id, db_path)
     decision = candidate.get("decision") or "NEED_MORE_DATA"
     risk_level = candidate.get("risk_level") or "high"
+    settings = _simulation_settings(payload)
     policy_result = _policy_result(
         decision=decision,
         risk_level=risk_level,
         policy=payload.simulation_policy,
         allow_only_decision=payload.allow_only_decision,
     )
-    price = _simulation_price(candidate, market_data_config)
+    price_context = _simulation_price_context(candidate, market_data_config)
+    base_price = price_context["base_price"]
+    spread_pct = price_context["spread_pct"]
     ticker = str(candidate.get("ticker") or "UNKNOWN").strip().upper()
     source_type = candidate.get("source_type") or payload.source_type
     source_id = candidate.get("source_id") or payload.source_id
@@ -175,7 +400,7 @@ def _simulate_candidate(
             ticker=ticker,
             action="simulated_skip",
             quantity=0.0,
-            price=price,
+            price=base_price,
             notional=0.0,
             source_type=source_type,
             source_id=source_id,
@@ -184,10 +409,14 @@ def _simulate_candidate(
             simulation_status=policy_result["simulation_status"],
             simulation_policy=payload.simulation_policy,
             notes=policy_result["notes"],
+            base_price=base_price,
+            simulated_price=None,
+            slippage_bps=settings["slippage_bps"],
+            spread_bps=settings["spread_bps"],
             db_path=db_path,
         )
 
-    if price is None or price <= 0:
+    if base_price is None or base_price <= 0:
         return create_paper_trade(
             portfolio_id=portfolio_id,
             ticker=ticker,
@@ -202,6 +431,35 @@ def _simulate_candidate(
             simulation_status="skipped_missing_price",
             simulation_policy=payload.simulation_policy,
             notes="No source price or read-only market data quote was available for simulation.",
+            base_price=None,
+            simulated_price=None,
+            slippage_bps=settings["slippage_bps"],
+            spread_bps=settings["spread_bps"],
+            db_path=db_path,
+        )
+
+    if spread_pct is not None and float(spread_pct) > settings["max_spread_pct"]:
+        return create_paper_trade(
+            portfolio_id=portfolio_id,
+            ticker=ticker,
+            action="simulated_skip",
+            quantity=0.0,
+            price=base_price,
+            notional=0.0,
+            source_type=source_type,
+            source_id=source_id,
+            decision=decision,
+            risk_level=risk_level,
+            simulation_status="skipped_spread_too_wide",
+            simulation_policy=payload.simulation_policy,
+            notes=(
+                f"Spread {spread_pct:.2f}% exceeded max_spread_pct "
+                f"{settings['max_spread_pct']:.2f}% for internal simulation."
+            ),
+            base_price=base_price,
+            simulated_price=None,
+            slippage_bps=settings["slippage_bps"],
+            spread_bps=settings["spread_bps"],
             db_path=db_path,
         )
 
@@ -213,7 +471,7 @@ def _simulate_candidate(
             ticker=ticker,
             action="simulated_skip",
             quantity=0.0,
-            price=price,
+            price=base_price,
             notional=0.0,
             source_type=source_type,
             source_id=source_id,
@@ -222,16 +480,21 @@ def _simulate_candidate(
             simulation_status="skipped_insufficient_paper_cash",
             simulation_policy=payload.simulation_policy,
             notes="Paper portfolio has no available simulation cash.",
+            base_price=base_price,
+            simulated_price=None,
+            slippage_bps=settings["slippage_bps"],
+            spread_bps=settings["spread_bps"],
             db_path=db_path,
         )
 
-    quantity = notional / price
+    simulated_entry_price = _simulated_entry_price(base_price, settings)
+    quantity = notional / simulated_entry_price
     trade = create_paper_trade(
         portfolio_id=portfolio_id,
         ticker=ticker,
         action="simulated_entry",
         quantity=quantity,
-        price=price,
+        price=simulated_entry_price,
         notional=notional,
         source_type=source_type,
         source_id=source_id,
@@ -240,6 +503,10 @@ def _simulate_candidate(
         simulation_status="simulated_entry_recorded",
         simulation_policy=payload.simulation_policy,
         notes="Internal paper simulation only. No broker, account, order, or external execution API was used.",
+        base_price=base_price,
+        simulated_price=simulated_entry_price,
+        slippage_bps=settings["slippage_bps"],
+        spread_bps=settings["spread_bps"],
         db_path=db_path,
     )
     update_paper_portfolio(
@@ -251,7 +518,7 @@ def _simulate_candidate(
         portfolio_id=portfolio_id,
         ticker=ticker,
         quantity_delta=quantity,
-        price=price,
+        price=simulated_entry_price,
         db_path=db_path,
     )
     return trade
@@ -309,27 +576,101 @@ def _policy_result(
     raise PaperSimulationError(f"Unsupported simulation policy: {policy}")
 
 
-def _simulation_price(candidate: dict, market_data_config: MarketDataConfig) -> float | None:
+def _simulation_settings(payload: PaperSimulationCreate) -> dict:
+    return {
+        "slippage_bps": float(payload.slippage_bps),
+        "spread_bps": float(payload.spread_bps),
+        "max_spread_pct": float(payload.max_spread_pct),
+        "take_profit_pct": float(payload.take_profit_pct),
+        "stop_loss_pct": float(payload.stop_loss_pct),
+        "max_holding_minutes": int(payload.max_holding_minutes),
+        "max_notional_per_trade": float(payload.max_notional_per_trade),
+        "allow_partial_fill_simulation": bool(payload.allow_partial_fill_simulation),
+        "simulation_only": True,
+    }
+
+
+def _simulated_entry_price(base_price: float, settings: dict) -> float:
+    return float(base_price) * (
+        1 + (float(settings["spread_bps"]) / 10000) + (float(settings["slippage_bps"]) / 10000)
+    )
+
+
+def _simulated_exit_price(base_price: float, *, slippage_bps: float, spread_bps: float) -> float:
+    return max(
+        0.0,
+        float(base_price) * (1 - (float(spread_bps) / 10000) - (float(slippage_bps) / 10000)),
+    )
+
+
+def _simulation_price_context(candidate: dict, market_data_config: MarketDataConfig) -> dict:
     raw_price = candidate.get("price")
+    spread_pct = _candidate_spread_pct(candidate)
     if raw_price is None:
         market_data = candidate.get("market_data") or {}
         raw_price = market_data.get("last_price") or (market_data.get("quote") or {}).get("last_price")
-    try:
-        price = float(raw_price)
-        if price > 0:
-            return price
-    except (TypeError, ValueError):
-        pass
+    price = _first_positive_float(raw_price)
+    if price is not None:
+        return {"base_price": price, "spread_pct": spread_pct, "data_quality": "source"}
+
     ticker = candidate.get("ticker")
     if not ticker:
-        return None
+        return {"base_price": None, "spread_pct": spread_pct, "data_quality": "missing_ticker"}
     try:
         quote = get_market_data_provider(market_data_config).quote(str(ticker))
+        if spread_pct is None:
+            spread_pct = _first_positive_float(quote.get("spread_pct"))
         if quote.get("last_price") is not None:
-            return float(quote["last_price"])
+            return {
+                "base_price": float(quote["last_price"]),
+                "spread_pct": spread_pct,
+                "data_quality": quote.get("data_quality") or "limited",
+            }
     except Exception:
-        return None
+        return {"base_price": None, "spread_pct": spread_pct, "data_quality": "limited"}
+    return {"base_price": None, "spread_pct": spread_pct, "data_quality": "limited"}
+
+
+def _candidate_spread_pct(candidate: dict) -> float | None:
+    risk_context = candidate.get("risk_context") or {}
+    market_data = candidate.get("market_data") or {}
+    for value in (
+        risk_context.get("spread_pct"),
+        market_data.get("spread_pct"),
+        (market_data.get("quote") or {}).get("spread_pct"),
+    ):
+        parsed = _first_positive_float(value)
+        if parsed is not None:
+            return parsed
     return None
+
+
+def _exit_base_price(
+    position: dict,
+    requested_exit_price: float | None,
+    market_data_config: MarketDataConfig,
+) -> float | None:
+    price = _first_positive_float(requested_exit_price)
+    if price is not None:
+        return price
+    try:
+        quote = get_market_data_provider(market_data_config).quote(position["ticker"])
+        price = _first_positive_float(quote.get("last_price"))
+        if price is not None:
+            return price
+    except Exception:
+        pass
+    return _first_positive_float(position.get("market_price")) or _first_positive_float(
+        position.get("average_price")
+    )
+
+
+def _first_positive_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _source_candidates(
@@ -376,6 +717,8 @@ def _trade_review_candidate(review: dict | None) -> dict:
         "risk_level": review.get("risk_level") or decision.get("risk_level") or "high",
         "trade_allowed": bool(review.get("trade_allowed", False)),
         "linked_meeting_id": review.get("linked_meeting_id"),
+        "risk_context": payload.get("risk_context") or {},
+        "market_data": payload.get("market_data") or {},
         "order_execution_allowed": False,
     }
 
@@ -394,6 +737,8 @@ def _ticker_review_candidate(review: dict, trade_review: dict | None) -> dict:
         "linked_ticker_review_id": review["id"],
         "linked_trade_review_id": review.get("trade_review_id"),
         "linked_meeting_id": review.get("linked_meeting_id"),
+        "risk_context": payload.get("risk_context") or candidate.get("risk_context") or {},
+        "market_data": payload.get("market_data") or candidate.get("market_data") or {},
         "order_execution_allowed": False,
     }
 
@@ -410,6 +755,8 @@ def _webhook_event_candidate(event: dict, trade_review: dict | None) -> dict:
         "decision": candidate.get("decision") or "NEED_MORE_DATA",
         "risk_level": candidate.get("risk_level") or "high",
         "linked_trade_review_id": event.get("trade_review_id"),
+        "risk_context": normalized.get("risk_context") or candidate.get("risk_context") or {},
+        "market_data": normalized.get("market_data") or candidate.get("market_data") or {},
         "order_execution_allowed": False,
     }
 
@@ -441,6 +788,11 @@ def _batch_review_candidates(
                 "linked_ticker_review_id": item.get("linked_ticker_review_id"),
                 "linked_meeting_id": item.get("linked_meeting_id"),
                 "market_data": item.get("market_data") or {},
+                "risk_context": (
+                    item.get("risk_context")
+                    or (item.get("market_data") or {}).get("risk_context")
+                    or {}
+                ),
                 "order_execution_allowed": False,
             }
         )

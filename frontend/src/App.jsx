@@ -264,12 +264,25 @@ export default function App() {
     source_id: "",
     simulation_policy: "risk_gate_conservative",
     max_notional_per_trade: "100",
+    slippage_bps: "25",
+    spread_bps: "50",
+    max_spread_pct: "5",
+    take_profit_pct: "8",
+    stop_loss_pct: "5",
     allow_only_decision: false
+  });
+  const [paperExitForm, setPaperExitForm] = useState({
+    exit_reason: "manual_simulated_exit",
+    exit_price: "",
+    slippage_bps: "25",
+    spread_bps: "50"
   });
   const [selectedWatchlistId, setSelectedWatchlistId] = useState(null);
   const [selectedPaperPortfolioId, setSelectedPaperPortfolioId] = useState(null);
   const [paperPortfolioDetail, setPaperPortfolioDetail] = useState(null);
   const [paperSimulationResult, setPaperSimulationResult] = useState(null);
+  const [paperExitResult, setPaperExitResult] = useState(null);
+  const [paperExitEvaluationResult, setPaperExitEvaluationResult] = useState(null);
   const [marketDataTicker, setMarketDataTicker] = useState("TESTA");
   const [marketDataResult, setMarketDataResult] = useState(null);
   const [riskEventTicker, setRiskEventTicker] = useState("TESTB");
@@ -466,6 +479,13 @@ export default function App() {
 
   function updatePaperSimulationField(field, value) {
     setPaperSimulationForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function updatePaperExitField(field, value) {
+    setPaperExitForm((current) => ({
       ...current,
       [field]: value
     }));
@@ -853,6 +873,8 @@ export default function App() {
   async function handlePaperPortfolioSelect(portfolioId) {
     setSelectedPaperPortfolioId(portfolioId);
     setPaperSimulationResult(null);
+    setPaperExitResult(null);
+    setPaperExitEvaluationResult(null);
     setError("");
     try {
       setPaperPortfolioDetail(await api.getPaperPortfolio(portfolioId));
@@ -866,6 +888,8 @@ export default function App() {
     if (!selectedPaperPortfolioId || !paperSimulationForm.source_id.trim()) return;
     setPaperLoading(true);
     setPaperSimulationResult(null);
+    setPaperExitResult(null);
+    setPaperExitEvaluationResult(null);
     setError("");
     try {
       const result = await api.simulatePaperReview(selectedPaperPortfolioId, {
@@ -873,9 +897,62 @@ export default function App() {
         source_id: paperSimulationForm.source_id.trim(),
         simulation_policy: paperSimulationForm.simulation_policy,
         max_notional_per_trade: Number(paperSimulationForm.max_notional_per_trade) || 100,
+        slippage_bps: Number(paperSimulationForm.slippage_bps) || 0,
+        spread_bps: Number(paperSimulationForm.spread_bps) || 0,
+        max_spread_pct: Number(paperSimulationForm.max_spread_pct) || 5,
+        take_profit_pct: Number(paperSimulationForm.take_profit_pct) || 8,
+        stop_loss_pct: Number(paperSimulationForm.stop_loss_pct) || 5,
+        simulation_only: true,
         allow_only_decision: Boolean(paperSimulationForm.allow_only_decision)
       });
       setPaperSimulationResult(result);
+      await refreshPaperData(selectedPaperPortfolioId);
+      await refreshOperationsData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
+  async function handlePaperPositionExit(positionId) {
+    if (!selectedPaperPortfolioId || !positionId) return;
+    setPaperLoading(true);
+    setPaperExitResult(null);
+    setError("");
+    try {
+      const result = await api.simulatePaperExit(selectedPaperPortfolioId, positionId, {
+        exit_reason: paperExitForm.exit_reason,
+        exit_price: paperExitForm.exit_price ? Number(paperExitForm.exit_price) : null,
+        slippage_bps: Number(paperExitForm.slippage_bps) || 0,
+        spread_bps: Number(paperExitForm.spread_bps) || 0,
+        simulation_only: true
+      });
+      setPaperExitResult(result);
+      await refreshPaperData(selectedPaperPortfolioId);
+      await refreshOperationsData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
+  async function handlePaperEvaluateExits(executeSimulatedExits = false) {
+    if (!selectedPaperPortfolioId) return;
+    setPaperLoading(true);
+    setPaperExitEvaluationResult(null);
+    setError("");
+    try {
+      const result = await api.evaluatePaperExits(selectedPaperPortfolioId, {
+        execute_simulated_exits: executeSimulatedExits,
+        take_profit_pct: Number(paperSimulationForm.take_profit_pct) || 8,
+        stop_loss_pct: Number(paperSimulationForm.stop_loss_pct) || 5,
+        slippage_bps: Number(paperExitForm.slippage_bps) || 0,
+        spread_bps: Number(paperExitForm.spread_bps) || 0,
+        simulation_only: true
+      });
+      setPaperExitEvaluationResult(result);
       await refreshPaperData(selectedPaperPortfolioId);
       await refreshOperationsData();
     } catch (err) {
@@ -1300,14 +1377,20 @@ export default function App() {
           detail={paperPortfolioDetail}
           portfolioForm={paperPortfolioForm}
           simulationForm={paperSimulationForm}
+          exitForm={paperExitForm}
           simulationResult={paperSimulationResult}
+          exitResult={paperExitResult}
+          exitEvaluationResult={paperExitEvaluationResult}
           loading={paperLoading}
           updatePortfolioField={updatePaperPortfolioField}
           updateSimulationField={updatePaperSimulationField}
+          updateExitField={updatePaperExitField}
           onCreate={handlePaperPortfolioCreate}
           onDelete={handlePaperPortfolioDelete}
           onSelect={handlePaperPortfolioSelect}
           onSimulate={handlePaperSimulationSubmit}
+          onSimulateExit={handlePaperPositionExit}
+          onEvaluateExits={handlePaperEvaluateExits}
         />
 
         <WebhookPanel
@@ -1895,8 +1978,23 @@ function OperationsDashboardPanel({
         </article>
         <article>
           <span>가상 손익</span>
-          <strong>{Number(paperSummary.virtual_unrealized_pnl || 0).toFixed(2)}</strong>
-          <p>시뮬레이션 미실현 손익</p>
+          <strong>{Number(paperSummary.total_virtual_pnl || paperSummary.virtual_unrealized_pnl || 0).toFixed(2)}</strong>
+          <p>평가 손익 + 실현 손익</p>
+        </article>
+        <article>
+          <span>총 가상 평가금액</span>
+          <strong>{Number(paperSummary.total_virtual_equity || 0).toFixed(2)}</strong>
+          <p>현금 + 열린 가상 포지션</p>
+        </article>
+        <article>
+          <span>열린 가상 포지션 수</span>
+          <strong>{paperSummary.open_position_count || 0}</strong>
+          <p>simulation_only 포지션</p>
+        </article>
+        <article>
+          <span>최근 가상 청산 수</span>
+          <strong>{paperSummary.recent_simulated_exit_count || 0}</strong>
+          <p>simulated_exit 기록</p>
         </article>
         <article className="safetyCard">
           <span>주문 실행 상태</span>
@@ -2131,7 +2229,12 @@ function DashboardCards({
       <article>
         <span>가상 노출/손익</span>
         <strong>{Number(paperSummary.virtual_exposure || 0).toFixed(2)}</strong>
-        <p>손익 {Number(paperSummary.virtual_unrealized_pnl || 0).toFixed(2)}</p>
+        <p>총 손익 {Number(paperSummary.total_virtual_pnl || paperSummary.virtual_unrealized_pnl || 0).toFixed(2)}</p>
+      </article>
+      <article>
+        <span>가상 청산/포지션</span>
+        <strong>{paperSummary.recent_simulated_exit_count || 0}</strong>
+        <p>열린 포지션 {paperSummary.open_position_count || 0} · simulation_only</p>
       </article>
       <article>
         <span>자동 분석 스케줄 수</span>
@@ -3076,14 +3179,20 @@ function PaperTradingPanel({
   detail,
   portfolioForm,
   simulationForm,
+  exitForm,
   simulationResult,
+  exitResult,
+  exitEvaluationResult,
   loading,
   updatePortfolioField,
   updateSimulationField,
+  updateExitField,
   onCreate,
   onDelete,
   onSelect,
-  onSimulate
+  onSimulate,
+  onSimulateExit,
+  onEvaluateExits
 }) {
   const summary = detail?.summary || {};
   const positions = detail?.positions || [];
@@ -3100,6 +3209,7 @@ function PaperTradingPanel({
       <p className="contextHint">
         Trade Review, Ticker Review, Watchlist Review, Webhook 결과를 내부 가상 포트폴리오에만 반영합니다.
         브로커 계좌나 실제 주문 API와 연결하지 않습니다.
+        이 기능은 내부 시뮬레이션 전용입니다.
       </p>
 
       <form className="tickerReviewForm" onSubmit={onCreate}>
@@ -3192,8 +3302,32 @@ function PaperTradingPanel({
               <strong>{Number(summary.exposure || 0).toFixed(2)}</strong>
             </div>
             <div>
-              <span>가상 손익</span>
+              <span>평가 손익</span>
               <strong>{Number(summary.unrealized_pnl || 0).toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>실현 손익</span>
+              <strong>{Number(summary.realized_pnl || 0).toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>총 가상 손익</span>
+              <strong>{Number(summary.total_pnl || 0).toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>총 가상 평가금액</span>
+              <strong>{Number(summary.total_equity || 0).toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>노출 비중</span>
+              <strong>{Number(summary.exposure_pct || 0).toFixed(2)}%</strong>
+            </div>
+            <div>
+              <span>시뮬레이션 전용</span>
+              <strong>{summary.paper_trade_execution_allowed || "simulation_only"}</strong>
+            </div>
+            <div>
+              <span>주문 실행 허용 여부</span>
+              <strong>{booleanKo(Boolean(summary.order_execution_allowed))}</strong>
             </div>
           </div>
 
@@ -3239,6 +3373,54 @@ function PaperTradingPanel({
                 onChange={(event) => updateSimulationField("max_notional_per_trade", event.target.value)}
               />
             </label>
+            <label>
+              <span>슬리피지 bps</span>
+              <input
+                type="number"
+                min="0"
+                value={simulationForm.slippage_bps}
+                onChange={(event) => updateSimulationField("slippage_bps", event.target.value)}
+              />
+            </label>
+            <label>
+              <span>스프레드 bps</span>
+              <input
+                type="number"
+                min="0"
+                value={simulationForm.spread_bps}
+                onChange={(event) => updateSimulationField("spread_bps", event.target.value)}
+              />
+            </label>
+            <label>
+              <span>최대 스프레드 %</span>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={simulationForm.max_spread_pct}
+                onChange={(event) => updateSimulationField("max_spread_pct", event.target.value)}
+              />
+            </label>
+            <label>
+              <span>가상 익절 %</span>
+              <input
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={simulationForm.take_profit_pct}
+                onChange={(event) => updateSimulationField("take_profit_pct", event.target.value)}
+              />
+            </label>
+            <label>
+              <span>가상 손절 %</span>
+              <input
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={simulationForm.stop_loss_pct}
+                onChange={(event) => updateSimulationField("stop_loss_pct", event.target.value)}
+              />
+            </label>
             <label className="checkboxLabel">
               <input
                 type="checkbox"
@@ -3275,9 +3457,110 @@ function PaperTradingPanel({
             </div>
           )}
 
+          <div className="webhookEvents">
+            <h4>청산 조건 평가</h4>
+            <div className="tickerReviewForm">
+              <label>
+                <span>가상 청산 사유</span>
+                <select
+                  value={exitForm.exit_reason}
+                  onChange={(event) => updateExitField("exit_reason", event.target.value)}
+                >
+                  <option value="manual_simulated_exit">manual_simulated_exit</option>
+                  <option value="simulated_take_profit">simulated_take_profit</option>
+                  <option value="simulated_stop_loss">simulated_stop_loss</option>
+                  <option value="simulated_risk_exit">simulated_risk_exit</option>
+                  <option value="simulated_data_quality_exit">simulated_data_quality_exit</option>
+                </select>
+              </label>
+              <label>
+                <span>가상 청산 가격</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  value={exitForm.exit_price}
+                  onChange={(event) => updateExitField("exit_price", event.target.value)}
+                  placeholder="비우면 provider 가격 사용"
+                />
+              </label>
+              <label>
+                <span>청산 슬리피지 bps</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={exitForm.slippage_bps}
+                  onChange={(event) => updateExitField("slippage_bps", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>청산 스프레드 bps</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={exitForm.spread_bps}
+                  onChange={(event) => updateExitField("spread_bps", event.target.value)}
+                />
+              </label>
+              <div className="tradeReviewActions">
+                <button className="secondaryButton" type="button" disabled={loading} onClick={() => onEvaluateExits(false)}>
+                  <RefreshCw size={16} aria-hidden="true" />
+                  청산 조건 평가
+                </button>
+                <button className="secondaryButton" type="button" disabled={loading} onClick={() => onEvaluateExits(true)}>
+                  <Play size={16} aria-hidden="true" />
+                  조건 충족 시 가상 청산 기록
+                </button>
+              </div>
+            </div>
+            <p className="contextHint">
+              가상 손절/가상 익절 조건만 평가합니다. 실제 주문 없음, 내부 시뮬레이션 전용입니다.
+            </p>
+          </div>
+
+          {exitEvaluationResult && (
+            <div className="jsonResult">
+              <div className="webhookStatusGrid">
+                <div>
+                  <span>청산 후보</span>
+                  <strong>{exitEvaluationResult.exit_candidates?.length || 0}</strong>
+                </div>
+                <div>
+                  <span>가상 청산 기록</span>
+                  <strong>{exitEvaluationResult.executed_exits?.length || 0}</strong>
+                </div>
+                <div>
+                  <span>주문 실행 허용 여부</span>
+                  <strong>{booleanKo(Boolean(exitEvaluationResult.order_execution_allowed))}</strong>
+                </div>
+              </div>
+              <pre>{JSON.stringify(exitEvaluationResult, null, 2)}</pre>
+            </div>
+          )}
+
+          {exitResult && (
+            <div className="jsonResult">
+              <div className="webhookStatusGrid">
+                <div>
+                  <span>가상 청산 가격</span>
+                  <strong>{Number(exitResult.simulated_exit_price || 0).toFixed(4)}</strong>
+                </div>
+                <div>
+                  <span>실현 손익</span>
+                  <strong>{Number(exitResult.realized_pnl || 0).toFixed(2)}</strong>
+                </div>
+                <div>
+                  <span>시뮬레이션 전용</span>
+                  <strong>{exitResult.paper_trade_execution_allowed}</strong>
+                </div>
+              </div>
+              <pre>{JSON.stringify(exitResult.trade || exitResult, null, 2)}</pre>
+            </div>
+          )}
+
           <div className="autonomousGroups">
             <div className="autonomousGroup">
-              <h4>포지션</h4>
+              <h4>가상 포지션 평가</h4>
               {positions.length > 0 ? (
                 positions.map((position) => (
                   <article key={position.id}>
@@ -3286,7 +3569,23 @@ function PaperTradingPanel({
                       수량 {Number(position.quantity || 0).toFixed(4)} · 평단{" "}
                       {Number(position.average_price || 0).toFixed(4)}
                     </span>
-                    <span>가상 손익 {Number(position.unrealized_pnl || 0).toFixed(2)}</span>
+                    <span>
+                      현재가 {Number(position.current_price || 0).toFixed(4)} · 평가 손익{" "}
+                      {Number(position.unrealized_pnl || 0).toFixed(2)} (
+                      {Number(position.unrealized_pnl_pct || 0).toFixed(2)}%)
+                    </span>
+                    <span>
+                      가상 익절 {Number(position.take_profit_price || 0).toFixed(4)} · 가상 손절{" "}
+                      {Number(position.stop_loss_price || 0).toFixed(4)}
+                    </span>
+                    <button
+                      className="secondaryButton"
+                      type="button"
+                      disabled={loading || position.status !== "open"}
+                      onClick={() => onSimulateExit(position.id)}
+                    >
+                      가상 청산
+                    </button>
                   </article>
                 ))
               ) : (
@@ -3298,11 +3597,27 @@ function PaperTradingPanel({
               {trades.length > 0 ? (
                 trades.slice(0, 8).map((trade) => (
                   <article key={trade.id}>
-                    <strong>{trade.ticker} · {trade.action === "simulated_entry" ? "가상 진입" : "가상 스킵"}</strong>
+                    <strong>
+                      {trade.ticker} ·{" "}
+                      {trade.action === "simulated_entry"
+                        ? "가상 진입"
+                        : trade.action === "simulated_exit"
+                          ? "가상 청산"
+                          : "가상 스킵"}
+                    </strong>
                     <span>
                       {decisionLabel(trade.decision)} · {riskLevelLabel(trade.risk_level)} · {trade.simulation_status}
                     </span>
-                    <span>가상 금액 {Number(trade.notional || 0).toFixed(2)}</span>
+                    <span>
+                      기준가 {Number(trade.base_price || 0).toFixed(4)} · 가상 가격{" "}
+                      {Number(trade.simulated_price || trade.price || 0).toFixed(4)}
+                    </span>
+                    <span>
+                      슬리피지 {Number(trade.slippage_bps || 0).toFixed(0)}bps · 스프레드{" "}
+                      {Number(trade.spread_bps || 0).toFixed(0)}bps · 가상 금액{" "}
+                      {Number(trade.notional || 0).toFixed(2)}
+                    </span>
+                    <span>실현 손익 {Number(trade.realized_pnl || 0).toFixed(2)}</span>
                   </article>
                 ))
               ) : (

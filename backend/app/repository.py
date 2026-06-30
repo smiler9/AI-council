@@ -1515,6 +1515,30 @@ def list_paper_positions(
     return [_paper_position_row_to_dict(row) for row in rows]
 
 
+def get_paper_position(position_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                portfolio_id,
+                ticker,
+                quantity,
+                average_price,
+                market_price,
+                unrealized_pnl,
+                realized_pnl,
+                status,
+                created_at,
+                updated_at
+            FROM paper_positions
+            WHERE id = ?
+            """,
+            (position_id,),
+        ).fetchone()
+    return _paper_position_row_to_dict(row) if row else None
+
+
 def get_paper_position_by_ticker(
     portfolio_id: str,
     ticker: str,
@@ -1633,6 +1657,53 @@ def upsert_paper_position(
     return get_paper_position_by_ticker(portfolio_id, ticker, db_path)
 
 
+def update_paper_position_after_exit(
+    *,
+    position_id: str,
+    exit_quantity: float,
+    exit_price: float,
+    realized_pnl_delta: float,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    existing = get_paper_position(position_id, db_path)
+    if not existing:
+        return None
+    timestamp = now_iso()
+    current_quantity = float(existing["quantity"])
+    next_quantity = max(0.0, current_quantity - float(exit_quantity))
+    status = "closed" if next_quantity <= 0 else "open"
+    unrealized_pnl = (
+        (float(exit_price) - float(existing["average_price"])) * next_quantity
+        if next_quantity > 0
+        else 0.0
+    )
+    realized_pnl = float(existing.get("realized_pnl") or 0) + float(realized_pnl_delta)
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE paper_positions
+            SET
+                quantity = ?,
+                market_price = ?,
+                unrealized_pnl = ?,
+                realized_pnl = ?,
+                status = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                next_quantity,
+                float(exit_price),
+                unrealized_pnl,
+                realized_pnl,
+                status,
+                timestamp,
+                position_id,
+            ),
+        )
+    return get_paper_position(position_id, db_path)
+
+
 def create_paper_trade(
     *,
     portfolio_id: str,
@@ -1648,6 +1719,11 @@ def create_paper_trade(
     simulation_status: str,
     simulation_policy: str,
     notes: str | None,
+    base_price: float | None = None,
+    simulated_price: float | None = None,
+    slippage_bps: float = 0,
+    spread_bps: float = 0,
+    realized_pnl: float = 0,
     db_path: str | Path | None = None,
 ) -> dict:
     timestamp = now_iso()
@@ -1662,6 +1738,10 @@ def create_paper_trade(
                 action,
                 quantity,
                 price,
+                base_price,
+                simulated_price,
+                slippage_bps,
+                spread_bps,
                 notional,
                 source_type,
                 source_id,
@@ -1669,11 +1749,12 @@ def create_paper_trade(
                 risk_level,
                 simulation_status,
                 simulation_policy,
+                realized_pnl,
                 notes,
                 created_at,
                 order_execution_allowed
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 trade_id,
@@ -1682,6 +1763,10 @@ def create_paper_trade(
                 action,
                 float(quantity),
                 price,
+                base_price,
+                simulated_price,
+                float(slippage_bps),
+                float(spread_bps),
                 float(notional),
                 source_type,
                 source_id,
@@ -1689,6 +1774,7 @@ def create_paper_trade(
                 risk_level,
                 simulation_status,
                 simulation_policy,
+                float(realized_pnl),
                 notes,
                 timestamp,
                 0,
@@ -1708,6 +1794,10 @@ def get_paper_trade(trade_id: str, db_path: str | Path | None = None) -> dict | 
                 action,
                 quantity,
                 price,
+                base_price,
+                simulated_price,
+                slippage_bps,
+                spread_bps,
                 notional,
                 source_type,
                 source_id,
@@ -1715,6 +1805,7 @@ def get_paper_trade(trade_id: str, db_path: str | Path | None = None) -> dict | 
                 risk_level,
                 simulation_status,
                 simulation_policy,
+                realized_pnl,
                 notes,
                 created_at,
                 order_execution_allowed
@@ -1738,6 +1829,10 @@ def list_paper_trades(
             action,
             quantity,
             price,
+            base_price,
+            simulated_price,
+            slippage_bps,
+            spread_bps,
             notional,
             source_type,
             source_id,
@@ -1745,6 +1840,7 @@ def list_paper_trades(
             risk_level,
             simulation_status,
             simulation_policy,
+            realized_pnl,
             notes,
             created_at,
             order_execution_allowed
@@ -1787,7 +1883,17 @@ def _paper_trade_row_to_dict(row) -> dict:
     trade = row_to_dict(row)
     trade["quantity"] = float(trade["quantity"])
     trade["price"] = float(trade["price"]) if trade["price"] is not None else None
+    trade["base_price"] = (
+        float(trade["base_price"]) if trade.get("base_price") is not None else None
+    )
+    trade["simulated_price"] = (
+        float(trade["simulated_price"]) if trade.get("simulated_price") is not None else None
+    )
+    trade["slippage_bps"] = float(trade.get("slippage_bps") or 0)
+    trade["spread_bps"] = float(trade.get("spread_bps") or 0)
     trade["notional"] = float(trade["notional"])
+    trade["estimated_cost"] = trade["notional"]
+    trade["realized_pnl"] = float(trade.get("realized_pnl") or 0)
     trade["order_execution_allowed"] = False
     trade["simulation_only"] = True
     return trade

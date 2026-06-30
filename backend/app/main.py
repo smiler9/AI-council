@@ -28,7 +28,14 @@ from .operations import (
     build_schedule_health,
     send_operations_risk_brief_telegram,
 )
-from .paper_trading import PaperSimulationError, build_paper_summary, simulate_review
+from .paper_trading import (
+    PaperSimulationError,
+    build_paper_summary,
+    evaluate_exits,
+    list_enriched_paper_positions,
+    simulate_exit,
+    simulate_review,
+)
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .risk_events import (
     RiskEventConfig,
@@ -84,6 +91,8 @@ from .schemas import (
     MeetingRunResponse,
     PaperPortfolioCreate,
     PaperPortfolioUpdate,
+    PaperExitEvaluationCreate,
+    PaperExitSimulationCreate,
     PaperSimulationCreate,
     TickerReviewCreate,
     TradeReviewCreate,
@@ -819,7 +828,11 @@ def create_app(
         portfolio = _paper_portfolio_or_404(portfolio_id)
         return {
             "portfolio": portfolio,
-            "positions": list_paper_positions(portfolio_id, app.state.db_path),
+            "positions": list_enriched_paper_positions(
+                portfolio_id,
+                db_path=app.state.db_path,
+                market_data_config=app.state.market_data_config,
+            ),
             "trades": list_paper_trades(portfolio_id, app.state.db_path),
             "summary": build_paper_summary(
                 portfolio_id,
@@ -874,12 +887,52 @@ def create_app(
     @app.get("/api/paper/portfolios/{portfolio_id}/positions")
     def get_paper_positions(portfolio_id: str) -> list[dict]:
         _paper_portfolio_or_404(portfolio_id)
-        return list_paper_positions(portfolio_id, app.state.db_path)
+        return list_enriched_paper_positions(
+            portfolio_id,
+            db_path=app.state.db_path,
+            market_data_config=app.state.market_data_config,
+        )
 
     @app.get("/api/paper/portfolios/{portfolio_id}/trades")
     def get_paper_trades(portfolio_id: str) -> list[dict]:
         _paper_portfolio_or_404(portfolio_id)
         return list_paper_trades(portfolio_id, app.state.db_path)
+
+    @app.post("/api/paper/portfolios/{portfolio_id}/positions/{position_id}/simulate-exit")
+    def post_paper_simulate_exit(
+        portfolio_id: str,
+        position_id: str,
+        payload: PaperExitSimulationCreate,
+    ) -> dict:
+        try:
+            return simulate_exit(
+                portfolio_id,
+                position_id,
+                payload,
+                db_path=app.state.db_path,
+                market_data_config=app.state.market_data_config,
+            )
+        except PaperSimulationError as exc:
+            detail = str(exc)
+            status_code = 404 if "not found" in detail.lower() else 422
+            raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    @app.post("/api/paper/portfolios/{portfolio_id}/evaluate-exits")
+    def post_paper_evaluate_exits(
+        portfolio_id: str,
+        payload: PaperExitEvaluationCreate,
+    ) -> dict:
+        try:
+            return evaluate_exits(
+                portfolio_id,
+                payload,
+                db_path=app.state.db_path,
+                market_data_config=app.state.market_data_config,
+            )
+        except PaperSimulationError as exc:
+            detail = str(exc)
+            status_code = 404 if "not found" in detail.lower() else 422
+            raise HTTPException(status_code=status_code, detail=detail) from exc
 
     @app.get("/api/paper/portfolios/{portfolio_id}/summary")
     def get_paper_summary(portfolio_id: str) -> dict:
