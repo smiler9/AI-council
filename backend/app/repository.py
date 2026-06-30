@@ -1357,6 +1357,442 @@ def _trade_review_row_to_dict(row) -> dict:
     return review
 
 
+def create_paper_portfolio(
+    *,
+    name: str,
+    description: str | None,
+    starting_cash: float,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    portfolio_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO paper_portfolios (
+                id,
+                name,
+                description,
+                starting_cash,
+                cash_balance,
+                status,
+                created_at,
+                updated_at,
+                order_execution_allowed
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                portfolio_id,
+                name,
+                description,
+                float(starting_cash),
+                float(starting_cash),
+                "active",
+                timestamp,
+                timestamp,
+                0,
+            ),
+        )
+    return get_paper_portfolio(portfolio_id, db_path)
+
+
+def list_paper_portfolios(db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                name,
+                description,
+                starting_cash,
+                cash_balance,
+                status,
+                created_at,
+                updated_at,
+                order_execution_allowed
+            FROM paper_portfolios
+            ORDER BY updated_at DESC, created_at DESC
+            """
+        ).fetchall()
+    return [_paper_portfolio_row_to_dict(row) for row in rows]
+
+
+def get_paper_portfolio(portfolio_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                name,
+                description,
+                starting_cash,
+                cash_balance,
+                status,
+                created_at,
+                updated_at,
+                order_execution_allowed
+            FROM paper_portfolios
+            WHERE id = ?
+            """,
+            (portfolio_id,),
+        ).fetchone()
+    return _paper_portfolio_row_to_dict(row) if row else None
+
+
+def update_paper_portfolio(
+    portfolio_id: str,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    status: str | None = None,
+    cash_balance: float | None = None,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    existing = get_paper_portfolio(portfolio_id, db_path)
+    if not existing:
+        return None
+    timestamp = now_iso()
+    updated = {
+        "name": name if name is not None else existing["name"],
+        "description": description if description is not None else existing.get("description"),
+        "status": status if status is not None else existing["status"],
+        "cash_balance": cash_balance if cash_balance is not None else existing["cash_balance"],
+    }
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE paper_portfolios
+            SET name = ?, description = ?, status = ?, cash_balance = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                updated["name"],
+                updated["description"],
+                updated["status"],
+                float(updated["cash_balance"]),
+                timestamp,
+                portfolio_id,
+            ),
+        )
+    return get_paper_portfolio(portfolio_id, db_path)
+
+
+def delete_paper_portfolio(portfolio_id: str, db_path: str | Path | None = None) -> dict | None:
+    existing = get_paper_portfolio(portfolio_id, db_path)
+    if not existing:
+        return None
+    with get_connection(db_path) as connection:
+        connection.execute("DELETE FROM paper_portfolios WHERE id = ?", (portfolio_id,))
+    return existing
+
+
+def list_paper_positions(
+    portfolio_id: str,
+    db_path: str | Path | None = None,
+) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                portfolio_id,
+                ticker,
+                quantity,
+                average_price,
+                market_price,
+                unrealized_pnl,
+                realized_pnl,
+                status,
+                created_at,
+                updated_at
+            FROM paper_positions
+            WHERE portfolio_id = ?
+            ORDER BY ticker ASC
+            """,
+            (portfolio_id,),
+        ).fetchall()
+    return [_paper_position_row_to_dict(row) for row in rows]
+
+
+def get_paper_position_by_ticker(
+    portfolio_id: str,
+    ticker: str,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                portfolio_id,
+                ticker,
+                quantity,
+                average_price,
+                market_price,
+                unrealized_pnl,
+                realized_pnl,
+                status,
+                created_at,
+                updated_at
+            FROM paper_positions
+            WHERE portfolio_id = ? AND ticker = ?
+            """,
+            (portfolio_id, ticker),
+        ).fetchone()
+    return _paper_position_row_to_dict(row) if row else None
+
+
+def upsert_paper_position(
+    *,
+    portfolio_id: str,
+    ticker: str,
+    quantity_delta: float,
+    price: float,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    existing = get_paper_position_by_ticker(portfolio_id, ticker, db_path)
+    if existing:
+        current_quantity = float(existing["quantity"])
+        current_average = float(existing["average_price"])
+        next_quantity = current_quantity + float(quantity_delta)
+        if next_quantity <= 0:
+            next_quantity = 0.0
+            next_average = 0.0
+            status = "closed"
+        else:
+            next_average = (
+                (current_quantity * current_average) + (float(quantity_delta) * float(price))
+            ) / next_quantity
+            status = "open"
+        market_price = float(price)
+        unrealized_pnl = (market_price - next_average) * next_quantity
+        with get_connection(db_path) as connection:
+            connection.execute(
+                """
+                UPDATE paper_positions
+                SET
+                    quantity = ?,
+                    average_price = ?,
+                    market_price = ?,
+                    unrealized_pnl = ?,
+                    status = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    next_quantity,
+                    next_average,
+                    market_price,
+                    unrealized_pnl,
+                    status,
+                    timestamp,
+                    existing["id"],
+                ),
+            )
+        return get_paper_position_by_ticker(portfolio_id, ticker, db_path)
+
+    position_id = uuid4().hex
+    quantity = float(quantity_delta)
+    average_price = float(price)
+    market_price = float(price)
+    unrealized_pnl = 0.0
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO paper_positions (
+                id,
+                portfolio_id,
+                ticker,
+                quantity,
+                average_price,
+                market_price,
+                unrealized_pnl,
+                realized_pnl,
+                status,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                position_id,
+                portfolio_id,
+                ticker,
+                quantity,
+                average_price,
+                market_price,
+                unrealized_pnl,
+                0.0,
+                "open",
+                timestamp,
+                timestamp,
+            ),
+        )
+    return get_paper_position_by_ticker(portfolio_id, ticker, db_path)
+
+
+def create_paper_trade(
+    *,
+    portfolio_id: str,
+    ticker: str,
+    action: str,
+    quantity: float,
+    price: float | None,
+    notional: float,
+    source_type: str,
+    source_id: str,
+    decision: str,
+    risk_level: str,
+    simulation_status: str,
+    simulation_policy: str,
+    notes: str | None,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    trade_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO paper_trades (
+                id,
+                portfolio_id,
+                ticker,
+                action,
+                quantity,
+                price,
+                notional,
+                source_type,
+                source_id,
+                decision,
+                risk_level,
+                simulation_status,
+                simulation_policy,
+                notes,
+                created_at,
+                order_execution_allowed
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                trade_id,
+                portfolio_id,
+                ticker,
+                action,
+                float(quantity),
+                price,
+                float(notional),
+                source_type,
+                source_id,
+                decision,
+                risk_level,
+                simulation_status,
+                simulation_policy,
+                notes,
+                timestamp,
+                0,
+            ),
+        )
+    return get_paper_trade(trade_id, db_path)
+
+
+def get_paper_trade(trade_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                portfolio_id,
+                ticker,
+                action,
+                quantity,
+                price,
+                notional,
+                source_type,
+                source_id,
+                decision,
+                risk_level,
+                simulation_status,
+                simulation_policy,
+                notes,
+                created_at,
+                order_execution_allowed
+            FROM paper_trades
+            WHERE id = ?
+            """,
+            (trade_id,),
+        ).fetchone()
+    return _paper_trade_row_to_dict(row) if row else None
+
+
+def list_paper_trades(
+    portfolio_id: str | None = None,
+    db_path: str | Path | None = None,
+) -> list[dict]:
+    query = """
+        SELECT
+            id,
+            portfolio_id,
+            ticker,
+            action,
+            quantity,
+            price,
+            notional,
+            source_type,
+            source_id,
+            decision,
+            risk_level,
+            simulation_status,
+            simulation_policy,
+            notes,
+            created_at,
+            order_execution_allowed
+        FROM paper_trades
+    """
+    params: tuple = ()
+    if portfolio_id:
+        query += " WHERE portfolio_id = ?"
+        params = (portfolio_id,)
+    query += " ORDER BY created_at DESC"
+    with get_connection(db_path) as connection:
+        rows = connection.execute(query, params).fetchall()
+    return [_paper_trade_row_to_dict(row) for row in rows]
+
+
+def _paper_portfolio_row_to_dict(row) -> dict:
+    portfolio = row_to_dict(row)
+    portfolio["starting_cash"] = float(portfolio["starting_cash"])
+    portfolio["cash_balance"] = float(portfolio["cash_balance"])
+    portfolio["order_execution_allowed"] = False
+    portfolio["simulation_only"] = True
+    return portfolio
+
+
+def _paper_position_row_to_dict(row) -> dict:
+    position = row_to_dict(row)
+    position["quantity"] = float(position["quantity"])
+    position["average_price"] = float(position["average_price"])
+    position["market_price"] = (
+        float(position["market_price"]) if position["market_price"] is not None else None
+    )
+    position["unrealized_pnl"] = float(position["unrealized_pnl"])
+    position["realized_pnl"] = float(position["realized_pnl"])
+    position["order_execution_allowed"] = False
+    position["simulation_only"] = True
+    return position
+
+
+def _paper_trade_row_to_dict(row) -> dict:
+    trade = row_to_dict(row)
+    trade["quantity"] = float(trade["quantity"])
+    trade["price"] = float(trade["price"]) if trade["price"] is not None else None
+    trade["notional"] = float(trade["notional"])
+    trade["order_execution_allowed"] = False
+    trade["simulation_only"] = True
+    return trade
+
+
 def create_webhook_event(
     *,
     source: str,

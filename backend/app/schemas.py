@@ -125,3 +125,33 @@ class WatchlistScheduleUpdate(BaseModel):
     run_time: str | None = Field(default=None, max_length=5)
     timezone: str | None = Field(default=None, max_length=80)
     auto_send_telegram: bool | None = None
+
+
+class PaperPortfolioCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    starting_cash: float = Field(default=10000, gt=0)
+
+
+class PaperPortfolioUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    status: Literal["active", "archived"] | None = None
+
+
+class PaperSimulationCreate(BaseModel):
+    source_type: Literal[
+        "trade_review",
+        "ticker_review",
+        "autonomous_review",
+        "watchlist_review",
+        "webhook_event",
+    ]
+    source_id: str = Field(min_length=1, max_length=80)
+    simulation_policy: Literal[
+        "risk_gate_conservative",
+        "observe_only",
+        "aggressive_research_only",
+    ] = "risk_gate_conservative"
+    max_notional_per_trade: float = Field(default=100, gt=0)
+    allow_only_decision: bool = False

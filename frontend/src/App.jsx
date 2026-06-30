@@ -192,6 +192,7 @@ export default function App() {
   const [meetings, setMeetings] = useState([]);
   const [tradeReviews, setTradeReviews] = useState([]);
   const [watchlists, setWatchlists] = useState([]);
+  const [paperPortfolios, setPaperPortfolios] = useState([]);
   const [watchlistReviews, setWatchlistReviews] = useState([]);
   const [watchlistSchedules, setWatchlistSchedules] = useState([]);
   const [watchlistScheduleRuns, setWatchlistScheduleRuns] = useState([]);
@@ -253,7 +254,22 @@ export default function App() {
     timezone: "Asia/Seoul",
     auto_send_telegram: false
   });
+  const [paperPortfolioForm, setPaperPortfolioForm] = useState({
+    name: "AI Council Paper Portfolio",
+    description: "실제 주문 없는 가상 검증용 포트폴리오",
+    starting_cash: "10000"
+  });
+  const [paperSimulationForm, setPaperSimulationForm] = useState({
+    source_type: "trade_review",
+    source_id: "",
+    simulation_policy: "risk_gate_conservative",
+    max_notional_per_trade: "100",
+    allow_only_decision: false
+  });
   const [selectedWatchlistId, setSelectedWatchlistId] = useState(null);
+  const [selectedPaperPortfolioId, setSelectedPaperPortfolioId] = useState(null);
+  const [paperPortfolioDetail, setPaperPortfolioDetail] = useState(null);
+  const [paperSimulationResult, setPaperSimulationResult] = useState(null);
   const [marketDataTicker, setMarketDataTicker] = useState("TESTA");
   const [marketDataResult, setMarketDataResult] = useState(null);
   const [riskEventTicker, setRiskEventTicker] = useState("TESTB");
@@ -271,6 +287,7 @@ export default function App() {
   const [autonomousReviewLoading, setAutonomousReviewLoading] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [paperLoading, setPaperLoading] = useState(false);
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [riskEventLoading, setRiskEventLoading] = useState(false);
@@ -320,6 +337,7 @@ export default function App() {
         telegram,
         reviewList,
         watchlistList,
+        paperPortfolioList,
         watchlistReviewList,
         scheduleList,
         scheduleRunList,
@@ -336,6 +354,7 @@ export default function App() {
         api.getTelegramStatus(),
         api.getTradeReviews(),
         api.getWatchlists(),
+        api.getPaperPortfolios(),
         api.getWatchlistReviews(),
         api.getWatchlistSchedules(),
         api.getWatchlistScheduleRuns(),
@@ -352,8 +371,14 @@ export default function App() {
       setTelegramStatus(telegram);
       setTradeReviews(reviewList);
       setWatchlists(watchlistList);
+      setPaperPortfolios(paperPortfolioList);
       setWatchlistReviews(watchlistReviewList);
       setSelectedWatchlistId((current) => current || watchlistList[0]?.id || null);
+      const nextPaperPortfolioId = paperPortfolioList[0]?.id || null;
+      setSelectedPaperPortfolioId((current) => current || nextPaperPortfolioId);
+      if (nextPaperPortfolioId) {
+        setPaperPortfolioDetail(await api.getPaperPortfolio(nextPaperPortfolioId));
+      }
       setWatchlistSchedules(scheduleList);
       setWatchlistScheduleRuns(scheduleRunList);
       setOperationsSummary(opsSummary);
@@ -427,6 +452,20 @@ export default function App() {
 
   function updateScheduleField(field, value) {
     setScheduleForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function updatePaperPortfolioField(field, value) {
+    setPaperPortfolioForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function updatePaperSimulationField(field, value) {
+    setPaperSimulationForm((current) => ({
       ...current,
       [field]: value
     }));
@@ -761,6 +800,91 @@ export default function App() {
     }
   }
 
+  async function refreshPaperData(portfolioId = selectedPaperPortfolioId) {
+    try {
+      const portfolios = await api.getPaperPortfolios();
+      setPaperPortfolios(portfolios);
+      const nextId = portfolioId || portfolios[0]?.id || null;
+      setSelectedPaperPortfolioId(nextId);
+      if (nextId) {
+        setPaperPortfolioDetail(await api.getPaperPortfolio(nextId));
+      } else {
+        setPaperPortfolioDetail(null);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handlePaperPortfolioCreate(event) {
+    event.preventDefault();
+    if (!paperPortfolioForm.name.trim()) return;
+    setPaperLoading(true);
+    setError("");
+    try {
+      const portfolio = await api.createPaperPortfolio({
+        name: paperPortfolioForm.name.trim(),
+        description: paperPortfolioForm.description.trim() || null,
+        starting_cash: Number(paperPortfolioForm.starting_cash) || 10000
+      });
+      await refreshPaperData(portfolio.id);
+      await refreshOperationsData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
+  async function handlePaperPortfolioDelete(portfolioId) {
+    setPaperLoading(true);
+    setError("");
+    try {
+      await api.deletePaperPortfolio(portfolioId);
+      await refreshPaperData(null);
+      await refreshOperationsData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
+  async function handlePaperPortfolioSelect(portfolioId) {
+    setSelectedPaperPortfolioId(portfolioId);
+    setPaperSimulationResult(null);
+    setError("");
+    try {
+      setPaperPortfolioDetail(await api.getPaperPortfolio(portfolioId));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handlePaperSimulationSubmit(event) {
+    event.preventDefault();
+    if (!selectedPaperPortfolioId || !paperSimulationForm.source_id.trim()) return;
+    setPaperLoading(true);
+    setPaperSimulationResult(null);
+    setError("");
+    try {
+      const result = await api.simulatePaperReview(selectedPaperPortfolioId, {
+        source_type: paperSimulationForm.source_type,
+        source_id: paperSimulationForm.source_id.trim(),
+        simulation_policy: paperSimulationForm.simulation_policy,
+        max_notional_per_trade: Number(paperSimulationForm.max_notional_per_trade) || 100,
+        allow_only_decision: Boolean(paperSimulationForm.allow_only_decision)
+      });
+      setPaperSimulationResult(result);
+      await refreshPaperData(selectedPaperPortfolioId);
+      await refreshOperationsData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
   async function handleMarketDataLookup(kind) {
     const tickerValue = marketDataTicker.trim();
     if (!tickerValue) return;
@@ -958,6 +1082,7 @@ export default function App() {
           <a href="#risk-events">뉴스/공시 리스크</a>
           <a href="#watchlists">관심종목</a>
           <a href="#watchlist-schedules">자동 분석 스케줄</a>
+          <a href="#paper-trading">가상 검증</a>
           <a href="#autonomous-review">자율 트레이더 검토</a>
           <a href="#ticker-review">종목 자동 분석</a>
           <a href="#trade-review">거래 신호 검토</a>
@@ -1112,6 +1237,8 @@ export default function App() {
           watchlistReviews={watchlistReviews}
           watchlistSchedules={watchlistSchedules}
           watchlistScheduleRuns={watchlistScheduleRuns}
+          paperPortfolios={paperPortfolios}
+          operationsSummary={operationsSummary}
         />
 
         <SettingsGuidePanel health={health} />
@@ -1165,6 +1292,22 @@ export default function App() {
           onRunNow={handleScheduleRunNow}
           onRunDue={handleScheduleRunDue}
           onOpenMeeting={handleSelect}
+        />
+
+        <PaperTradingPanel
+          portfolios={paperPortfolios}
+          selectedPortfolioId={selectedPaperPortfolioId}
+          detail={paperPortfolioDetail}
+          portfolioForm={paperPortfolioForm}
+          simulationForm={paperSimulationForm}
+          simulationResult={paperSimulationResult}
+          loading={paperLoading}
+          updatePortfolioField={updatePaperPortfolioField}
+          updateSimulationField={updatePaperSimulationField}
+          onCreate={handlePaperPortfolioCreate}
+          onDelete={handlePaperPortfolioDelete}
+          onSelect={handlePaperPortfolioSelect}
+          onSimulate={handlePaperSimulationSubmit}
         />
 
         <WebhookPanel
@@ -1650,6 +1793,7 @@ function OperationsDashboardPanel({
   const warningItems = riskBrief?.warning_items || [];
   const recentReviews = summary?.recent_watchlist_reviews || [];
   const recentRuns = scheduleHealth?.recent_runs || summary?.recent_schedule_runs || [];
+  const paperSummary = summary?.paper_summary || {};
   return (
     <section className="tradeReviewSection" id="dashboard">
       <div className="tradeReviewHeader">
@@ -1733,6 +1877,26 @@ function OperationsDashboardPanel({
           <span>Webhook 상태</span>
           <strong>{webhookStatus?.configured ? "수신 가능" : "비활성화"}</strong>
           <p>후보 신호 수신 전용</p>
+        </article>
+        <article>
+          <span>Paper Portfolio 수</span>
+          <strong>{counts.paper_portfolios || 0}</strong>
+          <p>내부 가상 검증 전용</p>
+        </article>
+        <article>
+          <span>최근 가상 거래 수</span>
+          <strong>{paperSummary.recent_trade_count || 0}</strong>
+          <p>실제 주문 없는 시뮬레이션 기록</p>
+        </article>
+        <article>
+          <span>가상 노출 금액</span>
+          <strong>{Number(paperSummary.virtual_exposure || 0).toFixed(2)}</strong>
+          <p>Paper position 기준</p>
+        </article>
+        <article>
+          <span>가상 손익</span>
+          <strong>{Number(paperSummary.virtual_unrealized_pnl || 0).toFixed(2)}</strong>
+          <p>시뮬레이션 미실현 손익</p>
         </article>
         <article className="safetyCard">
           <span>주문 실행 상태</span>
@@ -1884,7 +2048,9 @@ function DashboardCards({
   watchlists,
   watchlistReviews,
   watchlistSchedules,
-  watchlistScheduleRuns
+  watchlistScheduleRuns,
+  paperPortfolios,
+  operationsSummary
 }) {
   const backendOk = health?.status === "ok";
   const llmProvider = health?.llm_provider || "mock";
@@ -1892,6 +2058,7 @@ function DashboardCards({
     marketDataStatus?.active_provider || health?.market_data?.provider || "mock_market_data";
   const latestWatchlistReview = watchlistReviews?.[0];
   const latestScheduleRun = watchlistScheduleRuns?.[0];
+  const paperSummary = operationsSummary?.paper_summary || {};
   return (
     <section className="dashboardGrid" id="dashboard-cards">
       <article>
@@ -1955,6 +2122,16 @@ function DashboardCards({
         <span>최근 Watchlist 분석 수</span>
         <strong>{watchlistReviews.length}</strong>
         <p>Batch review 기록</p>
+      </article>
+      <article>
+        <span>가상 검증 포트폴리오</span>
+        <strong>{paperPortfolios.length}</strong>
+        <p>Paper Trading은 내부 시뮬레이션 전용</p>
+      </article>
+      <article>
+        <span>가상 노출/손익</span>
+        <strong>{Number(paperSummary.virtual_exposure || 0).toFixed(2)}</strong>
+        <p>손익 {Number(paperSummary.virtual_unrealized_pnl || 0).toFixed(2)}</p>
       </article>
       <article>
         <span>자동 분석 스케줄 수</span>
@@ -2889,6 +3066,253 @@ function ScheduleRunResult({ result, onOpenMeeting }) {
       <p className="contextHint">
         이 기능은 자동 분석/자동 보고 전용입니다. 자동 주문 또는 자동 매매 기능이 아닙니다.
       </p>
+    </section>
+  );
+}
+
+function PaperTradingPanel({
+  portfolios,
+  selectedPortfolioId,
+  detail,
+  portfolioForm,
+  simulationForm,
+  simulationResult,
+  loading,
+  updatePortfolioField,
+  updateSimulationField,
+  onCreate,
+  onDelete,
+  onSelect,
+  onSimulate
+}) {
+  const summary = detail?.summary || {};
+  const positions = detail?.positions || [];
+  const trades = detail?.trades || [];
+  return (
+    <section className="tradeReviewSection" id="paper-trading">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">Paper Trading Simulation Mode</p>
+          <h3>가상 검증 / Paper Trading 시뮬레이션</h3>
+        </div>
+        <span>실제 주문 없음</span>
+      </div>
+      <p className="contextHint">
+        Trade Review, Ticker Review, Watchlist Review, Webhook 결과를 내부 가상 포트폴리오에만 반영합니다.
+        브로커 계좌나 실제 주문 API와 연결하지 않습니다.
+      </p>
+
+      <form className="tickerReviewForm" onSubmit={onCreate}>
+        <label>
+          <span>새 가상 포트폴리오</span>
+          <input
+            value={portfolioForm.name}
+            onChange={(event) => updatePortfolioField("name", event.target.value)}
+          />
+        </label>
+        <label>
+          <span>시작 현금</span>
+          <input
+            type="number"
+            min="1"
+            value={portfolioForm.starting_cash}
+            onChange={(event) => updatePortfolioField("starting_cash", event.target.value)}
+          />
+        </label>
+        <label className="wideField">
+          <span>설명</span>
+          <input
+            value={portfolioForm.description}
+            onChange={(event) => updatePortfolioField("description", event.target.value)}
+          />
+        </label>
+        <div className="tradeReviewActions">
+          <button className="primaryButton" type="submit" disabled={loading || !portfolioForm.name.trim()}>
+            <Plus size={16} aria-hidden="true" />
+            포트폴리오 생성
+          </button>
+        </div>
+      </form>
+
+      <div className="webhookEvents">
+        <h4>포트폴리오 목록</h4>
+        {portfolios.length > 0 ? (
+          portfolios.map((portfolio) => (
+            <article key={portfolio.id}>
+              <div>
+                <strong>{portfolio.name}</strong>
+                <span>
+                  현금 {Number(portfolio.cash_balance || 0).toFixed(2)} / 시작{" "}
+                  {Number(portfolio.starting_cash || 0).toFixed(2)}
+                </span>
+              </div>
+              <div>
+                <span>주문 실행 허용 여부</span>
+                <strong>{booleanKo(Boolean(portfolio.order_execution_allowed))}</strong>
+              </div>
+              <div className="tradeReviewActions">
+                <button
+                  className="secondaryButton"
+                  type="button"
+                  disabled={selectedPortfolioId === portfolio.id}
+                  onClick={() => onSelect(portfolio.id)}
+                >
+                  선택
+                </button>
+                <button
+                  className="iconButton"
+                  type="button"
+                  title="가상 포트폴리오 삭제"
+                  onClick={() => onDelete(portfolio.id)}
+                  disabled={loading}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="emptyState">아직 가상 포트폴리오가 없습니다.</div>
+        )}
+      </div>
+
+      {detail && (
+        <>
+          <div className="webhookStatusGrid">
+            <div>
+              <span>현금</span>
+              <strong>{Number(summary.cash_balance || 0).toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>포지션 수</span>
+              <strong>{summary.position_count || 0}</strong>
+            </div>
+            <div>
+              <span>가상 노출</span>
+              <strong>{Number(summary.exposure || 0).toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>가상 손익</span>
+              <strong>{Number(summary.unrealized_pnl || 0).toFixed(2)}</strong>
+            </div>
+          </div>
+
+          <form className="tickerReviewForm" onSubmit={onSimulate}>
+            <label>
+              <span>Source type</span>
+              <select
+                value={simulationForm.source_type}
+                onChange={(event) => updateSimulationField("source_type", event.target.value)}
+              >
+                <option value="trade_review">trade_review</option>
+                <option value="ticker_review">ticker_review</option>
+                <option value="autonomous_review">autonomous_review</option>
+                <option value="watchlist_review">watchlist_review</option>
+                <option value="webhook_event">webhook_event</option>
+              </select>
+            </label>
+            <label>
+              <span>Source review id</span>
+              <input
+                value={simulationForm.source_id}
+                onChange={(event) => updateSimulationField("source_id", event.target.value)}
+                placeholder="검토 결과 ID"
+              />
+            </label>
+            <label>
+              <span>시뮬레이션 정책</span>
+              <select
+                value={simulationForm.simulation_policy}
+                onChange={(event) => updateSimulationField("simulation_policy", event.target.value)}
+              >
+                <option value="risk_gate_conservative">risk_gate_conservative</option>
+                <option value="observe_only">observe_only</option>
+                <option value="aggressive_research_only">aggressive_research_only</option>
+              </select>
+            </label>
+            <label>
+              <span>최대 가상 금액</span>
+              <input
+                type="number"
+                min="1"
+                value={simulationForm.max_notional_per_trade}
+                onChange={(event) => updateSimulationField("max_notional_per_trade", event.target.value)}
+              />
+            </label>
+            <label className="checkboxLabel">
+              <input
+                type="checkbox"
+                checked={simulationForm.allow_only_decision}
+                onChange={(event) => updateSimulationField("allow_only_decision", event.target.checked)}
+              />
+              <span>ALLOW만 반영</span>
+            </label>
+            <div className="tradeReviewActions">
+              <button className="primaryButton" type="submit" disabled={loading || !simulationForm.source_id.trim()}>
+                <Play size={16} aria-hidden="true" />
+                검토 결과를 가상 포트폴리오에 반영
+              </button>
+            </div>
+          </form>
+
+          {simulationResult && (
+            <div className="jsonResult">
+              <div className="webhookStatusGrid">
+                <div>
+                  <span>생성된 기록</span>
+                  <strong>{simulationResult.trades?.length || 0}</strong>
+                </div>
+                <div>
+                  <span>시뮬레이션 전용</span>
+                  <strong>{simulationResult.paper_trade_execution_allowed}</strong>
+                </div>
+                <div>
+                  <span>주문 실행 허용 여부</span>
+                  <strong>{booleanKo(Boolean(simulationResult.order_execution_allowed))}</strong>
+                </div>
+              </div>
+              <pre>{JSON.stringify(simulationResult.trades || simulationResult, null, 2)}</pre>
+            </div>
+          )}
+
+          <div className="autonomousGroups">
+            <div className="autonomousGroup">
+              <h4>포지션</h4>
+              {positions.length > 0 ? (
+                positions.map((position) => (
+                  <article key={position.id}>
+                    <strong>{position.ticker}</strong>
+                    <span>
+                      수량 {Number(position.quantity || 0).toFixed(4)} · 평단{" "}
+                      {Number(position.average_price || 0).toFixed(4)}
+                    </span>
+                    <span>가상 손익 {Number(position.unrealized_pnl || 0).toFixed(2)}</span>
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">가상 포지션이 없습니다.</div>
+              )}
+            </div>
+            <div className="autonomousGroup">
+              <h4>가상 거래 기록</h4>
+              {trades.length > 0 ? (
+                trades.slice(0, 8).map((trade) => (
+                  <article key={trade.id}>
+                    <strong>{trade.ticker} · {trade.action === "simulated_entry" ? "가상 진입" : "가상 스킵"}</strong>
+                    <span>
+                      {decisionLabel(trade.decision)} · {riskLevelLabel(trade.risk_level)} · {trade.simulation_status}
+                    </span>
+                    <span>가상 금액 {Number(trade.notional || 0).toFixed(2)}</span>
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">가상 거래 기록이 없습니다.</div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+      <SafetyBoundary />
     </section>
   );
 }

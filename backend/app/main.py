@@ -28,6 +28,7 @@ from .operations import (
     build_schedule_health,
     send_operations_risk_brief_telegram,
 )
+from .paper_trading import PaperSimulationError, build_paper_summary, simulate_review
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .risk_events import (
     RiskEventConfig,
@@ -46,6 +47,7 @@ from .repository import (
     get_meeting,
     get_meeting_messages,
     get_meeting_outputs,
+    get_paper_portfolio,
     get_report,
     get_trade_review,
     get_watchlist,
@@ -57,6 +59,9 @@ from .repository import (
     list_agents,
     list_context_files,
     list_meetings,
+    list_paper_portfolios,
+    list_paper_positions,
+    list_paper_trades,
     list_trade_reviews,
     list_watchlist_reviews,
     list_watchlist_schedule_runs,
@@ -69,11 +74,17 @@ from .repository import (
     delete_watchlist,
     update_webhook_event,
     upsert_report,
+    create_paper_portfolio,
+    update_paper_portfolio,
+    delete_paper_portfolio,
 )
 from .schemas import (
     AutonomousReviewCreate,
     MeetingCreate,
     MeetingRunResponse,
+    PaperPortfolioCreate,
+    PaperPortfolioUpdate,
+    PaperSimulationCreate,
     TickerReviewCreate,
     TradeReviewCreate,
     WatchlistCreate,
@@ -205,6 +216,12 @@ def create_app(
             raise HTTPException(status_code=404, detail="Watchlist schedule run not found")
         return run
 
+    def _paper_portfolio_or_404(portfolio_id: str) -> dict:
+        portfolio = get_paper_portfolio(portfolio_id, app.state.db_path)
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="Paper portfolio not found")
+        return portfolio
+
     @app.get("/health")
     def health() -> dict:
         return {
@@ -222,6 +239,12 @@ def create_app(
             "autonomous_review": {
                 "enabled": True,
                 "candidate_provider": "mock_market_data",
+                "order_execution_allowed": False,
+            },
+            "paper_trading": {
+                "enabled": True,
+                "simulation_only": True,
+                "paper_trade_execution_allowed": "simulation_only",
                 "order_execution_allowed": False,
             },
             "risk_events": risk_event_status(app.state.risk_event_config),
@@ -777,6 +800,95 @@ def create_app(
     @app.get("/api/operations/schedule-health")
     def get_operations_schedule_health() -> dict:
         return build_schedule_health(db_path=app.state.db_path)
+
+    @app.post("/api/paper/portfolios", status_code=201)
+    def post_paper_portfolio(payload: PaperPortfolioCreate) -> dict:
+        return create_paper_portfolio(
+            name=payload.name.strip(),
+            description=(payload.description or "").strip() or None,
+            starting_cash=payload.starting_cash,
+            db_path=app.state.db_path,
+        )
+
+    @app.get("/api/paper/portfolios")
+    def get_paper_portfolios() -> list[dict]:
+        return list_paper_portfolios(app.state.db_path)
+
+    @app.get("/api/paper/portfolios/{portfolio_id}")
+    def get_paper_portfolio_detail(portfolio_id: str) -> dict:
+        portfolio = _paper_portfolio_or_404(portfolio_id)
+        return {
+            "portfolio": portfolio,
+            "positions": list_paper_positions(portfolio_id, app.state.db_path),
+            "trades": list_paper_trades(portfolio_id, app.state.db_path),
+            "summary": build_paper_summary(
+                portfolio_id,
+                db_path=app.state.db_path,
+                market_data_config=app.state.market_data_config,
+            ),
+            "order_execution_allowed": False,
+        }
+
+    @app.patch("/api/paper/portfolios/{portfolio_id}")
+    def patch_paper_portfolio(portfolio_id: str, payload: PaperPortfolioUpdate) -> dict:
+        _paper_portfolio_or_404(portfolio_id)
+        update_data = payload.model_dump(exclude_unset=True)
+        updated = update_paper_portfolio(
+            portfolio_id,
+            name=update_data.get("name").strip() if update_data.get("name") else None,
+            description=(
+                update_data.get("description").strip()
+                if isinstance(update_data.get("description"), str)
+                else update_data.get("description")
+            ),
+            status=update_data.get("status"),
+            db_path=app.state.db_path,
+        )
+        return updated
+
+    @app.delete("/api/paper/portfolios/{portfolio_id}")
+    def delete_paper_portfolio_endpoint(portfolio_id: str) -> dict:
+        deleted = delete_paper_portfolio(portfolio_id, app.state.db_path)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Paper portfolio not found")
+        return {
+            "deleted": True,
+            "portfolio": deleted,
+            "order_execution_allowed": False,
+        }
+
+    @app.post("/api/paper/portfolios/{portfolio_id}/simulate-review", status_code=201)
+    def post_paper_simulate_review(portfolio_id: str, payload: PaperSimulationCreate) -> dict:
+        try:
+            return simulate_review(
+                portfolio_id,
+                payload,
+                db_path=app.state.db_path,
+                market_data_config=app.state.market_data_config,
+            )
+        except PaperSimulationError as exc:
+            detail = str(exc)
+            status_code = 404 if "not found" in detail.lower() else 422
+            raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/positions")
+    def get_paper_positions(portfolio_id: str) -> list[dict]:
+        _paper_portfolio_or_404(portfolio_id)
+        return list_paper_positions(portfolio_id, app.state.db_path)
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/trades")
+    def get_paper_trades(portfolio_id: str) -> list[dict]:
+        _paper_portfolio_or_404(portfolio_id)
+        return list_paper_trades(portfolio_id, app.state.db_path)
+
+    @app.get("/api/paper/portfolios/{portfolio_id}/summary")
+    def get_paper_summary(portfolio_id: str) -> dict:
+        _paper_portfolio_or_404(portfolio_id)
+        return build_paper_summary(
+            portfolio_id,
+            db_path=app.state.db_path,
+            market_data_config=app.state.market_data_config,
+        )
 
     @app.get("/api/trade-reviews")
     def get_trade_reviews() -> list[dict]:

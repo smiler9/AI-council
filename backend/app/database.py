@@ -225,6 +225,54 @@ def init_db(db_path: str | Path | None = None) -> None:
                 FOREIGN KEY (watchlist_id) REFERENCES watchlists(id) ON DELETE CASCADE,
                 FOREIGN KEY (watchlist_review_id) REFERENCES watchlist_reviews(id) ON DELETE SET NULL
             );
+
+            CREATE TABLE IF NOT EXISTS paper_portfolios (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                starting_cash REAL NOT NULL,
+                cash_balance REAL NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                order_execution_allowed INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS paper_positions (
+                id TEXT PRIMARY KEY,
+                portfolio_id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                average_price REAL NOT NULL,
+                market_price REAL,
+                unrealized_pnl REAL NOT NULL,
+                realized_pnl REAL NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(portfolio_id, ticker),
+                FOREIGN KEY (portfolio_id) REFERENCES paper_portfolios(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS paper_trades (
+                id TEXT PRIMARY KEY,
+                portfolio_id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                action TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                price REAL,
+                notional REAL NOT NULL,
+                source_type TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                risk_level TEXT NOT NULL,
+                simulation_status TEXT NOT NULL,
+                simulation_policy TEXT NOT NULL,
+                notes TEXT,
+                created_at TEXT NOT NULL,
+                order_execution_allowed INTEGER NOT NULL,
+                FOREIGN KEY (portfolio_id) REFERENCES paper_portfolios(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_column(

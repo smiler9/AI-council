@@ -66,6 +66,30 @@ export const api = {
   getMeetings: () => request("/api/meetings"),
   getTradeReviews: () => request("/api/trade-reviews"),
   getWatchlists: () => request("/api/watchlists"),
+  getPaperPortfolios: () => request("/api/paper/portfolios"),
+  getPaperPortfolio: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}`),
+  createPaperPortfolio: (payload) =>
+    request("/api/paper/portfolios", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  updatePaperPortfolio: (portfolioId, payload) =>
+    request(`/api/paper/portfolios/${portfolioId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+  deletePaperPortfolio: (portfolioId) =>
+    request(`/api/paper/portfolios/${portfolioId}`, {
+      method: "DELETE"
+    }),
+  simulatePaperReview: (portfolioId, payload) =>
+    request(`/api/paper/portfolios/${portfolioId}/simulate-review`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  getPaperPositions: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/positions`),
+  getPaperTrades: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/trades`),
+  getPaperSummary: (portfolioId) => request(`/api/paper/portfolios/${portfolioId}/summary`),
   createWatchlist: (payload) =>
     request("/api/watchlists", {
       method: "POST",

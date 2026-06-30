@@ -10,6 +10,9 @@ from .market_data import MarketDataConfig
 from .repository import (
     list_autonomous_reviews,
     list_meetings,
+    list_paper_portfolios,
+    list_paper_positions,
+    list_paper_trades,
     list_ticker_reviews,
     list_trade_reviews,
     list_watchlist_reviews,
@@ -48,6 +51,8 @@ def build_operations_summary(
             "watchlist_reviews": len(datasets["watchlist_reviews"]),
             "watchlist_schedules": len(datasets["watchlist_schedules"]),
             "schedule_runs": len(datasets["schedule_runs"]),
+            "paper_portfolios": len(datasets["paper_portfolios"]),
+            "paper_trades": len(datasets["paper_trades"]),
         },
         "risk_summary": _aggregate_decision_counts(
             _all_risk_items(
@@ -63,6 +68,11 @@ def build_operations_summary(
         ],
         "recent_schedule_runs": [_schedule_run_summary(run) for run in datasets["schedule_runs"][:5]],
         "schedule_health": schedule_health,
+        "paper_summary": _paper_operations_summary(
+            datasets["paper_portfolios"],
+            datasets["paper_positions"],
+            datasets["paper_trades"],
+        ),
         "provider_status": {
             "llm_provider": llm_config.provider,
             "market_data_provider": market_data_config.provider,
@@ -200,6 +210,43 @@ def _load_datasets(db_path: str | Path | None) -> dict[str, list[dict]]:
         "watchlist_reviews": list_watchlist_reviews(db_path),
         "watchlist_schedules": list_watchlist_schedules(db_path),
         "schedule_runs": list_watchlist_schedule_runs(db_path),
+        "paper_portfolios": list_paper_portfolios(db_path),
+        "paper_positions": _all_paper_positions(db_path),
+        "paper_trades": list_paper_trades(db_path=db_path),
+    }
+
+
+def _all_paper_positions(db_path: str | Path | None) -> list[dict]:
+    positions = []
+    for portfolio in list_paper_portfolios(db_path):
+        positions.extend(list_paper_positions(portfolio["id"], db_path))
+    return positions
+
+
+def _paper_operations_summary(
+    portfolios: list[dict],
+    positions: list[dict],
+    trades: list[dict],
+) -> dict:
+    exposure = sum(
+        float(position.get("quantity") or 0)
+        * float(position.get("market_price") or position.get("average_price") or 0)
+        for position in positions
+        if position.get("status") == "open"
+    )
+    unrealized_pnl = sum(float(position.get("unrealized_pnl") or 0) for position in positions)
+    realized_pnl = sum(float(position.get("realized_pnl") or 0) for position in positions)
+    return {
+        "portfolio_count": len(portfolios),
+        "recent_trade_count": len(trades[:10]),
+        "total_trade_count": len(trades),
+        "open_position_count": len([position for position in positions if position.get("status") == "open"]),
+        "virtual_exposure": exposure,
+        "virtual_unrealized_pnl": unrealized_pnl,
+        "virtual_realized_pnl": realized_pnl,
+        "simulation_only": True,
+        "paper_trade_execution_allowed": "simulation_only",
+        "order_execution_allowed": False,
     }
 
 
