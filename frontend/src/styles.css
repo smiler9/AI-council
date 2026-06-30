@@ -313,6 +313,7 @@ select:focus {
 }
 
 .tradeReviewSection,
+.webhookPanel,
 .tradeReviewResultCard {
   display: grid;
   gap: 14px;
@@ -320,6 +321,84 @@ select:focus {
   border-radius: 8px;
   background: #ffffff;
   padding: 16px;
+}
+
+.webhookStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.webhookStatusGrid div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.webhookStatusGrid span,
+.endpointRow span,
+.webhookEvents article span {
+  color: #667789;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.webhookStatusGrid strong,
+.endpointRow code,
+.webhookEvents article strong {
+  min-width: 0;
+  color: #17202a;
+  overflow-wrap: anywhere;
+}
+
+.endpointRow {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.endpointRow code {
+  font-size: 13px;
+}
+
+.webhookEvents {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #d9e0e7;
+  padding-top: 12px;
+}
+
+.webhookEvents h4,
+.webhookEvents p {
+  margin: 0;
+}
+
+.webhookEvents article {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.webhookEvents article > div {
+  min-width: 0;
+}
+
+.webhookEvents article strong,
+.webhookEvents article span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tradeReviewHeader {
@@ -879,8 +958,13 @@ select:focus {
   }
 
   .tradeReviewForm,
+  .webhookStatusGrid,
   .recentTradeReviews > div {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .webhookEvents article {
+    grid-template-columns: 1fr;
   }
 
   .topbar {
@@ -928,7 +1012,12 @@ select:focus {
   }
 
   .tradeReviewForm,
+  .webhookStatusGrid,
   .recentTradeReviews > div {
+    grid-template-columns: 1fr;
+  }
+
+  .endpointRow {
     grid-template-columns: 1fr;
   }
 

@@ -34,6 +34,9 @@ export const api = {
   baseUrl: API_BASE_URL,
   getAgents: () => request("/api/agents"),
   getTelegramStatus: () => request("/api/telegram/status"),
+  getWebhookStatus: () => request("/api/webhooks/status"),
+  getWebhookEvents: () => request("/api/webhooks/events"),
+  getWebhookEvent: (eventId) => request(`/api/webhooks/events/${eventId}`),
   getMeetings: () => request("/api/meetings"),
   getTradeReviews: () => request("/api/trade-reviews"),
   createTradeReview: (payload) =>

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from .council import build_failed_council_run, run_council
 from .database import DEFAULT_DB_PATH, init_db
@@ -22,6 +23,7 @@ from .llm.providers import LLMProviderError, get_llm_provider
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .repository import (
     create_context_file,
+    create_webhook_event,
     create_meeting,
     delete_context_file,
     get_context_file,
@@ -30,11 +32,15 @@ from .repository import (
     get_meeting_outputs,
     get_report,
     get_trade_review,
+    get_webhook_event,
+    get_webhook_event_by_source_signal,
     list_agents,
     list_context_files,
     list_meetings,
     list_trade_reviews,
+    list_webhook_events,
     replace_meeting_outputs,
+    update_webhook_event,
     upsert_report,
 )
 from .schemas import MeetingCreate, MeetingRunResponse, TradeReviewCreate
@@ -45,6 +51,17 @@ from .services.telegram_service import (
     load_telegram_config,
 )
 from .trade_reviews import run_trade_review
+from .webhooks import (
+    WEBHOOK_SECRET_HEADER,
+    WebhookConfig,
+    WebhookInputError,
+    auto_send_requested,
+    load_webhook_config,
+    normalize_trade_signal_payload,
+    validate_webhook_secret,
+    webhook_identity,
+    webhook_status,
+)
 
 
 def create_app(
@@ -53,12 +70,14 @@ def create_app(
     upload_root: str | Path | None = None,
     llm_config: LLMConfig | None = None,
     telegram_config: TelegramConfig | None = None,
+    webhook_config: WebhookConfig | None = None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path or DEFAULT_DB_PATH)
     resolved_report_dir = Path(report_dir or DEFAULT_REPORT_DIR)
     resolved_upload_root = Path(upload_root or UPLOAD_ROOT)
     resolved_llm_config = llm_config or load_llm_config()
     resolved_telegram_config = telegram_config or load_telegram_config()
+    resolved_webhook_config = webhook_config or load_webhook_config()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -72,6 +91,7 @@ def create_app(
     app.state.upload_root = resolved_upload_root
     app.state.llm_config = resolved_llm_config
     app.state.telegram_config = resolved_telegram_config
+    app.state.webhook_config = resolved_webhook_config
 
     app.add_middleware(
         CORSMiddleware,
@@ -96,6 +116,12 @@ def create_app(
             raise HTTPException(status_code=404, detail="Trade review not found")
         return trade_review
 
+    def _webhook_event_or_404(event_id: str) -> dict:
+        event = get_webhook_event(event_id, app.state.db_path)
+        if not event:
+            raise HTTPException(status_code=404, detail="Webhook event not found")
+        return event
+
     @app.get("/health")
     def health() -> dict:
         return {
@@ -105,6 +131,7 @@ def create_app(
             "database": "sqlite",
             "llm_provider": app.state.llm_config.provider,
             "telegram": TelegramService(app.state.telegram_config).status(),
+            "webhooks": webhook_status(app.state.webhook_config),
         }
 
     @app.get("/api/agents")
@@ -152,6 +179,167 @@ def create_app(
     @app.get("/api/telegram/status")
     def get_telegram_status() -> dict:
         return TelegramService(app.state.telegram_config).status()
+
+    @app.get("/api/webhooks/status")
+    def get_webhook_status() -> dict:
+        return {
+            **webhook_status(app.state.webhook_config),
+            "endpoint": "/api/webhooks/trade-signal",
+        }
+
+    @app.get("/api/webhooks/events")
+    def get_webhook_events() -> list[dict]:
+        return list_webhook_events(app.state.db_path)
+
+    @app.get("/api/webhooks/events/{event_id}")
+    def get_webhook_event_detail(event_id: str) -> dict:
+        event = _webhook_event_or_404(event_id)
+        trade_review = (
+            get_trade_review(event["trade_review_id"], app.state.db_path)
+            if event.get("trade_review_id")
+            else None
+        )
+        return {
+            "event": event,
+            "trade_review": trade_review,
+            "order_execution_allowed": False,
+        }
+
+    @app.post("/api/webhooks/trade-signal")
+    def post_trade_signal_webhook(
+        raw_payload: dict = Body(...),
+        auto_send_telegram: bool = Query(False),
+        webhook_secret: str | None = Header(default=None, alias=WEBHOOK_SECRET_HEADER),
+    ) -> JSONResponse:
+        status = webhook_status(app.state.webhook_config)
+        if not status["configured"]:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "disabled",
+                    "detail": status["disabled_reason"],
+                    "webhook_status": status,
+                    "duplicated": False,
+                    "order_execution_allowed": False,
+                },
+            )
+        if not validate_webhook_secret(app.state.webhook_config, webhook_secret):
+            raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
+        try:
+            normalized = normalize_trade_signal_payload(raw_payload)
+        except WebhookInputError as exc:
+            source = str(raw_payload.get("source") or "external_webhook")
+            signal_id = str(raw_payload.get("signal_id") or f"rejected_{uuid4().hex}")
+            event = create_webhook_event(
+                source=source,
+                signal_id=signal_id,
+                event_type="trade_signal",
+                raw_payload=raw_payload,
+                normalized_payload={},
+                status="rejected",
+                error_message=str(exc),
+                db_path=app.state.db_path,
+            )
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "status": "rejected",
+                    "detail": str(exc),
+                    "event": event,
+                    "duplicated": False,
+                    "order_execution_allowed": False,
+                },
+            )
+
+        source, signal_id = webhook_identity(normalized)
+        existing_event = get_webhook_event_by_source_signal(
+            source,
+            signal_id,
+            app.state.db_path,
+        )
+        requested_telegram = auto_send_requested(raw_payload, auto_send_telegram)
+        if existing_event and existing_event.get("trade_review_id"):
+            review = get_trade_review(existing_event["trade_review_id"], app.state.db_path)
+            report = get_report(review["linked_meeting_id"], app.state.db_path) if review else None
+            telegram_result = (
+                TelegramService(app.state.telegram_config).send_trade_review_report(review, report)
+                if requested_telegram and review
+                else None
+            )
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "duplicated",
+                    "duplicated": True,
+                    "event": existing_event,
+                    "trade_review": review,
+                    "structured_decision": review.get("structured_decision") if review else {},
+                    "telegram": telegram_result,
+                    "order_execution_allowed": False,
+                },
+            )
+
+        event = create_webhook_event(
+            source=source,
+            signal_id=signal_id,
+            event_type="trade_signal",
+            raw_payload=raw_payload,
+            normalized_payload=normalized,
+            status="normalized",
+            db_path=app.state.db_path,
+        )
+        try:
+            result = run_trade_review(
+                TradeReviewCreate(**normalized),
+                db_path=app.state.db_path,
+                report_dir=app.state.report_dir,
+                llm_config=app.state.llm_config,
+            )
+        except Exception as exc:
+            failed_event = update_webhook_event(
+                event["id"],
+                status="failed",
+                error_message=str(exc),
+                db_path=app.state.db_path,
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "failed",
+                    "event": failed_event,
+                    "detail": str(exc),
+                    "duplicated": False,
+                    "order_execution_allowed": False,
+                },
+            )
+
+        event = update_webhook_event(
+            event["id"],
+            status="reviewed",
+            trade_review_id=result["trade_review"]["id"],
+            db_path=app.state.db_path,
+        )
+        report = get_report(result["trade_review"]["linked_meeting_id"], app.state.db_path)
+        telegram_result = (
+            TelegramService(app.state.telegram_config).send_trade_review_report(
+                result["trade_review"],
+                report,
+            )
+            if requested_telegram
+            else None
+        )
+        return JSONResponse(
+            status_code=201,
+            content={
+                "status": "reviewed",
+                "duplicated": False,
+                "event": event,
+                **result,
+                "telegram": telegram_result,
+                "order_execution_allowed": False,
+            },
+        )
 
     @app.post("/api/trade-reviews", status_code=201)
     def post_trade_review(payload: TradeReviewCreate) -> dict:

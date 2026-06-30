@@ -40,6 +40,8 @@ export default function App() {
   const [agents, setAgents] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [tradeReviews, setTradeReviews] = useState([]);
+  const [webhookStatus, setWebhookStatus] = useState(null);
+  const [webhookEvents, setWebhookEvents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [topic, setTopic] = useState("");
@@ -100,14 +102,18 @@ export default function App() {
   async function loadInitialData() {
     setError("");
     try {
-      const [agentList, telegram, reviewList] = await Promise.all([
+      const [agentList, telegram, reviewList, hooks, events] = await Promise.all([
         api.getAgents(),
         api.getTelegramStatus(),
-        api.getTradeReviews()
+        api.getTradeReviews(),
+        api.getWebhookStatus(),
+        api.getWebhookEvents()
       ]);
       setAgents(agentList);
       setTelegramStatus(telegram);
       setTradeReviews(reviewList);
+      setWebhookStatus(hooks);
+      setWebhookEvents(events);
       await loadMeetings();
     } catch (err) {
       setError(err.message);
@@ -289,6 +295,21 @@ export default function App() {
     }
   }
 
+  async function refreshWebhookData() {
+    try {
+      const [hooks, events, reviewList] = await Promise.all([
+        api.getWebhookStatus(),
+        api.getWebhookEvents(),
+        api.getTradeReviews()
+      ]);
+      setWebhookStatus(hooks);
+      setWebhookEvents(events);
+      setTradeReviews(reviewList);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleSendTelegram() {
     if (!selectedId) return;
     setTelegramLoading(true);
@@ -437,6 +458,14 @@ export default function App() {
             </span>
           </div>
         </section>
+
+        <WebhookPanel
+          status={webhookStatus}
+          events={webhookEvents}
+          tradeReviews={tradeReviews}
+          onRefresh={refreshWebhookData}
+          onOpenMeeting={handleSelect}
+        />
 
         <section className="tradeReviewSection">
           <div className="tradeReviewHeader">
@@ -793,6 +822,84 @@ function DecisionCard({ decision }) {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }) {
+  const endpoint = `${api.baseUrl}${status?.endpoint || "/api/webhooks/trade-signal"}`;
+  const reviewById = new Map(tradeReviews.map((review) => [review.id, review]));
+  return (
+    <section className="webhookPanel">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">External Bot Webhook</p>
+          <h3>Webhook Receiver</h3>
+        </div>
+        <button className="iconButton" type="button" title="Refresh webhooks" onClick={onRefresh}>
+          <RefreshCw size={17} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="webhookStatusGrid">
+        <div>
+          <span>Enabled</span>
+          <strong>{String(Boolean(status?.enabled))}</strong>
+        </div>
+        <div>
+          <span>Configured</span>
+          <strong>{String(Boolean(status?.configured))}</strong>
+        </div>
+        <div>
+          <span>Secret required</span>
+          <strong>{String(Boolean(status?.require_secret))}</strong>
+        </div>
+        <div>
+          <span>Orders allowed</span>
+          <strong>{String(Boolean(status?.order_execution_allowed))}</strong>
+        </div>
+      </div>
+      <div className="endpointRow">
+        <span>Endpoint</span>
+        <code>{endpoint}</code>
+      </div>
+      <p className="contextHint">
+        Header: {status?.secret_header || "X-AI-Council-Webhook-Secret"}. Secret value is never
+        exposed in the UI.
+      </p>
+      {status?.disabled_reason && <p className="contextHint">{status.disabled_reason}</p>}
+      <div className="webhookEvents">
+        <h4>Recent webhook events</h4>
+        {events.length > 0 ? (
+          events.slice(0, 5).map((event) => {
+            const review = reviewById.get(event.trade_review_id);
+            return (
+              <article key={event.id}>
+                <div>
+                  <strong>{event.source}</strong>
+                  <span>
+                    {event.signal_id} · {event.status} · duplicated false
+                  </span>
+                </div>
+                <div>
+                  <span>Trade review</span>
+                  <strong>{event.trade_review_id ? event.trade_review_id.slice(0, 8) : "none"}</strong>
+                </div>
+                <button
+                  className="secondaryButton"
+                  type="button"
+                  disabled={!review?.linked_meeting_id}
+                  onClick={() => review?.linked_meeting_id && onOpenMeeting(review.linked_meeting_id)}
+                >
+                  <FileText size={16} aria-hidden="true" />
+                  Open
+                </button>
+              </article>
+            );
+          })
+        ) : (
+          <div className="emptyState">No webhook events yet</div>
+        )}
+      </div>
     </section>
   );
 }

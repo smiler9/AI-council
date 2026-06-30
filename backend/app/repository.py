@@ -561,3 +561,150 @@ def _trade_review_row_to_dict(row) -> dict:
     review["trade_allowed"] = bool(review["trade_allowed"])
     review["order_execution_allowed"] = False
     return review
+
+
+def create_webhook_event(
+    *,
+    source: str,
+    signal_id: str,
+    event_type: str,
+    raw_payload: dict,
+    normalized_payload: dict,
+    status: str,
+    trade_review_id: str | None = None,
+    error_message: str | None = None,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    event_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO webhook_events (
+                id,
+                source,
+                signal_id,
+                event_type,
+                raw_payload_json,
+                normalized_payload_json,
+                trade_review_id,
+                status,
+                error_message,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id,
+                source,
+                signal_id,
+                event_type,
+                json.dumps(raw_payload, sort_keys=True),
+                json.dumps(normalized_payload, sort_keys=True),
+                trade_review_id,
+                status,
+                error_message,
+                timestamp,
+            ),
+        )
+    return get_webhook_event(event_id, db_path)
+
+
+def update_webhook_event(
+    event_id: str,
+    *,
+    status: str,
+    trade_review_id: str | None = None,
+    error_message: str | None = None,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE webhook_events
+            SET status = ?, trade_review_id = ?, error_message = ?
+            WHERE id = ?
+            """,
+            (status, trade_review_id, error_message, event_id),
+        )
+    return get_webhook_event(event_id, db_path)
+
+
+def get_webhook_event(event_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                source,
+                signal_id,
+                event_type,
+                raw_payload_json,
+                normalized_payload_json,
+                trade_review_id,
+                status,
+                error_message,
+                created_at
+            FROM webhook_events
+            WHERE id = ?
+            """,
+            (event_id,),
+        ).fetchone()
+    return _webhook_event_row_to_dict(row) if row else None
+
+
+def get_webhook_event_by_source_signal(
+    source: str,
+    signal_id: str,
+    db_path: str | Path | None = None,
+) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                source,
+                signal_id,
+                event_type,
+                raw_payload_json,
+                normalized_payload_json,
+                trade_review_id,
+                status,
+                error_message,
+                created_at
+            FROM webhook_events
+            WHERE source = ? AND signal_id = ?
+            """,
+            (source, signal_id),
+        ).fetchone()
+    return _webhook_event_row_to_dict(row) if row else None
+
+
+def list_webhook_events(db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                source,
+                signal_id,
+                event_type,
+                raw_payload_json,
+                normalized_payload_json,
+                trade_review_id,
+                status,
+                error_message,
+                created_at
+            FROM webhook_events
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+    return [_webhook_event_row_to_dict(row) for row in rows]
+
+
+def _webhook_event_row_to_dict(row) -> dict:
+    event = row_to_dict(row)
+    event["raw_payload"] = json.loads(event.pop("raw_payload_json"))
+    event["normalized_payload"] = json.loads(event.pop("normalized_payload_json"))
+    event["order_execution_allowed"] = False
+    return event

@@ -118,6 +118,21 @@ def init_db(db_path: str | Path | None = None) -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (linked_meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS webhook_events (
+                id TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                signal_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                raw_payload_json TEXT NOT NULL,
+                normalized_payload_json TEXT NOT NULL,
+                trade_review_id TEXT,
+                status TEXT NOT NULL,
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(source, signal_id),
+                FOREIGN KEY (trade_review_id) REFERENCES trade_reviews(id) ON DELETE SET NULL
+            );
             """
         )
         _ensure_column(
