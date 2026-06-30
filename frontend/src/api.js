@@ -63,6 +63,11 @@ export const api = {
     request(`/api/operations/risk-brief/telegram/send?limit=${limit}`, {
       method: "POST"
     }),
+  getDiagnosticsSummary: () => request("/api/diagnostics/summary"),
+  getDiagnosticsSecurity: () => request("/api/diagnostics/security"),
+  getDiagnosticsProviders: () => request("/api/diagnostics/providers"),
+  getDiagnosticsRuntime: () => request("/api/diagnostics/runtime"),
+  getDiagnosticsE2EStatus: () => request("/api/diagnostics/e2e-status"),
   getMeetings: () => request("/api/meetings"),
   getTradeReviews: () => request("/api/trade-reviews"),
   getWatchlists: () => request("/api/watchlists"),

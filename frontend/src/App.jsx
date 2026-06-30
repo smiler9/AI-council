@@ -207,6 +207,11 @@ export default function App() {
   const [operationsRiskBrief, setOperationsRiskBrief] = useState(null);
   const [operationsScheduleHealth, setOperationsScheduleHealth] = useState(null);
   const [operationsTelegramResult, setOperationsTelegramResult] = useState(null);
+  const [diagnosticsSummary, setDiagnosticsSummary] = useState(null);
+  const [diagnosticsSecurity, setDiagnosticsSecurity] = useState(null);
+  const [diagnosticsProviders, setDiagnosticsProviders] = useState(null);
+  const [diagnosticsRuntime, setDiagnosticsRuntime] = useState(null);
+  const [diagnosticsE2EStatus, setDiagnosticsE2EStatus] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [topic, setTopic] = useState("");
@@ -308,6 +313,7 @@ export default function App() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [paperLoading, setPaperLoading] = useState(false);
   const [operationsLoading, setOperationsLoading] = useState(false);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [riskEventLoading, setRiskEventLoading] = useState(false);
   const [webhookPreviewLoading, setWebhookPreviewLoading] = useState(false);
@@ -363,6 +369,11 @@ export default function App() {
         opsSummary,
         riskBrief,
         scheduleHealth,
+        diagSummary,
+        diagSecurity,
+        diagProviders,
+        diagRuntime,
+        diagE2EStatus,
         hooks,
         events
       ] = await Promise.all([
@@ -380,6 +391,11 @@ export default function App() {
         api.getOperationsSummary(),
         api.getOperationsRiskBrief(),
         api.getOperationsScheduleHealth(),
+        api.getDiagnosticsSummary(),
+        api.getDiagnosticsSecurity(),
+        api.getDiagnosticsProviders(),
+        api.getDiagnosticsRuntime(),
+        api.getDiagnosticsE2EStatus(),
         api.getWebhookStatus(),
         api.getWebhookEvents()
       ]);
@@ -403,6 +419,11 @@ export default function App() {
       setOperationsSummary(opsSummary);
       setOperationsRiskBrief(riskBrief);
       setOperationsScheduleHealth(scheduleHealth);
+      setDiagnosticsSummary(diagSummary);
+      setDiagnosticsSecurity(diagSecurity);
+      setDiagnosticsProviders(diagProviders);
+      setDiagnosticsRuntime(diagRuntime);
+      setDiagnosticsE2EStatus(diagE2EStatus);
       setScheduleForm((current) => ({
         ...current,
         watchlist_id: current.watchlist_id || watchlistList[0]?.id || ""
@@ -723,6 +744,30 @@ export default function App() {
       setError(err.message);
     } finally {
       setOperationsLoading(false);
+    }
+  }
+
+  async function refreshDiagnosticsData() {
+    setDiagnosticsLoading(true);
+    setError("");
+    try {
+      const [diagSummary, diagSecurity, diagProviders, diagRuntime, diagE2EStatus] =
+        await Promise.all([
+          api.getDiagnosticsSummary(),
+          api.getDiagnosticsSecurity(),
+          api.getDiagnosticsProviders(),
+          api.getDiagnosticsRuntime(),
+          api.getDiagnosticsE2EStatus()
+        ]);
+      setDiagnosticsSummary(diagSummary);
+      setDiagnosticsSecurity(diagSecurity);
+      setDiagnosticsProviders(diagProviders);
+      setDiagnosticsRuntime(diagRuntime);
+      setDiagnosticsE2EStatus(diagE2EStatus);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDiagnosticsLoading(false);
     }
   }
 
@@ -1218,6 +1263,7 @@ export default function App() {
 
         <nav className="sectionNav" aria-label="AI Council 주요 섹션">
           <a href="#dashboard">대시보드</a>
+          <a href="#diagnostics">운영 진단</a>
           <a href="#meetings">회의</a>
           <a href="#market-data">시장 데이터 상태</a>
           <a href="#risk-events">뉴스/공시 리스크</a>
@@ -1361,9 +1407,23 @@ export default function App() {
           webhookStatus={webhookStatus}
           telegramResult={operationsTelegramResult}
           loading={operationsLoading}
+          diagnosticsSummary={diagnosticsSummary}
+          diagnosticsSecurity={diagnosticsSecurity}
+          diagnosticsProviders={diagnosticsProviders}
+          diagnosticsE2EStatus={diagnosticsE2EStatus}
           onRefresh={refreshOperationsData}
           onSendTelegram={handleOperationsRiskBriefTelegram}
           onOpenMeeting={handleSelect}
+        />
+
+        <DiagnosticsPanel
+          summary={diagnosticsSummary}
+          security={diagnosticsSecurity}
+          providers={diagnosticsProviders}
+          runtime={diagnosticsRuntime}
+          e2eStatus={diagnosticsE2EStatus}
+          loading={diagnosticsLoading}
+          onRefresh={refreshDiagnosticsData}
         />
 
         <DashboardCards
@@ -1937,6 +1997,10 @@ function OperationsDashboardPanel({
   webhookStatus,
   telegramResult,
   loading,
+  diagnosticsSummary,
+  diagnosticsSecurity,
+  diagnosticsProviders,
+  diagnosticsE2EStatus,
   onRefresh,
   onSendTelegram,
   onOpenMeeting
@@ -1977,6 +2041,26 @@ function OperationsDashboardPanel({
           <span>시스템 상태</span>
           <strong>{summary?.status === "ok" ? "정상" : "확인 필요"}</strong>
           <p>운영 요약 API 기준</p>
+        </article>
+        <article>
+          <span>전체 시스템 진단</span>
+          <strong>{diagnosticsSummary?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>One-click diagnostics 기준</p>
+        </article>
+        <article>
+          <span>보안 점검 상태</span>
+          <strong>{diagnosticsSecurity?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>Secret 노출 없음 · 주문 실행 비활성화</p>
+        </article>
+        <article>
+          <span>Provider 점검 상태</span>
+          <strong>{diagnosticsProviders?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>LLM/Market/Risk/Webhook/Telegram</p>
+        </article>
+        <article>
+          <span>E2E script available</span>
+          <strong>{diagnosticsE2EStatus?.full_e2e_script_available ? "사용 가능" : "확인 필요"}</strong>
+          <p>{diagnosticsE2EStatus?.run_full_e2e_script_path || "scripts/run_full_e2e.sh"}</p>
         </article>
         <article>
           <span>전체 Watchlist 수</span>
@@ -2186,6 +2270,143 @@ function OperationsDashboardPanel({
           <p>{telegramResult.detail}</p>
         </div>
       )}
+      <SafetyBoundary />
+    </section>
+  );
+}
+
+function DiagnosticsPanel({
+  summary,
+  security,
+  providers,
+  runtime,
+  e2eStatus,
+  loading,
+  onRefresh
+}) {
+  const providerBlocks = providers?.providers || {};
+  const configuredFlags = security?.configured_secret_flags || {};
+  return (
+    <section className="tradeReviewSection" id="diagnostics">
+      <div className="tradeReviewHeader">
+        <div>
+          <p className="eyebrow">One-click Operations Diagnostics</p>
+          <h3>운영 진단</h3>
+        </div>
+        <button className="secondaryButton" type="button" disabled={loading} onClick={onRefresh}>
+          <RefreshCw size={17} aria-hidden="true" />
+          전체 진단 새로고침
+        </button>
+      </div>
+
+      <div className="dashboardGrid">
+        <article>
+          <span>전체 상태</span>
+          <strong>{summary?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>Backend health와 diagnostics summary 기준</p>
+        </article>
+        <article>
+          <span>보안 점검</span>
+          <strong>{security?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>Secret 노출 여부: {security?.secret_values_exposed ? "확인 필요" : "없음"}</p>
+        </article>
+        <article>
+          <span>Provider 상태</span>
+          <strong>{providers?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>각 provider 실패는 개별 항목에 표시됩니다.</p>
+        </article>
+        <article>
+          <span>Runtime 정보</span>
+          <strong>{runtime?.status === "ok" ? "정상" : "확인 필요"}</strong>
+          <p>Python {runtime?.python_version || "확인 중"} · {runtime?.phase_label || "Phase 23 diagnostics"}</p>
+        </article>
+        <article>
+          <span>E2E 점검 상태</span>
+          <strong>{e2eStatus?.full_e2e_script_available ? "스크립트 사용 가능" : "확인 필요"}</strong>
+          <p>{e2eStatus?.run_full_e2e_script_path || "scripts/run_full_e2e.sh"}</p>
+        </article>
+        <article className="safetyCard">
+          <span>주문 실행 상태</span>
+          <strong>비활성화</strong>
+          <p>order_execution_allowed=false</p>
+        </article>
+        <article className="safetyCard">
+          <span>브로커 연결 상태</span>
+          <strong>{security?.broker_api_connected ? "확인 필요" : "연결 안 됨"}</strong>
+          <p>진단은 read-only health check입니다.</p>
+        </article>
+        <article>
+          <span>simulation_only</span>
+          <strong>{summary?.safety?.simulation_only_confirmed ? "확인됨" : "확인 중"}</strong>
+          <p>Paper Trading은 내부 가상 시뮬레이션 전용</p>
+        </article>
+      </div>
+
+      <div className="webhookStatusGrid">
+        <div>
+          <span>LLM Provider</span>
+          <strong>{providerBlocks.llm?.provider || summary?.providers?.llm_provider || "mock"}</strong>
+        </div>
+        <div>
+          <span>Market Data Provider</span>
+          <strong>{providerBlocks.market_data?.active_provider || summary?.providers?.market_data_provider || "mock_market_data"}</strong>
+        </div>
+        <div>
+          <span>Risk Event Detector</span>
+          <strong>{providerBlocks.risk_events?.detector_enabled ? "사용 가능" : "확인 필요"}</strong>
+        </div>
+        <div>
+          <span>Telegram</span>
+          <strong>{providerBlocks.telegram?.configured ? "설정됨" : "비활성화"}</strong>
+        </div>
+        <div>
+          <span>Webhook</span>
+          <strong>{providerBlocks.webhooks?.configured ? "수신 가능" : "비활성화"}</strong>
+        </div>
+        <div>
+          <span>Database</span>
+          <strong>{runtime?.database?.exists ? "확인됨" : "확인 필요"}</strong>
+        </div>
+        <div>
+          <span>Reports directory</span>
+          <strong>{runtime?.reports_directory_exists ? "있음" : "없음"}</strong>
+        </div>
+        <div>
+          <span>E2E 예상 단계</span>
+          <strong>{e2eStatus?.latest_e2e_expected_steps || 17}</strong>
+        </div>
+      </div>
+
+      <div className="webhookEvents">
+        <h4>Secret 설정 여부</h4>
+        <article>
+          <div>
+            <strong>Secret 노출 여부: {security?.secret_values_exposed ? "확인 필요" : "없음"}</strong>
+            <span>.env 내용은 진단 API에서 읽거나 반환하지 않습니다.</span>
+          </div>
+          <div>
+            <span>Telegram token 설정</span>
+            <strong>{configuredFlags.telegram_bot_token_configured ? "설정됨" : "미설정"}</strong>
+          </div>
+          <div>
+            <span>Webhook secret 설정</span>
+            <strong>{configuredFlags.webhook_secret_configured ? "설정됨" : "미설정"}</strong>
+          </div>
+          <div>
+            <span>외부 데이터 API key 설정</span>
+            <strong>{configuredFlags.market_data_api_key_configured ? "설정됨" : "미설정"}</strong>
+          </div>
+        </article>
+      </div>
+
+      <div className="telegramResult disabled">
+        <strong>전체 시나리오 점검</strong>
+        <p>
+          E2E는 API에서 자동 실행하지 않습니다. 터미널에서 scripts/run_full_e2e.sh를 실행하세요.
+          이 점검은 실제 주문을 실행하지 않습니다.
+        </p>
+      </div>
+
       <SafetyBoundary />
     </section>
   );

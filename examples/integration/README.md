@@ -109,6 +109,42 @@ export AI_COUNCIL_TIMEOUT_SECONDS=30
 - 실제 브로커 API 연결 없음
 - 실제 주문 생성, 전송, 승인, 취소, 실행 없음
 
+## Operations Diagnostics
+
+Phase 23 diagnostics는 실행 중인 backend의 운영 상태를 한 번에 확인하는 read-only 점검입니다. E2E처럼 긴 시나리오를 API에서 자동 실행하지 않고, 상태와 실행 가능 여부만 확인합니다.
+
+실행:
+
+```bash
+cd ~/AI-council
+scripts/run_diagnostics.sh
+```
+
+직접 실행:
+
+```bash
+python3 examples/integration/run_diagnostics.py --pretty
+python3 examples/integration/run_diagnostics.py --base-url http://127.0.0.1:8000
+```
+
+환경변수:
+
+```bash
+export AI_COUNCIL_BASE_URL=http://127.0.0.1:8000
+export AI_COUNCIL_TIMEOUT_SECONDS=30
+```
+
+확인 API:
+
+- `/health`
+- `/api/diagnostics/summary`
+- `/api/diagnostics/security`
+- `/api/diagnostics/providers`
+- `/api/diagnostics/runtime`
+- `/api/diagnostics/e2e-status`
+
+Diagnostics는 `.env` 내용을 읽거나 반환하지 않습니다. Telegram token, Webhook secret, API key는 실제 값을 출력하지 않고 configured 여부만 표시합니다.
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

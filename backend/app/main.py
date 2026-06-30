@@ -11,6 +11,13 @@ from fastapi.responses import JSONResponse, Response
 from .autonomous_reviews import run_autonomous_review, send_autonomous_review_telegram
 from .council import build_failed_council_run, run_council
 from .database import DEFAULT_DB_PATH, init_db
+from .diagnostics import (
+    build_diagnostics_summary,
+    build_e2e_status,
+    build_provider_diagnostics,
+    build_runtime_diagnostics,
+    build_security_diagnostics,
+)
 from .file_context import (
     FileContextError,
     UPLOAD_ROOT,
@@ -239,6 +246,9 @@ def create_app(
             raise HTTPException(status_code=404, detail="Paper portfolio not found")
         return portfolio
 
+    def _endpoint_paths() -> list[str]:
+        return [getattr(route, "path", "") for route in app.routes]
+
     @app.get("/health")
     def health() -> dict:
         return {
@@ -268,6 +278,49 @@ def create_app(
             "telegram": TelegramService(app.state.telegram_config).status(),
             "webhooks": webhook_status(app.state.webhook_config),
         }
+
+    @app.get("/api/diagnostics/summary")
+    def get_diagnostics_summary() -> dict:
+        return build_diagnostics_summary(
+            llm_config=app.state.llm_config,
+            market_data_config=app.state.market_data_config,
+            telegram_service=TelegramService(app.state.telegram_config),
+            webhook_config=app.state.webhook_config,
+            risk_event_config=app.state.risk_event_config,
+            endpoint_paths=_endpoint_paths(),
+        )
+
+    @app.get("/api/diagnostics/security")
+    def get_diagnostics_security() -> dict:
+        return build_security_diagnostics(
+            telegram_service=TelegramService(app.state.telegram_config),
+            webhook_config=app.state.webhook_config,
+            market_data_config=app.state.market_data_config,
+            llm_config=app.state.llm_config,
+            endpoint_paths=_endpoint_paths(),
+        )
+
+    @app.get("/api/diagnostics/providers")
+    def get_diagnostics_providers() -> dict:
+        return build_provider_diagnostics(
+            llm_config=app.state.llm_config,
+            market_data_config=app.state.market_data_config,
+            telegram_service=TelegramService(app.state.telegram_config),
+            webhook_config=app.state.webhook_config,
+            risk_event_config=app.state.risk_event_config,
+        )
+
+    @app.get("/api/diagnostics/runtime")
+    def get_diagnostics_runtime() -> dict:
+        return build_runtime_diagnostics(
+            db_path=app.state.db_path,
+            report_dir=app.state.report_dir,
+            upload_root=app.state.upload_root,
+        )
+
+    @app.get("/api/diagnostics/e2e-status")
+    def get_diagnostics_e2e_status() -> dict:
+        return build_e2e_status()
 
     @app.get("/api/agents")
     def get_agents() -> list[dict]:
