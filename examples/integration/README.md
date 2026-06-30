@@ -278,6 +278,26 @@ scripts/run_oracle_readiness_check_dryrun.sh
 
 실제 Oracle 서버에 파일을 쓰거나 service를 조작하지 않습니다.
 
+## Oracle Preview-only Deploy Dry-run
+
+Phase 24G는 preview-only sidecar deployment plan과 command preview를 로컬에서 생성합니다.
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_preview_deploy_dryrun.sh
+```
+
+검증 항목:
+
+- bundle build/verify
+- readiness dry-run
+- preview plan 생성
+- preview plan verify
+- command preview 생성
+- 실제 Oracle 업로드 없음
+- systemd 운영봇 조작 없음
+- `order_execution_allowed=false`
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

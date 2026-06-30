@@ -141,6 +141,14 @@ Phase 24F deployment bundle과 수동 승인:
 
 Bundle은 기본적으로 `tmp/oracle_signal_export_bundle/`에 생성되며 Git에 포함하지 않습니다. 실제 Oracle 복사, systemd 조작, 운영봇 patch는 manual approval gate와 deployment runbook 검토 전까지 수행하지 않습니다.
 
+Phase 24G preview-only sidecar deploy preparation:
+
+- `examples/oracle_preview_deploy/`
+- `docs/US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md`
+- `scripts/run_oracle_preview_deploy_dryrun.sh`
+
+이 단계는 plan과 command preview만 생성합니다. Oracle 서버 업로드와 systemd 조작은 수행하지 않습니다.
+
 ## 안전한 export hook 삽입 위치 후보
 
 향후 별도 검증 후에만 고려할 수 있는 후보:

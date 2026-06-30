@@ -48,6 +48,16 @@ scripts/run_oracle_readiness_check_dryrun.sh
 
 - `docs/US_TRADER_ORACLE_MANUAL_APPROVAL_GATE.md`
 - `docs/US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md`
+- `docs/US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md`
+
+## Preview-only deploy dry-run
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_preview_deploy_dryrun.sh
+```
+
+이 명령은 bundle build/verify, readiness dry-run, preview deploy plan 생성/검증, command preview 생성을 로컬에서만 수행합니다.
 
 ## Safety Boundary
 

@@ -1,0 +1,24 @@
+{
+  "plan_id": "preview-plan-example",
+  "created_at": "2026-06-30T00:00:00+00:00",
+  "mode": "preview",
+  "bundle_path": "tmp/oracle_signal_export_bundle",
+  "oracle_target": {
+    "user": "<oracle-user>",
+    "host": "<oracle-host>",
+    "trading_dir": "<oracle-trading-dir>"
+  },
+  "sidecar_dir": "<oracle-sidecar-dir>",
+  "outbox_dir": "<oracle-sidecar-dir>/outbox",
+  "processed_dir": "<oracle-sidecar-dir>/processed",
+  "failed_dir": "<oracle-sidecar-dir>/failed",
+  "env_file_path": "<oracle-sidecar-dir>/oracle_sidecar.env",
+  "run_once_command_preview": "python3 <oracle-sidecar-dir>/us_trader_signal_outbox_bridge.py --mode preview --outbox <oracle-sidecar-dir>/outbox --pretty",
+  "verify_command_preview": "python3 <oracle-sidecar-dir>/us_trader_signal_outbox_bridge.py --mode preview --outbox <oracle-sidecar-dir>/sample_outbox --dry-run --pretty",
+  "rollback_command_preview": "manual approval required before removing sidecar preview files",
+  "auto_start": false,
+  "systemd_enabled": false,
+  "manual_approval_required": true,
+  "order_execution_allowed": false,
+  "safety_boundary": "AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only."
+}

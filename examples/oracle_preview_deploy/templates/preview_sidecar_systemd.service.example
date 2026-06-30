@@ -1,0 +1,18 @@
+# Preview-only sidecar systemd unit example.
+# This is a template for manual review only. AI Council does not install, enable, start, stop, or restart it.
+# It is independent from sniper-bot/usstock-bot/usstock-web and must not restart those services.
+# No broker API is called. No real order is created or transmitted.
+# order_execution_allowed=false
+
+[Unit]
+Description=AI Council US Trader preview-only sidecar
+Documentation=docs/US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=<oracle-sidecar-dir>
+EnvironmentFile=<oracle-sidecar-dir>/preview_sidecar.env
+ExecStart=/usr/bin/python3 <oracle-sidecar-dir>/us_trader_signal_outbox_bridge.py --mode preview --outbox <oracle-outbox-dir> --pretty
+
+[Install]
+WantedBy=multi-user.target

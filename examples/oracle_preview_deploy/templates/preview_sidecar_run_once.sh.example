@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Preview-only run-once example for manual review.
+# It calls AI Council normalize-preview through the sidecar bridge.
+# It does not modify Oracle live bot files and does not execute trades.
+# order_execution_allowed=false
+
+set -euo pipefail
+
+cd "<oracle-sidecar-dir>"
+source "<oracle-sidecar-dir>/preview_sidecar.env"
+python3 us_trader_signal_outbox_bridge.py \
+  --mode preview \
+  --outbox "${US_TRADER_SIGNAL_OUTBOX_DIR}" \
+  --state "${US_TRADER_SIGNAL_STATE_PATH}" \
+  --pretty

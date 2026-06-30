@@ -36,6 +36,8 @@ scripts/run_oracle_readiness_check_dryrun.sh
 ## 승인자 체크박스
 
 - [ ] bundle manifest와 sha256 검증 결과 확인
+- [ ] preview deploy plan 검증 결과 확인
+- [ ] preview command 파일이 자동 업로드/systemd 조작을 하지 않는지 확인
 - [ ] patch preview diff 수동 검토
 - [ ] safe insertion 위치가 `analyze_signals` 이후 또는 `scan_and_enter`의 candidate 생성 직후인지 확인
 - [ ] export hook이 `place_order/check_exits/force_close_all` 내부에 없는지 확인
@@ -62,6 +64,14 @@ US_TRADER_BRIDGE_MODE=preview
 ```
 
 `preview`는 AI Council `normalize-preview`만 호출하며 trade review를 생성하지 않습니다.
+
+Phase 24G preview deploy dry-run:
+
+```bash
+scripts/run_oracle_preview_deploy_dryrun.sh
+```
+
+이 dry-run은 Oracle 서버에 접속하거나 파일을 쓰지 않습니다.
 
 ## Review mode 전환 조건
 

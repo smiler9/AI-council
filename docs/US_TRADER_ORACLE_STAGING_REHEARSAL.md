@@ -173,6 +173,7 @@ scripts/run_oracle_readiness_check_dryrun.sh
 
 - `docs/US_TRADER_ORACLE_MANUAL_APPROVAL_GATE.md`
 - `docs/US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md`
+- `docs/US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md`
 
 ## 안전 경계
 

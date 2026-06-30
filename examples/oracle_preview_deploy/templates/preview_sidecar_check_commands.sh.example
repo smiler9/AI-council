@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Read-only check command examples.
+# Do not start, stop, restart, enable, or disable Oracle services from this file.
+
+set -euo pipefail
+
+echo "Read-only checks only"
+echo "ls -la <oracle-sidecar-dir>"
+echo "ls -la <oracle-outbox-dir>"
+echo "ps aux | grep -i ai_council | grep -v grep"
+echo "journalctl --no-pager -n 100 -u <sidecar-service-name>"
+echo "systemctl status --no-pager <sidecar-service-name>"
+echo "order_execution_allowed=false"

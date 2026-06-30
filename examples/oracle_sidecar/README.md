@@ -145,6 +145,17 @@ scripts/run_oracle_readiness_check_dryrun.sh
 
 bundle은 로컬 `tmp/`에만 생성되며 Git에 포함하지 않습니다. 실제 Oracle 파일 복사, systemd 조작, 운영봇 patch는 수동 승인 전까지 수행하지 않습니다.
 
+## Phase 24G preview-only deploy preparation
+
+Preview-only sidecar 배치 plan과 command preview를 생성하려면 다음을 실행합니다.
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_preview_deploy_dryrun.sh
+```
+
+이 단계는 실제 Oracle 서버에 자동 업로드하지 않고, systemd 운영봇을 재시작하지 않고, `preview` mode만 기본값으로 사용합니다.
+
 ## Sample payloads
 
 - `sample_outbox/us_trader_signal_001.json`

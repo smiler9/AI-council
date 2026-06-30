@@ -4262,6 +4262,28 @@ function WebhookPanel({
           배포 번들은 로컬 `tmp/`에만 생성됩니다. 실제 Oracle 서버 수정, systemd 조작, 운영봇 patch는 수동 승인
           전까지 수행하지 않습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Preview-only 배치 준비</span>
+            <strong>scripts/run_oracle_preview_deploy_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>Preview mode</span>
+            <strong>기본값</strong>
+          </div>
+          <div>
+            <span>자동 업로드</span>
+            <strong>없음</strong>
+          </div>
+          <div>
+            <span>운영봇 재시작</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          Preview-only 배치 준비는 plan과 command preview만 생성합니다. 실제 Oracle 서버에 자동 업로드하지 않고,
+          systemd 운영봇을 재시작하지 않으며, 실제 주문을 실행하지 않습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

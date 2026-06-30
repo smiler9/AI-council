@@ -53,6 +53,16 @@ python examples/oracle_deployment/oracle_readiness_check.py \
 
 별도 승인 전에는 수행하지 않습니다. 수행하더라도 운영봇 파일을 직접 덮어쓰지 않고 staging directory에만 복사합니다.
 
+Phase 24G에서는 실제 복사를 수행하지 않고 preview-only deploy plan과 command preview만 생성합니다.
+
+```bash
+scripts/run_oracle_preview_deploy_dryrun.sh
+```
+
+관련 문서:
+
+- `docs/US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md`
+
 ## Level 4: Preview-only Sidecar 실행
 
 sidecar는 `US_TRADER_BRIDGE_MODE=preview`로만 시작합니다. Preview mode는 `normalize-preview`만 호출하며 trade review를 생성하지 않습니다.

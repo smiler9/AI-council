@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Rollback command examples for manual approval only.
+# Do not touch Oracle live bot files or production trading services.
+# Commands that remove preview sidecar files must be reviewed before manual use.
+
+set -euo pipefail
+
+echo "Manual rollback checklist"
+echo "1. Confirm sidecar preview process is not running."
+echo "2. Preserve outbox/state/log files for audit."
+echo "3. Remove only sidecar preview files after manual approval."
+echo "4. Do not modify penny_stock_bot.py."
+echo "5. Do not operate sniper-bot/usstock-bot/usstock-web."
+echo "order_execution_allowed=false"

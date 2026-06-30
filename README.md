@@ -1672,6 +1672,53 @@ Phase 24F의 기본 원칙:
 - 실제 주문 실행 없음
 - `order_execution_allowed=false`
 
+## Phase 24G Oracle Preview-only Sidecar Deployment Preparation
+
+Phase 24G는 Oracle 운영봇을 직접 수정하지 않고, AI Council sidecar bridge를 preview-only 모드로 배치하기 위한 plan, 검증기, command preview generator를 추가합니다.
+
+추가 파일:
+
+- `examples/oracle_preview_deploy/prepare_preview_deploy_plan.py`
+- `examples/oracle_preview_deploy/verify_preview_deploy_plan.py`
+- `examples/oracle_preview_deploy/generate_preview_commands.py`
+- `examples/oracle_preview_deploy/templates/`
+- `docs/US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md`
+- `scripts/prepare_oracle_preview_deploy_plan.sh`
+- `scripts/verify_oracle_preview_deploy_plan.sh`
+- `scripts/generate_oracle_preview_commands.sh`
+- `scripts/run_oracle_preview_deploy_dryrun.sh`
+
+전체 dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_preview_deploy_dryrun.sh
+```
+
+개별 실행:
+
+```bash
+scripts/prepare_oracle_preview_deploy_plan.sh
+scripts/verify_oracle_preview_deploy_plan.sh
+scripts/generate_oracle_preview_commands.sh
+```
+
+생성 산출물:
+
+- `tmp/oracle_preview_deploy_plan.json`
+- `tmp/oracle_preview_commands/`
+
+Phase 24G의 기본 원칙:
+
+- 기본 mode는 `preview`
+- 실제 Oracle 서버에 자동 업로드하지 않음
+- systemd 운영봇 start/stop/restart 없음
+- `penny_stock_bot.py` 운영본 수정 없음
+- review mode는 사람이 명시적으로 바꿔야만 가능
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash
