@@ -114,6 +114,7 @@ def _normalized_payload(payload: TradeReviewCreate) -> dict[str, Any]:
     data["technical_indicators"] = data.get("technical_indicators") or {}
     data["news_headlines"] = data.get("news_headlines") or []
     data["risk_context"] = data.get("risk_context") or {}
+    data["auto_research_metadata"] = data.get("auto_research_metadata") or {}
     data["order_execution_allowed"] = False
     data["review_only"] = True
     return data

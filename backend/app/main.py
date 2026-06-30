@@ -8,6 +8,7 @@ from fastapi import Body, FastAPI, File, Header, HTTPException, Query, UploadFil
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
+from .autonomous_reviews import run_autonomous_review, send_autonomous_review_telegram
 from .council import build_failed_council_run, run_council
 from .database import DEFAULT_DB_PATH, init_db
 from .file_context import (
@@ -20,6 +21,7 @@ from .file_context import (
 )
 from .llm.config import LLMConfig, load_llm_config
 from .llm.providers import LLMProviderError, get_llm_provider
+from .market_data import MarketDataConfig, load_market_data_config
 from .reports import DEFAULT_REPORT_DIR, write_markdown_report
 from .repository import (
     create_context_file,
@@ -43,13 +45,20 @@ from .repository import (
     update_webhook_event,
     upsert_report,
 )
-from .schemas import MeetingCreate, MeetingRunResponse, TradeReviewCreate
+from .schemas import (
+    AutonomousReviewCreate,
+    MeetingCreate,
+    MeetingRunResponse,
+    TickerReviewCreate,
+    TradeReviewCreate,
+)
 from .seed import seed_agents
 from .services.telegram_service import (
     TelegramConfig,
     TelegramService,
     load_telegram_config,
 )
+from .ticker_reviews import run_ticker_review
 from .trade_reviews import run_trade_review
 from .webhooks import (
     WEBHOOK_SECRET_HEADER,
@@ -71,6 +80,7 @@ def create_app(
     llm_config: LLMConfig | None = None,
     telegram_config: TelegramConfig | None = None,
     webhook_config: WebhookConfig | None = None,
+    market_data_config: MarketDataConfig | None = None,
 ) -> FastAPI:
     resolved_db_path = Path(db_path or DEFAULT_DB_PATH)
     resolved_report_dir = Path(report_dir or DEFAULT_REPORT_DIR)
@@ -78,6 +88,7 @@ def create_app(
     resolved_llm_config = llm_config or load_llm_config()
     resolved_telegram_config = telegram_config or load_telegram_config()
     resolved_webhook_config = webhook_config or load_webhook_config()
+    resolved_market_data_config = market_data_config or load_market_data_config()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -92,6 +103,7 @@ def create_app(
     app.state.llm_config = resolved_llm_config
     app.state.telegram_config = resolved_telegram_config
     app.state.webhook_config = resolved_webhook_config
+    app.state.market_data_config = resolved_market_data_config
 
     app.add_middleware(
         CORSMiddleware,
@@ -130,6 +142,16 @@ def create_app(
             "mode": "phase_1_mock",
             "database": "sqlite",
             "llm_provider": app.state.llm_config.provider,
+            "market_data": {
+                "provider": app.state.market_data_config.provider,
+                "timeout_seconds": app.state.market_data_config.timeout_seconds,
+                "order_execution_allowed": False,
+            },
+            "autonomous_review": {
+                "enabled": True,
+                "candidate_provider": "mock_market_data",
+                "order_execution_allowed": False,
+            },
             "telegram": TelegramService(app.state.telegram_config).status(),
             "webhooks": webhook_status(app.state.webhook_config),
         }
@@ -355,6 +377,36 @@ def create_app(
             llm_config=app.state.llm_config,
         )
         return result
+
+    @app.post("/api/ticker-reviews", status_code=201)
+    def post_ticker_review(payload: TickerReviewCreate) -> dict:
+        if not payload.ticker.strip():
+            raise HTTPException(status_code=422, detail="Ticker is required")
+        return run_ticker_review(
+            payload,
+            db_path=app.state.db_path,
+            report_dir=app.state.report_dir,
+            llm_config=app.state.llm_config,
+            market_data_config=app.state.market_data_config,
+        )
+
+    @app.post("/api/autonomous-reviews", status_code=201)
+    def post_autonomous_review(payload: AutonomousReviewCreate) -> dict:
+        return run_autonomous_review(
+            payload,
+            db_path=app.state.db_path,
+            report_dir=app.state.report_dir,
+            llm_config=app.state.llm_config,
+            market_data_config=app.state.market_data_config,
+        )
+
+    @app.post("/api/autonomous-reviews/{review_id}/telegram/send")
+    def send_autonomous_review_to_telegram(review_id: str) -> dict:
+        return send_autonomous_review_telegram(
+            review_id,
+            db_path=app.state.db_path,
+            telegram_service=TelegramService(app.state.telegram_config),
+        )
 
     @app.get("/api/trade-reviews")
     def get_trade_reviews() -> list[dict]:

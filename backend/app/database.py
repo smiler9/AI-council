@@ -133,6 +133,37 @@ def init_db(db_path: str | Path | None = None) -> None:
                 UNIQUE(source, signal_id),
                 FOREIGN KEY (trade_review_id) REFERENCES trade_reviews(id) ON DELETE SET NULL
             );
+
+            CREATE TABLE IF NOT EXISTS ticker_reviews (
+                id TEXT PRIMARY KEY,
+                ticker TEXT NOT NULL,
+                review_mode TEXT NOT NULL,
+                timeframe TEXT,
+                source TEXT NOT NULL,
+                auto_payload_json TEXT NOT NULL,
+                trade_review_id TEXT NOT NULL,
+                linked_meeting_id TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                risk_level TEXT NOT NULL,
+                order_execution_allowed INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (trade_review_id) REFERENCES trade_reviews(id) ON DELETE CASCADE,
+                FOREIGN KEY (linked_meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS autonomous_reviews (
+                id TEXT PRIMARY KEY,
+                universe TEXT NOT NULL,
+                review_mode TEXT NOT NULL,
+                max_candidates INTEGER NOT NULL,
+                timeframe TEXT,
+                candidate_count INTEGER NOT NULL,
+                result_summary_json TEXT NOT NULL,
+                created_trade_review_ids_json TEXT NOT NULL,
+                created_ticker_review_ids_json TEXT NOT NULL,
+                order_execution_allowed INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
         _ensure_column(

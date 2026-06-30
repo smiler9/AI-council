@@ -554,6 +554,200 @@ def get_trade_review(review_id: str, db_path: str | Path | None = None) -> dict 
     return _trade_review_row_to_dict(row) if row else None
 
 
+def create_ticker_review(
+    *,
+    ticker: str,
+    review_mode: str,
+    timeframe: str | None,
+    source: str,
+    auto_payload: dict,
+    trade_review_id: str,
+    linked_meeting_id: str,
+    decision: str,
+    risk_level: str,
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    review_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO ticker_reviews (
+                id,
+                ticker,
+                review_mode,
+                timeframe,
+                source,
+                auto_payload_json,
+                trade_review_id,
+                linked_meeting_id,
+                decision,
+                risk_level,
+                order_execution_allowed,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                review_id,
+                ticker,
+                review_mode,
+                timeframe,
+                source,
+                json.dumps(auto_payload, sort_keys=True),
+                trade_review_id,
+                linked_meeting_id,
+                decision,
+                risk_level,
+                0,
+                timestamp,
+            ),
+        )
+    return get_ticker_review(review_id, db_path)
+
+
+def get_ticker_review(review_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                ticker,
+                review_mode,
+                timeframe,
+                source,
+                auto_payload_json,
+                trade_review_id,
+                linked_meeting_id,
+                decision,
+                risk_level,
+                order_execution_allowed,
+                created_at
+            FROM ticker_reviews
+            WHERE id = ?
+            """,
+            (review_id,),
+        ).fetchone()
+    return _ticker_review_row_to_dict(row) if row else None
+
+
+def list_ticker_reviews(db_path: str | Path | None = None) -> list[dict]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                ticker,
+                review_mode,
+                timeframe,
+                source,
+                auto_payload_json,
+                trade_review_id,
+                linked_meeting_id,
+                decision,
+                risk_level,
+                order_execution_allowed,
+                created_at
+            FROM ticker_reviews
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+    return [_ticker_review_row_to_dict(row) for row in rows]
+
+
+def create_autonomous_review(
+    *,
+    universe: str,
+    review_mode: str,
+    max_candidates: int,
+    timeframe: str | None,
+    candidate_count: int,
+    result_summary: dict,
+    created_trade_review_ids: list[str],
+    created_ticker_review_ids: list[str],
+    db_path: str | Path | None = None,
+) -> dict:
+    timestamp = now_iso()
+    review_id = uuid4().hex
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO autonomous_reviews (
+                id,
+                universe,
+                review_mode,
+                max_candidates,
+                timeframe,
+                candidate_count,
+                result_summary_json,
+                created_trade_review_ids_json,
+                created_ticker_review_ids_json,
+                order_execution_allowed,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                review_id,
+                universe,
+                review_mode,
+                max_candidates,
+                timeframe,
+                candidate_count,
+                json.dumps(result_summary, sort_keys=True),
+                json.dumps(created_trade_review_ids, sort_keys=True),
+                json.dumps(created_ticker_review_ids, sort_keys=True),
+                0,
+                timestamp,
+            ),
+        )
+    return get_autonomous_review(review_id, db_path)
+
+
+def get_autonomous_review(review_id: str, db_path: str | Path | None = None) -> dict | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                universe,
+                review_mode,
+                max_candidates,
+                timeframe,
+                candidate_count,
+                result_summary_json,
+                created_trade_review_ids_json,
+                created_ticker_review_ids_json,
+                order_execution_allowed,
+                created_at
+            FROM autonomous_reviews
+            WHERE id = ?
+            """,
+            (review_id,),
+        ).fetchone()
+    return _autonomous_review_row_to_dict(row) if row else None
+
+
+def _autonomous_review_row_to_dict(row) -> dict:
+    review = row_to_dict(row)
+    review["summary"] = json.loads(review.pop("result_summary_json"))
+    review["created_trade_review_ids"] = json.loads(
+        review.pop("created_trade_review_ids_json")
+    )
+    review["created_ticker_review_ids"] = json.loads(
+        review.pop("created_ticker_review_ids_json")
+    )
+    review["order_execution_allowed"] = False
+    return review
+
+
+def _ticker_review_row_to_dict(row) -> dict:
+    review = row_to_dict(row)
+    review["auto_payload"] = json.loads(review.pop("auto_payload_json"))
+    review["order_execution_allowed"] = False
+    return review
+
+
 def _trade_review_row_to_dict(row) -> dict:
     review = row_to_dict(row)
     review["input_payload"] = json.loads(review.pop("input_payload_json"))

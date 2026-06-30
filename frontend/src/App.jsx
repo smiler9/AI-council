@@ -149,10 +149,27 @@ export default function App() {
     notes: "",
     news_headlines: ""
   });
+  const [tickerReviewForm, setTickerReviewForm] = useState({
+    ticker: "",
+    review_mode: "penny_stock_risk",
+    timeframe: "1d",
+    notes: ""
+  });
+  const [autonomousReviewForm, setAutonomousReviewForm] = useState({
+    universe: "mock_penny_stocks",
+    review_mode: "penny_stock_risk",
+    max_candidates: 5,
+    timeframe: "1d",
+    notes: "자율 후보 발굴 및 검토"
+  });
   const [tradeReviewResult, setTradeReviewResult] = useState(null);
+  const [tickerReviewResult, setTickerReviewResult] = useState(null);
+  const [autonomousReviewResult, setAutonomousReviewResult] = useState(null);
   const [tradeReviewTelegramResult, setTradeReviewTelegramResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tradeReviewLoading, setTradeReviewLoading] = useState(false);
+  const [tickerReviewLoading, setTickerReviewLoading] = useState(false);
+  const [autonomousReviewLoading, setAutonomousReviewLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -243,6 +260,20 @@ export default function App() {
     }));
   }
 
+  function updateTickerReviewField(field, value) {
+    setTickerReviewForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function updateAutonomousReviewField(field, value) {
+    setAutonomousReviewForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
   function buildTradeReviewPayload() {
     const numberOrNull = (value) => {
       if (value === "" || value === null || value === undefined) return null;
@@ -294,6 +325,55 @@ export default function App() {
       setError(err.message);
     } finally {
       setTradeReviewLoading(false);
+    }
+  }
+
+  async function handleTickerReviewSubmit(event) {
+    event.preventDefault();
+    if (!tickerReviewForm.ticker.trim()) return;
+    setTickerReviewLoading(true);
+    setError("");
+    try {
+      const result = await api.createTickerReview({
+        ticker: tickerReviewForm.ticker.trim(),
+        review_mode: tickerReviewForm.review_mode,
+        timeframe: tickerReviewForm.timeframe.trim() || "1d",
+        notes: tickerReviewForm.notes.trim() || null
+      });
+      setTickerReviewResult(result);
+      setTradeReviews(await api.getTradeReviews());
+      if (result.meeting?.id) {
+        await loadMeetings(result.meeting.id);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTickerReviewLoading(false);
+    }
+  }
+
+  async function handleAutonomousReviewSubmit(event) {
+    event.preventDefault();
+    setAutonomousReviewLoading(true);
+    setError("");
+    try {
+      const result = await api.createAutonomousReview({
+        universe: autonomousReviewForm.universe,
+        review_mode: autonomousReviewForm.review_mode,
+        max_candidates: Number(autonomousReviewForm.max_candidates) || 5,
+        timeframe: autonomousReviewForm.timeframe.trim() || "1d",
+        notes: autonomousReviewForm.notes.trim() || null
+      });
+      setAutonomousReviewResult(result);
+      setTradeReviews(await api.getTradeReviews());
+      const firstMeetingId = result.results?.[0]?.linked_meeting_id;
+      if (firstMeetingId) {
+        await loadMeetings(firstMeetingId);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAutonomousReviewLoading(false);
     }
   }
 
@@ -432,6 +512,8 @@ export default function App() {
         <nav className="sectionNav" aria-label="AI Council 주요 섹션">
           <a href="#dashboard">대시보드</a>
           <a href="#meetings">회의</a>
+          <a href="#autonomous-review">자율 트레이더 검토</a>
+          <a href="#ticker-review">종목 자동 분석</a>
           <a href="#trade-review">거래 신호 검토</a>
           <a href="#webhooks">웹훅</a>
           <a href="#telegram">텔레그램</a>
@@ -576,6 +658,154 @@ export default function App() {
           onRefresh={refreshWebhookData}
           onOpenMeeting={handleSelect}
         />
+
+        <section className="tradeReviewSection" id="autonomous-review">
+          <div className="tradeReviewHeader">
+            <div>
+              <p className="eyebrow">Autonomous Trader Review Mode</p>
+              <h3>자율 트레이더 검토</h3>
+            </div>
+            <span>주문 실행 허용 여부: 아니오</span>
+          </div>
+          <form className="tickerReviewForm" onSubmit={handleAutonomousReviewSubmit}>
+            <label>
+              <span>후보군</span>
+              <select
+                value={autonomousReviewForm.universe}
+                onChange={(event) => updateAutonomousReviewField("universe", event.target.value)}
+              >
+                <option value="mock_penny_stocks">mock_penny_stocks</option>
+                <option value="mock_momentum_stocks">mock_momentum_stocks</option>
+                <option value="mock_watchlist">mock_watchlist</option>
+                <option value="custom_stub">custom_stub</option>
+              </select>
+            </label>
+            <label>
+              <span>검토 모드</span>
+              <select
+                value={autonomousReviewForm.review_mode}
+                onChange={(event) => updateAutonomousReviewField("review_mode", event.target.value)}
+              >
+                <option value="penny_stock_risk">페니주 리스크 검토 (penny_stock_risk)</option>
+                <option value="momentum_review">모멘텀 검토 (momentum_review)</option>
+                <option value="news_catalyst_review">뉴스 촉매 검토 (news_catalyst_review)</option>
+                <option value="general_review">일반 검토 (general_review)</option>
+              </select>
+            </label>
+            <label>
+              <span>최대 후보 수</span>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={autonomousReviewForm.max_candidates}
+                onChange={(event) =>
+                  updateAutonomousReviewField("max_candidates", event.target.value)
+                }
+              />
+            </label>
+            <label>
+              <span>타임프레임</span>
+              <input
+                value={autonomousReviewForm.timeframe}
+                onChange={(event) => updateAutonomousReviewField("timeframe", event.target.value)}
+                placeholder="1d"
+              />
+            </label>
+            <label className="wideField">
+              <span>메모</span>
+              <textarea
+                value={autonomousReviewForm.notes}
+                onChange={(event) => updateAutonomousReviewField("notes", event.target.value)}
+                rows={3}
+              />
+            </label>
+            <button
+              className="primaryButton"
+              type="submit"
+              disabled={autonomousReviewLoading}
+            >
+              <Shield size={18} aria-hidden="true" />
+              자율 검토 시작
+            </button>
+          </form>
+          <p className="contextHint">
+            AI Council이 후보 종목을 자동 발굴하고 리스크 검토를 수행합니다. 이 기능은 주문을
+            실행하지 않고, 검토와 보고만 수행합니다.
+          </p>
+          {autonomousReviewResult && (
+            <AutonomousReviewResult
+              result={autonomousReviewResult}
+              onOpenMeeting={handleSelect}
+            />
+          )}
+        </section>
+
+        <section className="tradeReviewSection" id="ticker-review">
+          <div className="tradeReviewHeader">
+            <div>
+              <p className="eyebrow">Phase 11 Ticker-only Auto Research</p>
+              <h3>종목 자동 분석</h3>
+            </div>
+            <span>주문 실행 허용 여부: false</span>
+          </div>
+          <form className="tickerReviewForm" onSubmit={handleTickerReviewSubmit}>
+            <label>
+              <span>티커</span>
+              <input
+                value={tickerReviewForm.ticker}
+                onChange={(event) => updateTickerReviewField("ticker", event.target.value)}
+                placeholder="TESTA"
+                maxLength={16}
+              />
+            </label>
+            <label>
+              <span>검토 모드</span>
+              <select
+                value={tickerReviewForm.review_mode}
+                onChange={(event) => updateTickerReviewField("review_mode", event.target.value)}
+              >
+                <option value="penny_stock_risk">페니주 리스크 검토 (penny_stock_risk)</option>
+                <option value="momentum_review">모멘텀 검토 (momentum_review)</option>
+                <option value="long_term_review">장기 관점 검토 (long_term_review)</option>
+                <option value="news_catalyst_review">뉴스 촉매 검토 (news_catalyst_review)</option>
+                <option value="general_review">일반 검토 (general_review)</option>
+              </select>
+            </label>
+            <label>
+              <span>타임프레임</span>
+              <input
+                value={tickerReviewForm.timeframe}
+                onChange={(event) => updateTickerReviewField("timeframe", event.target.value)}
+                placeholder="1d"
+              />
+            </label>
+            <label className="wideField">
+              <span>메모</span>
+              <textarea
+                value={tickerReviewForm.notes}
+                onChange={(event) => updateTickerReviewField("notes", event.target.value)}
+                rows={3}
+                placeholder="종목만 입력한 자동 리서치 요청"
+              />
+            </label>
+            <button
+              className="primaryButton"
+              type="submit"
+              disabled={tickerReviewLoading || !tickerReviewForm.ticker.trim()}
+            >
+              <Shield size={18} aria-hidden="true" />
+              자동 분석 시작
+            </button>
+          </form>
+          <p className="contextHint">
+            티커만 입력하면 AI Council이 mock market data로 기본 payload를 구성해 Risk Gate Review를
+            실행합니다. 이 기능은 주문을 실행하지 않습니다.
+          </p>
+          {tickerReviewResult && (
+            <TickerReviewResult result={tickerReviewResult} onOpenMeeting={handleSelect} />
+          )}
+        </section>
 
         <section className="tradeReviewSection" id="trade-review">
           <div className="tradeReviewHeader">
@@ -883,6 +1113,7 @@ export default function App() {
 function DashboardCards({ health, telegramStatus, webhookStatus, meetings, tradeReviews }) {
   const backendOk = health?.status === "ok";
   const llmProvider = health?.llm_provider || "mock";
+  const marketDataProvider = health?.market_data?.provider || "mock";
   return (
     <section className="dashboardGrid" id="dashboard">
       <article>
@@ -894,6 +1125,21 @@ function DashboardCards({ health, telegramStatus, webhookStatus, meetings, trade
         <span>LLM Provider 상태</span>
         <strong>{llmProvider}</strong>
         <p>{llmProvider === "mock" ? "기본 mock provider 사용 중" : "Local/OpenAI 호환 provider 사용 중"}</p>
+      </article>
+      <article>
+        <span>Market Data Provider 상태</span>
+        <strong>{marketDataProvider}</strong>
+        <p>Phase 11 기본값은 mock market data입니다.</p>
+      </article>
+      <article>
+        <span>자율 검토 모드</span>
+        <strong>사용 가능</strong>
+        <p>자율 후보 발굴 + 자동 검토 + 보고</p>
+      </article>
+      <article>
+        <span>후보 발굴 provider</span>
+        <strong>mock_market_data</strong>
+        <p>실제 외부 market data API를 호출하지 않습니다.</p>
       </article>
       <article>
         <span>텔레그램 상태</span>
@@ -916,8 +1162,8 @@ function DashboardCards({ health, telegramStatus, webhookStatus, meetings, trade
         <p>읽기 전용 검토 기록</p>
       </article>
       <article className="safetyCard">
-        <span>안전 경계 상태</span>
-        <strong>주문 실행 비활성화</strong>
+        <span>주문 실행 상태</span>
+        <strong>비활성화</strong>
         <p>order_execution_allowed=false</p>
       </article>
     </section>
@@ -939,6 +1185,10 @@ function SettingsGuidePanel({ health }) {
         <div>
           <dt>현재 LLM Provider</dt>
           <dd>{health?.llm_provider || "mock"}</dd>
+        </div>
+        <div>
+          <dt>현재 Market Data Provider</dt>
+          <dd>{health?.market_data?.provider || "mock"}</dd>
         </div>
         <div>
           <dt>Local LLM 전환</dt>
@@ -1085,6 +1335,179 @@ function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }
         ) : (
           <div className="emptyState">아직 웹훅 이벤트가 없습니다.</div>
         )}
+      </div>
+    </section>
+  );
+}
+
+function AutonomousReviewResult({ result, onOpenMeeting }) {
+  const groups = [
+    ["위험 후보", result.results?.filter((item) => item.decision === "BLOCK" || item.risk_level === "critical") || []],
+    ["주의 후보", result.results?.filter((item) => item.decision === "HOLD" || item.risk_level === "high") || []],
+    ["추가 데이터 필요", result.results?.filter((item) => item.decision === "NEED_MORE_DATA") || []],
+    ["검토상 허용", result.results?.filter((item) => item.decision === "ALLOW") || []]
+  ];
+  return (
+    <section className="tradeReviewResultCard">
+      <div className="decisionHeader">
+        <div>
+          <p className="eyebrow">자율 검토 결과</p>
+          <h3>
+            후보 {result.candidate_count}개 · 주문 실행 허용 여부: 아니오
+          </h3>
+        </div>
+        <div className="badgeGroup">
+          <span className="decisionBadge hold">HOLD {result.summary?.hold_count || 0}</span>
+          <span className="riskBadge critical">BLOCK {result.summary?.block_count || 0}</span>
+        </div>
+      </div>
+      <div className="decisionMetrics">
+        <div>
+          <span>후보군</span>
+          <strong>{result.universe}</strong>
+        </div>
+        <div>
+          <span>검토 모드</span>
+          <strong>{result.review_mode}</strong>
+        </div>
+        <div>
+          <span>검토상 허용</span>
+          <strong>{result.summary?.allow_count || 0}</strong>
+        </div>
+        <div>
+          <span>보류</span>
+          <strong>{result.summary?.hold_count || 0}</strong>
+        </div>
+        <div>
+          <span>차단</span>
+          <strong>{result.summary?.block_count || 0}</strong>
+        </div>
+        <div>
+          <span>추가 데이터 필요</span>
+          <strong>{result.summary?.need_more_data_count || 0}</strong>
+        </div>
+      </div>
+      <div className="autonomousGroups">
+        {groups.map(([title, items]) => (
+          <div className="autonomousGroup" key={title}>
+            <h4>{title}</h4>
+            {items.length > 0 ? (
+              items.map((item) => (
+                <article key={`${title}-${item.ticker}-${item.linked_meeting_id}`}>
+                  <div>
+                    <strong>{item.ticker}</strong>
+                    <span>
+                      {decisionLabel(item.decision)} · {riskLevelLabel(item.risk_level)} · {item.scan_reason}
+                    </span>
+                    <span>주문 실행 허용 여부: {booleanKo(Boolean(item.order_execution_allowed))}</span>
+                  </div>
+                  <button
+                    className="secondaryButton"
+                    type="button"
+                    disabled={!item.linked_meeting_id}
+                    onClick={() => item.linked_meeting_id && onOpenMeeting(item.linked_meeting_id)}
+                  >
+                    <FileText size={16} aria-hidden="true" />
+                    회의 열기
+                  </button>
+                </article>
+              ))
+            ) : (
+              <div className="emptyState">해당 후보가 없습니다.</div>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="contextHint">
+        ALLOW가 나오더라도 검토상 허용일 뿐이며 실제 주문 실행 허용이 아닙니다.
+      </p>
+    </section>
+  );
+}
+
+function TickerReviewResult({ result, onOpenMeeting }) {
+  const tickerReview = result.ticker_review || {};
+  const tradeReview = result.trade_review || {};
+  const decision = result.structured_decision || tradeReview.structured_decision || {};
+  const marketData = result.market_data || {};
+  const linkedMeetingId = tickerReview.linked_meeting_id || tradeReview.linked_meeting_id;
+  return (
+    <section className="tradeReviewResultCard">
+      <div className="decisionHeader">
+        <div>
+          <p className="eyebrow">자동 분석 결과</p>
+          <h3>
+            {tickerReview.ticker || tradeReview.ticker} · {decisionLabel(decision.decision)}
+          </h3>
+        </div>
+        <div className="badgeGroup">
+          <span className={`decisionBadge ${(decision.decision || "").toLowerCase()}`}>
+            {decisionLabel(decision.decision)}
+          </span>
+          <span className={`riskBadge ${decision.risk_level || ""}`}>
+            {riskLevelLabel(decision.risk_level)}
+          </span>
+        </div>
+      </div>
+      <div className="decisionMetrics">
+        <div>
+          <span>리뷰 모드</span>
+          <strong>{tickerReview.review_mode || "penny_stock_risk"}</strong>
+        </div>
+        <div>
+          <span>데이터 품질</span>
+          <strong>{dataQualityLabel(marketData.data_quality || decision.data_quality)}</strong>
+        </div>
+        <div>
+          <span>사용 provider</span>
+          <strong>{marketData.provider || "mock_market_data"}</strong>
+        </div>
+        <div>
+          <span>거래 검토 ID</span>
+          <strong>{tickerReview.trade_review_id ? tickerReview.trade_review_id.slice(0, 8) : "없음"}</strong>
+        </div>
+        <div>
+          <span>연결된 회의</span>
+          <strong>{linkedMeetingId ? linkedMeetingId.slice(0, 8) : "없음"}</strong>
+        </div>
+        <div>
+          <span>주문 실행 허용 여부</span>
+          <strong>{booleanKo(Boolean(result.order_execution_allowed))}</strong>
+        </div>
+      </div>
+      <div className="decisionLists">
+        <div>
+          <h4>주요 리스크</h4>
+          {(decision.risk_flags || []).slice(0, 6).map((flag) => (
+            <span key={flag}>{flag}</span>
+          ))}
+        </div>
+        <div>
+          <h4>추가 확인 필요사항</h4>
+          {(decision.required_follow_up || []).slice(0, 4).map((item) => (
+            <p key={item}>{item}</p>
+          ))}
+        </div>
+      </div>
+      <div className="tradeReviewActions">
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={!linkedMeetingId}
+          onClick={() => linkedMeetingId && onOpenMeeting(linkedMeetingId)}
+        >
+          <FileText size={17} aria-hidden="true" />
+          연결된 회의 열기
+        </button>
+        <a
+          className={`secondaryButton ${result.report?.available ? "" : "disabled"}`}
+          href={linkedMeetingId && result.report?.available ? api.reportUrl(linkedMeetingId) : undefined}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <FileText size={17} aria-hidden="true" />
+          리포트
+        </a>
       </div>
     </section>
   );

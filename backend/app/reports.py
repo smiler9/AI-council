@@ -18,6 +18,8 @@ def build_markdown_report(
     ticker = meeting.get("ticker") or "N/A"
     context_files = meeting.get("context_files", [])
     trade_signal = meeting.get("trade_signal") or {}
+    auto_research_metadata = trade_signal.get("auto_research_metadata") or {}
+    auto_research_context = trade_signal.get("risk_context") or {}
     debate_messages = messages or []
     structured_decision = meeting.get("structured_decision", {})
     trade_review = json.dumps(meeting["trade_review"], indent=2, sort_keys=True)
@@ -41,6 +43,32 @@ def build_markdown_report(
         "## 거래 신호 컨텍스트 (Trade Signal Context)",
         "",
     ]
+    if trade_signal.get("source") == "ticker_only_auto_research" or auto_research_metadata:
+        lines.extend(
+            [
+                "## 종목 자동 분석 요청",
+                "",
+                f"- 티커: `{trade_signal.get('ticker', ticker)}`",
+                f"- 리뷰 모드: `{auto_research_metadata.get('review_mode') or auto_research_context.get('review_mode', 'general_review')}`",
+                f"- 타임프레임: `{auto_research_metadata.get('timeframe') or trade_signal.get('timeframe') or '1d'}`",
+                f"- 요청 출처: `{trade_signal.get('source', 'ticker_only_auto_research')}`",
+                "",
+                "## 자동 생성된 분석 payload",
+                "",
+                "```json",
+                json.dumps(trade_signal, indent=2, sort_keys=True),
+                "```",
+                "",
+                "## 사용된 데이터 provider",
+                "",
+                f"`{auto_research_metadata.get('market_data_provider') or auto_research_context.get('market_data_provider') or auto_research_context.get('data_source') or 'mock_market_data'}`",
+                "",
+                "## 데이터 품질",
+                "",
+                f"`{auto_research_context.get('data_quality', 'limited')}`",
+                "",
+            ]
+        )
     if trade_signal:
         lines.extend(
             [

@@ -40,6 +40,20 @@ export const api = {
   getWebhookEvent: (eventId) => request(`/api/webhooks/events/${eventId}`),
   getMeetings: () => request("/api/meetings"),
   getTradeReviews: () => request("/api/trade-reviews"),
+  createTickerReview: (payload) =>
+    request("/api/ticker-reviews", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  createAutonomousReview: (payload) =>
+    request("/api/autonomous-reviews", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  sendAutonomousReviewTelegram: (reviewId) =>
+    request(`/api/autonomous-reviews/${reviewId}/telegram/send`, {
+      method: "POST"
+    }),
   createTradeReview: (payload) =>
     request("/api/trade-reviews", {
       method: "POST",

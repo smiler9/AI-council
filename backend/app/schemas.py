@@ -39,3 +39,35 @@ class TradeReviewCreate(BaseModel):
     technical_indicators: dict = Field(default_factory=dict)
     news_headlines: list[str] = Field(default_factory=list)
     risk_context: dict = Field(default_factory=dict)
+    auto_research_metadata: dict = Field(default_factory=dict)
+
+
+class TickerReviewCreate(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    review_mode: Literal[
+        "penny_stock_risk",
+        "momentum_review",
+        "long_term_review",
+        "news_catalyst_review",
+        "general_review",
+    ] = "penny_stock_risk"
+    timeframe: str = Field(default="1d", max_length=32)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class AutonomousReviewCreate(BaseModel):
+    universe: Literal[
+        "mock_penny_stocks",
+        "mock_momentum_stocks",
+        "mock_watchlist",
+        "custom_stub",
+    ] = "mock_penny_stocks"
+    review_mode: Literal[
+        "penny_stock_risk",
+        "momentum_review",
+        "news_catalyst_review",
+        "general_review",
+    ] = "penny_stock_risk"
+    max_candidates: int = Field(default=5, ge=1, le=20)
+    timeframe: str = Field(default="1d", max_length=32)
+    notes: str | None = Field(default=None, max_length=2000)

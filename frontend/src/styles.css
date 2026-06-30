@@ -522,19 +522,26 @@ select:focus {
   padding: 6px 9px;
 }
 
-.tradeReviewForm {
+.tradeReviewForm,
+.tickerReviewForm {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
-.tradeReviewForm label {
+.tickerReviewForm {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tradeReviewForm label,
+.tickerReviewForm label {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
 
-.tradeReviewForm label > span {
+.tradeReviewForm label > span,
+.tickerReviewForm label > span {
   color: #314253;
   font-size: 13px;
   font-weight: 780;
@@ -556,7 +563,8 @@ select:focus {
   grid-column: span 2;
 }
 
-.tradeReviewForm .primaryButton {
+.tradeReviewForm .primaryButton,
+.tickerReviewForm .primaryButton {
   align-self: end;
 }
 
@@ -564,6 +572,53 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.autonomousGroups {
+  display: grid;
+  gap: 12px;
+}
+
+.autonomousGroup {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #d9e0e7;
+  padding-top: 12px;
+}
+
+.autonomousGroup h4 {
+  margin: 0;
+  color: #314253;
+  font-size: 14px;
+}
+
+.autonomousGroup article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.autonomousGroup article > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.autonomousGroup strong,
+.autonomousGroup span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autonomousGroup span {
+  color: #667789;
+  font-size: 12px;
+  font-weight: 760;
 }
 
 .recentTradeReviews {
@@ -1054,6 +1109,7 @@ select:focus {
   }
 
   .tradeReviewForm,
+  .tickerReviewForm,
   .webhookStatusGrid,
   .settingsGuide dl,
   .recentTradeReviews > div {
@@ -1061,6 +1117,10 @@ select:focus {
   }
 
   .webhookEvents article {
+    grid-template-columns: 1fr;
+  }
+
+  .autonomousGroup article {
     grid-template-columns: 1fr;
   }
 
@@ -1109,6 +1169,7 @@ select:focus {
   }
 
   .tradeReviewForm,
+  .tickerReviewForm,
   .webhookStatusGrid,
   .settingsGuide dl,
   .recentTradeReviews > div {

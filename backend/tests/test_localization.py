@@ -15,6 +15,7 @@ def test_frontend_contains_korean_localization_strings():
 
     for phrase in [
         "대시보드",
+        "자율 트레이더 검토",
         "새 회의 만들기",
         "거래 신호 검토",
         "웹훅 수신기",
