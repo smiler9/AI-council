@@ -64,8 +64,10 @@ a {
 
 .brand h1,
 .brand p,
+.createForm h2,
 .topbar h2,
 .topbar p,
+.settingsGuide h3,
 .outputGroup h3,
 .outputCard h4,
 .outputCard p,
@@ -86,14 +88,44 @@ a {
 .eyebrow,
 .outputCard p,
 .reviewPanel dt,
+.settingsGuide dt,
 .emptyState,
 .blankSlate p {
   color: #667789;
 }
 
+.sectionNav {
+  display: grid;
+  gap: 6px;
+}
+
+.sectionNav a {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  color: #314253;
+  font-size: 13px;
+  font-weight: 820;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.sectionNav a:hover {
+  border-color: #1f7a8c;
+  background: #eef8f8;
+}
+
 .createForm {
   display: grid;
   gap: 12px;
+}
+
+.createForm h2 {
+  color: #17202a;
+  font-size: 16px;
+  letter-spacing: 0;
 }
 
 .createForm label {
@@ -303,6 +335,70 @@ select:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.dashboardGrid article,
+.settingsGuide {
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.dashboardGrid article {
+  display: grid;
+  gap: 4px;
+}
+
+.dashboardGrid span,
+.settingsGuide dt {
+  color: #667789;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.dashboardGrid strong {
+  color: #17202a;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.dashboardGrid p,
+.settingsGuide dd {
+  min-width: 0;
+  margin: 0;
+  color: #314253;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.dashboardGrid .safetyCard {
+  border-color: #b9e7c9;
+  background: #f0fbf4;
+}
+
+.settingsGuide {
+  display: grid;
+  gap: 12px;
+}
+
+.settingsGuide dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.settingsGuide dl > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .detailGrid {
@@ -615,7 +711,7 @@ select:focus {
 
 .decisionMetrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
 }
 
@@ -959,6 +1055,7 @@ select:focus {
 
   .tradeReviewForm,
   .webhookStatusGrid,
+  .settingsGuide dl,
   .recentTradeReviews > div {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1013,6 +1110,7 @@ select:focus {
 
   .tradeReviewForm,
   .webhookStatusGrid,
+  .settingsGuide dl,
   .recentTradeReviews > div {
     grid-template-columns: 1fr;
   }

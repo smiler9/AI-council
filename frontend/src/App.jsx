@@ -18,12 +18,71 @@ import { api } from "./api";
 
 const SAFETY_BOUNDARY =
   "AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.";
+const KOREAN_SAFETY_BOUNDARY =
+  "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.";
+
+const DECISION_LABELS = {
+  ALLOW: "검토상 허용",
+  HOLD: "보류",
+  BLOCK: "차단",
+  NEED_MORE_DATA: "추가 데이터 필요"
+};
+
+const RISK_LEVEL_LABELS = {
+  low: "낮음",
+  medium: "보통",
+  high: "높음",
+  critical: "매우 높음"
+};
+
+const DATA_QUALITY_LABELS = {
+  limited: "제한적",
+  sufficient: "충분",
+  poor: "부족",
+  unknown: "알 수 없음",
+  moderate: "보통",
+  failed: "실패"
+};
+
+const AGENT_LABELS = {
+  "Financial Statement Agent": "재무제표 분석 에이전트",
+  "News Catalyst Agent": "뉴스 촉매 분석 에이전트",
+  "Technical Momentum Agent": "기술적 모멘텀 에이전트",
+  "Risk Manager Agent": "리스크 관리자 에이전트",
+  "Pump & Dump Risk Agent": "펌프앤덤프 위험 감시 에이전트",
+  "Skeptic Agent": "비판 검토 에이전트",
+  "Chairman Agent": "의장 에이전트"
+};
+
+const MODE_LABELS = {
+  quick_review: "빠른 검토",
+  deep_debate: "심층 토론",
+  skeptic_review: "비판 중심 검토",
+  risk_gate_review: "리스크 게이트 검토",
+  action_plan: "실행 계획 수립"
+};
+
+const ROUND_LABELS = {
+  initial_opinion: "1라운드: 1차 의견",
+  rebuttal: "2라운드: 반박",
+  revision: "3라운드: 수정 의견",
+  chairman_summary: "4라운드: 의장 요약",
+  structured_decision: "5라운드: 구조화된 판단"
+};
+
+const MESSAGE_TYPE_LABELS = {
+  analysis: "분석",
+  rebuttal: "반박",
+  revision: "수정",
+  summary: "요약",
+  decision: "판단"
+};
 
 function statusLabel(status) {
-  if (status === "completed") return "Completed";
-  if (status === "failed") return "Failed";
-  if (status === "running") return "Running";
-  return "Draft";
+  if (status === "completed") return "완료";
+  if (status === "failed") return "실패";
+  if (status === "running") return "실행 중";
+  return "초안";
 }
 
 function stageIcon(stage) {
@@ -33,13 +92,42 @@ function stageIcon(stage) {
 }
 
 function modeLabel(mode) {
-  return (mode || "quick_review").replaceAll("_", " ");
+  const value = mode || "quick_review";
+  return `${MODE_LABELS[value] || value.replaceAll("_", " ")} (${value})`;
+}
+
+function decisionLabel(value) {
+  if (!value) return "대기 중";
+  return `${DECISION_LABELS[value] || value} (${value})`;
+}
+
+function riskLevelLabel(value) {
+  if (!value) return "미평가";
+  return `${RISK_LEVEL_LABELS[value] || value} (${value})`;
+}
+
+function dataQualityLabel(value) {
+  if (!value) return "알 수 없음";
+  return `${DATA_QUALITY_LABELS[value] || value} (${value})`;
+}
+
+function agentLabel(name) {
+  return AGENT_LABELS[name] ? `${AGENT_LABELS[name]} (${name})` : name;
+}
+
+function messageTypeLabel(value) {
+  return MESSAGE_TYPE_LABELS[value] ? `${MESSAGE_TYPE_LABELS[value]} (${value})` : value;
+}
+
+function booleanKo(value) {
+  return value ? "예 (true)" : "아니오 (false)";
 }
 
 export default function App() {
   const [agents, setAgents] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [tradeReviews, setTradeReviews] = useState([]);
+  const [health, setHealth] = useState(null);
   const [webhookStatus, setWebhookStatus] = useState(null);
   const [webhookEvents, setWebhookEvents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -102,13 +190,15 @@ export default function App() {
   async function loadInitialData() {
     setError("");
     try {
-      const [agentList, telegram, reviewList, hooks, events] = await Promise.all([
+      const [healthStatus, agentList, telegram, reviewList, hooks, events] = await Promise.all([
+        api.getHealth(),
         api.getAgents(),
         api.getTelegramStatus(),
         api.getTradeReviews(),
         api.getWebhookStatus(),
         api.getWebhookEvents()
       ]);
+      setHealth(healthStatus);
       setAgents(agentList);
       setTelegramStatus(telegram);
       setTradeReviews(reviewList);
@@ -335,51 +425,61 @@ export default function App() {
           </div>
           <div>
             <h1>AI Council</h1>
-            <p>Mock agent review room</p>
+            <p>검토와 리스크 분석 회의실</p>
           </div>
         </div>
 
+        <nav className="sectionNav" aria-label="AI Council 주요 섹션">
+          <a href="#dashboard">대시보드</a>
+          <a href="#meetings">회의</a>
+          <a href="#trade-review">거래 신호 검토</a>
+          <a href="#webhooks">웹훅</a>
+          <a href="#telegram">텔레그램</a>
+          <a href="#settings-guide">설정/가이드</a>
+        </nav>
+
         <form className="createForm" onSubmit={handleCreate}>
+          <h2>새 회의 만들기</h2>
           <label>
-            <span>Topic</span>
+            <span>분석 주제</span>
             <textarea
               value={topic}
               onChange={(event) => setTopic(event.target.value)}
-              placeholder="Analyze TEST breakout risk"
+              placeholder="예: TEST 돌파 신호의 리스크를 검토해줘"
               rows={4}
             />
           </label>
           <label>
-            <span>Ticker</span>
+            <span>종목명</span>
             <input
               value={ticker}
               onChange={(event) => setTicker(event.target.value)}
-              placeholder="Optional"
+              placeholder="선택 입력"
               maxLength={16}
             />
           </label>
           <label>
-            <span>Mode</span>
+            <span>회의 모드</span>
             <select value={mode} onChange={(event) => setMode(event.target.value)}>
-              <option value="quick_review">Quick review</option>
-              <option value="deep_debate">Deep debate</option>
-              <option value="skeptic_review">Skeptic review</option>
-              <option value="risk_gate_review">Risk gate review</option>
-              <option value="action_plan">Action plan</option>
+              <option value="quick_review">빠른 검토 (quick_review)</option>
+              <option value="deep_debate">심층 토론 (deep_debate)</option>
+              <option value="skeptic_review">비판 중심 검토 (skeptic_review)</option>
+              <option value="risk_gate_review">리스크 게이트 검토 (risk_gate_review)</option>
+              <option value="action_plan">실행 계획 수립 (action_plan)</option>
             </select>
           </label>
           <button className="primaryButton" type="submit" disabled={loading || !topic.trim()}>
             <Plus size={18} aria-hidden="true" />
-            Create meeting
+            회의 만들기
           </button>
         </form>
 
         <div className="sidebarHeader">
-          <span>Meetings</span>
+          <span>회의 목록</span>
           <button
             className="iconButton"
             type="button"
-            title="Refresh meetings"
+            title="회의 목록 새로고침"
             onClick={() => loadMeetings()}
           >
             <RefreshCw size={17} aria-hidden="true" />
@@ -396,19 +496,19 @@ export default function App() {
             >
               <span className="meetingTitle">{meeting.topic}</span>
               <span className="meetingMeta">
-                {meeting.ticker || "No ticker"} · {statusLabel(meeting.status)}
+                {meeting.ticker || "종목 없음"} · {statusLabel(meeting.status)}
               </span>
             </button>
           ))}
-          {meetings.length === 0 && <div className="emptyState">No meetings yet</div>}
+          {meetings.length === 0 && <div className="emptyState">아직 생성된 회의가 없습니다.</div>}
         </div>
       </aside>
 
       <main className="workspace">
-        <header className="topbar">
+        <header className="topbar" id="meetings">
           <div>
-            <p className="eyebrow">AI Council Workspace</p>
-            <h2>{selectedMeeting?.topic || "Create a council meeting"}</h2>
+            <p className="eyebrow">AI Council 작업공간</p>
+            <h2>{selectedMeeting?.topic || "회의를 만들거나 선택하세요"}</h2>
           </div>
           <div className="actions">
             {selectedMeeting?.ticker && <span className="ticker">{selectedMeeting.ticker}</span>}
@@ -419,7 +519,7 @@ export default function App() {
               onClick={handleRun}
             >
               <Play size={18} aria-hidden="true" />
-              Run council
+              회의 실행
             </button>
             <a
               className={`secondaryButton ${detail?.report?.available ? "" : "disabled"}`}
@@ -428,7 +528,7 @@ export default function App() {
               rel="noreferrer"
             >
               <FileText size={18} aria-hidden="true" />
-              Report
+              리포트
             </a>
           </div>
         </header>
@@ -443,21 +543,31 @@ export default function App() {
         <section className="statusStrip">
           <div>
             <ListChecks size={18} aria-hidden="true" />
-            <span>{agents.length} seeded agents</span>
+            <span>에이전트 {agents.length}명 준비</span>
           </div>
           <div>
             <Shield size={18} aria-hidden="true" />
-            <span>No broker execution</span>
+            <span>브로커/주문 실행 없음</span>
           </div>
           <div>
             <CheckCircle2 size={18} aria-hidden="true" />
             <span>
               {selectedMeeting
                 ? `${statusLabel(selectedMeeting.status)} · ${modeLabel(selectedMeeting.mode)}`
-                : "Ready"}
+                : "준비 완료"}
             </span>
           </div>
         </section>
+
+        <DashboardCards
+          health={health}
+          telegramStatus={telegramStatus}
+          webhookStatus={webhookStatus}
+          meetings={meetings}
+          tradeReviews={tradeReviews}
+        />
+
+        <SettingsGuidePanel health={health} />
 
         <WebhookPanel
           status={webhookStatus}
@@ -467,17 +577,17 @@ export default function App() {
           onOpenMeeting={handleSelect}
         />
 
-        <section className="tradeReviewSection">
+        <section className="tradeReviewSection" id="trade-review">
           <div className="tradeReviewHeader">
             <div>
-              <p className="eyebrow">Phase 7 Read-only Review</p>
-              <h3>Trade Signal Review</h3>
+              <p className="eyebrow">Phase 7 읽기 전용 검토</p>
+              <h3>거래 신호 검토</h3>
             </div>
-            <span>order_execution_allowed=false</span>
+            <span>주문 실행 허용 여부: false</span>
           </div>
           <form className="tradeReviewForm" onSubmit={handleTradeReviewSubmit}>
             <label>
-              <span>Ticker</span>
+              <span>종목명</span>
               <input
                 value={tradeReviewForm.ticker}
                 onChange={(event) => updateTradeReviewField("ticker", event.target.value)}
@@ -486,7 +596,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Signal</span>
+              <span>전략 신호</span>
               <input
                 value={tradeReviewForm.strategy_signal}
                 onChange={(event) =>
@@ -496,19 +606,19 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Side context</span>
+              <span>매수/매도 문맥</span>
               <select
                 value={tradeReviewForm.side}
                 onChange={(event) => updateTradeReviewField("side", event.target.value)}
               >
                 <option value="watch_only">watch_only</option>
                 <option value="review_only">review_only</option>
-                <option value="buy">buy as context</option>
-                <option value="sell">sell as context</option>
+                <option value="buy">buy - 검토 문맥으로만 저장</option>
+                <option value="sell">sell - 검토 문맥으로만 저장</option>
               </select>
             </label>
             <label>
-              <span>Price</span>
+              <span>가격</span>
               <input
                 type="number"
                 step="0.0001"
@@ -519,7 +629,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Volume</span>
+              <span>거래량</span>
               <input
                 type="number"
                 min="0"
@@ -529,7 +639,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Timeframe</span>
+              <span>타임프레임</span>
               <input
                 value={tradeReviewForm.timeframe}
                 onChange={(event) => updateTradeReviewField("timeframe", event.target.value)}
@@ -537,7 +647,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Spread %</span>
+              <span>스프레드 %</span>
               <input
                 type="number"
                 step="0.01"
@@ -553,7 +663,7 @@ export default function App() {
                 checked={tradeReviewForm.premarket}
                 onChange={(event) => updateTradeReviewField("premarket", event.target.checked)}
               />
-              <span>Premarket</span>
+              <span>장전 거래</span>
             </label>
             <label>
               <span>RSI</span>
@@ -566,7 +676,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>VWAP distance</span>
+              <span>VWAP 거리</span>
               <input
                 type="number"
                 step="0.001"
@@ -576,23 +686,23 @@ export default function App() {
               />
             </label>
             <label className="wideField">
-              <span>News headlines</span>
+              <span>뉴스 헤드라인</span>
               <textarea
                 value={tradeReviewForm.news_headlines}
                 onChange={(event) =>
                   updateTradeReviewField("news_headlines", event.target.value)
                 }
                 rows={3}
-                placeholder="One headline per line"
+                placeholder="한 줄에 하나씩 입력"
               />
             </label>
             <label className="wideField">
-              <span>Notes</span>
+              <span>메모</span>
               <textarea
                 value={tradeReviewForm.notes}
                 onChange={(event) => updateTradeReviewField("notes", event.target.value)}
                 rows={3}
-                placeholder="candidate signal generated by existing bot"
+                placeholder="기존 봇이 생성한 후보 신호"
               />
             </label>
             <button
@@ -605,12 +715,12 @@ export default function App() {
               }
             >
               <Shield size={18} aria-hidden="true" />
-              Submit for review
+              검토 요청
             </button>
           </form>
           <p className="contextHint">
-            Trade Review accepts external bot candidates as read-only context and never creates,
-            sends, or routes orders.
+            거래 신호 검토는 외부 봇의 후보 신호를 읽기 전용 문맥으로만 저장합니다. 주문을 생성,
+            전송, 라우팅하지 않습니다.
           </p>
           {tradeReviewResult && (
             <TradeReviewResult
@@ -624,7 +734,7 @@ export default function App() {
           )}
           {tradeReviews.length > 0 && (
             <div className="recentTradeReviews">
-              <h4>Recent trade reviews</h4>
+              <h4>최근 거래 신호 검토</h4>
               <div>
                 {tradeReviews.slice(0, 4).map((review) => (
                   <button
@@ -634,8 +744,8 @@ export default function App() {
                   >
                     <strong>{review.ticker}</strong>
                     <span>
-                      {review.decision} · {review.risk_level} ·{" "}
-                      {String(review.order_execution_allowed)}
+                      {decisionLabel(review.decision)} · {riskLevelLabel(review.risk_level)} · 주문{" "}
+                      {booleanKo(review.order_execution_allowed)}
                     </span>
                   </button>
                 ))}
@@ -650,45 +760,45 @@ export default function App() {
               <DecisionCard decision={structuredDecision} />
               <SafetyBoundary />
               <RoundList messages={messages} />
-              <OutputGroup title="Agent Analysis" outputs={groupedOutputs.analysis} />
-              <OutputGroup title="Skeptic Rebuttal" outputs={groupedOutputs.rebuttal} />
-              <OutputGroup title="Chairman Summary" outputs={groupedOutputs.summary} />
+              <OutputGroup title="에이전트 분석" outputs={groupedOutputs.analysis} />
+              <OutputGroup title="비판 검토 반박" outputs={groupedOutputs.rebuttal} />
+              <OutputGroup title="의장 요약" outputs={groupedOutputs.summary} />
             </div>
 
             <aside className="reviewPanel">
-              <h3>Trade Review Scaffold</h3>
+              <h3>검토/리스크 구조</h3>
               <dl>
                 <div>
-                  <dt>Mode</dt>
+                  <dt>회의 모드</dt>
                   <dd>{modeLabel(selectedMeeting.mode)}</dd>
                 </div>
                 <div>
-                  <dt>Mock only</dt>
-                  <dd>{String(selectedMeeting.trade_review?.mock_only)}</dd>
+                  <dt>Mock 전용</dt>
+                  <dd>{booleanKo(Boolean(selectedMeeting.trade_review?.mock_only))}</dd>
                 </div>
                 <div>
-                  <dt>Orders allowed</dt>
-                  <dd>{String(selectedMeeting.trade_review?.order_execution_allowed)}</dd>
+                  <dt>주문 실행 허용 여부</dt>
+                  <dd>{booleanKo(Boolean(selectedMeeting.trade_review?.order_execution_allowed))}</dd>
                 </div>
                 <div>
-                  <dt>Risk gate</dt>
+                  <dt>리스크 게이트</dt>
                   <dd>{selectedMeeting.trade_review?.risk_gate_status || "future_required"}</dd>
                 </div>
                 <div>
-                  <dt>Broker</dt>
+                  <dt>브로커 연결</dt>
                   <dd>{selectedMeeting.trade_review?.broker_integration_status || "not_connected"}</dd>
                 </div>
               </dl>
 
-              <div className="telegramPanel">
+              <div className="telegramPanel" id="telegram">
                 <div className="panelHeading">
-                  <h3>Telegram</h3>
-                  <span>{telegramStatus?.configured ? "ON" : "OFF"}</span>
+                  <h3>텔레그램 전송</h3>
+                  <span>{telegramStatus?.configured ? "켜짐" : "꺼짐"}</span>
                 </div>
                 <p className="contextHint">
                   {telegramStatus?.configured
-                    ? "Report delivery is configured for this backend."
-                    : "Telegram is disabled or missing TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID."}
+                    ? "이 backend에 리포트 전송 설정이 완료되어 있습니다."
+                    : "텔레그램이 비활성화되어 있거나 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID가 없습니다."}
                 </p>
                 <button
                   className="secondaryButton"
@@ -697,7 +807,7 @@ export default function App() {
                   onClick={handleSendTelegram}
                 >
                   <Send size={17} aria-hidden="true" />
-                  Send to Telegram
+                  텔레그램으로 보내기
                 </button>
                 {telegramResult && (
                   <div className={`telegramResult ${telegramResult.sent ? "sent" : "disabled"}`}>
@@ -709,7 +819,7 @@ export default function App() {
 
               <div className="contextPanel">
                 <div className="panelHeading">
-                  <h3>Context Files</h3>
+                  <h3>참고 파일</h3>
                   <span>{contextFiles.length}</span>
                 </div>
                 <form className="fileUpload" onSubmit={handleUploadFile}>
@@ -724,11 +834,11 @@ export default function App() {
                     disabled={!selectedFile || fileLoading}
                   >
                     <Upload size={17} aria-hidden="true" />
-                    Upload
+                    업로드
                   </button>
                 </form>
                 <p className="contextHint">
-                  Uploaded text summaries are included in the next council run as meeting context.
+                  업로드된 파일 요약은 다음 회의 실행 시 참고 문맥으로 포함됩니다.
                 </p>
                 <div className="fileList">
                   {contextFiles.map((file) => (
@@ -743,7 +853,7 @@ export default function App() {
                       <button
                         className="iconButton"
                         type="button"
-                        title="Delete file"
+                        title="파일 삭제"
                         disabled={fileLoading}
                         onClick={() => handleDeleteFile(file.id)}
                       >
@@ -752,7 +862,7 @@ export default function App() {
                     </div>
                   ))}
                   {contextFiles.length === 0 && (
-                    <div className="emptyState">No context files attached</div>
+                    <div className="emptyState">첨부된 참고 파일이 없습니다.</div>
                   )}
                 </div>
               </div>
@@ -761,12 +871,85 @@ export default function App() {
         ) : (
           <section className="blankSlate">
             <Brain size={44} aria-hidden="true" />
-            <h3>No meeting selected</h3>
-            <p>Create a topic to start the mock council workflow.</p>
+            <h3>선택된 회의가 없습니다.</h3>
+            <p>분석 주제를 입력해 AI Council 회의를 시작하세요.</p>
           </section>
         )}
       </main>
     </div>
+  );
+}
+
+function DashboardCards({ health, telegramStatus, webhookStatus, meetings, tradeReviews }) {
+  const backendOk = health?.status === "ok";
+  const llmProvider = health?.llm_provider || "mock";
+  return (
+    <section className="dashboardGrid" id="dashboard">
+      <article>
+        <span>Backend 상태</span>
+        <strong>{backendOk ? "정상" : "확인 필요"}</strong>
+        <p>{api.baseUrl}</p>
+      </article>
+      <article>
+        <span>LLM Provider 상태</span>
+        <strong>{llmProvider}</strong>
+        <p>{llmProvider === "mock" ? "기본 mock provider 사용 중" : "Local/OpenAI 호환 provider 사용 중"}</p>
+      </article>
+      <article>
+        <span>텔레그램 상태</span>
+        <strong>{telegramStatus?.configured ? "설정됨" : "비활성화"}</strong>
+        <p>보고 전송 전용, 주문 기능 없음</p>
+      </article>
+      <article>
+        <span>웹훅 상태</span>
+        <strong>{webhookStatus?.configured ? "수신 가능" : "비활성화"}</strong>
+        <p>{webhookStatus?.endpoint_path || "/api/webhooks/trade-signal"}</p>
+      </article>
+      <article>
+        <span>최근 회의 수</span>
+        <strong>{meetings.length}</strong>
+        <p>회의 목록 기준</p>
+      </article>
+      <article>
+        <span>최근 거래 신호 검토 수</span>
+        <strong>{tradeReviews.length}</strong>
+        <p>읽기 전용 검토 기록</p>
+      </article>
+      <article className="safetyCard">
+        <span>안전 경계 상태</span>
+        <strong>주문 실행 비활성화</strong>
+        <p>order_execution_allowed=false</p>
+      </article>
+    </section>
+  );
+}
+
+function SettingsGuidePanel({ health }) {
+  return (
+    <section className="settingsGuide" id="settings-guide">
+      <div>
+        <p className="eyebrow">설정/가이드</p>
+        <h3>Local LLM과 외부 연동 상태</h3>
+      </div>
+      <dl>
+        <div>
+          <dt>API 기준 URL</dt>
+          <dd>{api.baseUrl}</dd>
+        </div>
+        <div>
+          <dt>현재 LLM Provider</dt>
+          <dd>{health?.llm_provider || "mock"}</dd>
+        </div>
+        <div>
+          <dt>Local LLM 전환</dt>
+          <dd>LLM_PROVIDER=local_openai_compatible 설정 후 backend를 재시작</dd>
+        </div>
+        <div>
+          <dt>보안</dt>
+          <dd>텔레그램 token, 웹훅 secret, API key는 Git에 커밋하지 않습니다.</dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 
@@ -776,46 +959,50 @@ function DecisionCard({ decision }) {
     <section className="decisionCard">
       <div className="decisionHeader">
         <div>
-          <p className="eyebrow">Structured Decision</p>
-          <h3>{hasDecision ? decision.decision : "Pending"}</h3>
+          <p className="eyebrow">구조화된 판단</p>
+          <h3>{hasDecision ? decisionLabel(decision.decision) : "대기 중"}</h3>
         </div>
         <div className="badgeGroup">
           <span className={`decisionBadge ${hasDecision ? decision.decision?.toLowerCase() : ""}`}>
-            {hasDecision ? decision.decision : "DRAFT"}
+            {hasDecision ? decisionLabel(decision.decision) : "초안 (DRAFT)"}
           </span>
           <span className={`riskBadge ${hasDecision ? decision.risk_level : ""}`}>
-            {hasDecision ? decision.risk_level : "unrated"}
+            {hasDecision ? riskLevelLabel(decision.risk_level) : "미평가"}
           </span>
         </div>
       </div>
       <div className="decisionMetrics">
         <div>
-          <span>Confidence</span>
+          <span>신뢰도</span>
           <strong>{hasDecision ? Math.round(decision.confidence * 100) : 0}%</strong>
         </div>
         <div>
-          <span>Trade allowed</span>
-          <strong>{String(Boolean(decision.trade_allowed))}</strong>
+          <span>거래 검토상 허용 여부</span>
+          <strong>{booleanKo(Boolean(decision.trade_allowed))}</strong>
         </div>
         <div>
-          <span>Orders allowed</span>
-          <strong>{String(Boolean(decision.order_execution_allowed))}</strong>
+          <span>주문 실행 허용 여부</span>
+          <strong>{booleanKo(Boolean(decision.order_execution_allowed))}</strong>
         </div>
         <div>
-          <span>Size multiplier</span>
+          <span>포지션 크기 배수</span>
           <strong>{hasDecision ? decision.position_size_multiplier : 0}</strong>
+        </div>
+        <div>
+          <span>데이터 품질</span>
+          <strong>{hasDecision ? dataQualityLabel(decision.data_quality) : "알 수 없음"}</strong>
         </div>
       </div>
       {hasDecision && (
         <div className="decisionLists">
           <div>
-            <h4>Risk Flags</h4>
+            <h4>리스크 플래그</h4>
             {(decision.risk_flags || []).slice(0, 6).map((flag) => (
               <span key={flag}>{flag}</span>
             ))}
           </div>
           <div>
-            <h4>Required Follow-up</h4>
+            <h4>추가 확인 필요사항</h4>
             {(decision.required_follow_up || []).slice(0, 4).map((item) => (
               <p key={item}>{item}</p>
             ))}
@@ -830,45 +1017,44 @@ function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }
   const endpoint = `${api.baseUrl}${status?.endpoint || "/api/webhooks/trade-signal"}`;
   const reviewById = new Map(tradeReviews.map((review) => [review.id, review]));
   return (
-    <section className="webhookPanel">
+    <section className="webhookPanel" id="webhooks">
       <div className="tradeReviewHeader">
         <div>
-          <p className="eyebrow">External Bot Webhook</p>
-          <h3>Webhook Receiver</h3>
+          <p className="eyebrow">외부 봇 웹훅</p>
+          <h3>웹훅 수신기</h3>
         </div>
-        <button className="iconButton" type="button" title="Refresh webhooks" onClick={onRefresh}>
+        <button className="iconButton" type="button" title="웹훅 상태 새로고침" onClick={onRefresh}>
           <RefreshCw size={17} aria-hidden="true" />
         </button>
       </div>
       <div className="webhookStatusGrid">
         <div>
-          <span>Enabled</span>
-          <strong>{String(Boolean(status?.enabled))}</strong>
+          <span>활성화</span>
+          <strong>{booleanKo(Boolean(status?.enabled))}</strong>
         </div>
         <div>
-          <span>Configured</span>
-          <strong>{String(Boolean(status?.configured))}</strong>
+          <span>설정 완료</span>
+          <strong>{booleanKo(Boolean(status?.configured))}</strong>
         </div>
         <div>
-          <span>Secret required</span>
-          <strong>{String(Boolean(status?.require_secret))}</strong>
+          <span>Secret 필요</span>
+          <strong>{booleanKo(Boolean(status?.require_secret))}</strong>
         </div>
         <div>
-          <span>Orders allowed</span>
-          <strong>{String(Boolean(status?.order_execution_allowed))}</strong>
+          <span>주문 실행 허용 여부</span>
+          <strong>{booleanKo(Boolean(status?.order_execution_allowed))}</strong>
         </div>
       </div>
       <div className="endpointRow">
-        <span>Endpoint</span>
+        <span>엔드포인트</span>
         <code>{endpoint}</code>
       </div>
       <p className="contextHint">
-        Header: {status?.secret_header || "X-AI-Council-Webhook-Secret"}. Secret value is never
-        exposed in the UI.
+        Header: {status?.secret_header || "X-AI-Council-Webhook-Secret"}. Secret 값은 UI에 표시하지 않습니다.
       </p>
       {status?.disabled_reason && <p className="contextHint">{status.disabled_reason}</p>}
       <div className="webhookEvents">
-        <h4>Recent webhook events</h4>
+        <h4>최근 웹훅 이벤트</h4>
         {events.length > 0 ? (
           events.slice(0, 5).map((event) => {
             const review = reviewById.get(event.trade_review_id);
@@ -877,12 +1063,12 @@ function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }
                 <div>
                   <strong>{event.source}</strong>
                   <span>
-                    {event.signal_id} · {event.status} · duplicated false
+                    {event.signal_id} · {event.status} · 중복 여부는 API 응답 기준
                   </span>
                 </div>
                 <div>
-                  <span>Trade review</span>
-                  <strong>{event.trade_review_id ? event.trade_review_id.slice(0, 8) : "none"}</strong>
+                  <span>거래 신호 검토</span>
+                  <strong>{event.trade_review_id ? event.trade_review_id.slice(0, 8) : "없음"}</strong>
                 </div>
                 <button
                   className="secondaryButton"
@@ -891,13 +1077,13 @@ function WebhookPanel({ status, events, tradeReviews, onRefresh, onOpenMeeting }
                   onClick={() => review?.linked_meeting_id && onOpenMeeting(review.linked_meeting_id)}
                 >
                   <FileText size={16} aria-hidden="true" />
-                  Open
+                  열기
                 </button>
               </article>
             );
           })
         ) : (
-          <div className="emptyState">No webhook events yet</div>
+          <div className="emptyState">아직 웹훅 이벤트가 없습니다.</div>
         )}
       </div>
     </section>
@@ -919,47 +1105,51 @@ function TradeReviewResult({
     <section className="tradeReviewResultCard">
       <div className="decisionHeader">
         <div>
-          <p className="eyebrow">Review Result</p>
+          <p className="eyebrow">검토 결과</p>
           <h3>
-            {review.ticker} · {decision.decision || review.decision}
+            {review.ticker} · {decisionLabel(decision.decision || review.decision)}
           </h3>
         </div>
         <div className="badgeGroup">
           <span className={`decisionBadge ${(decision.decision || review.decision || "").toLowerCase()}`}>
-            {decision.decision || review.decision}
+            {decisionLabel(decision.decision || review.decision)}
           </span>
           <span className={`riskBadge ${decision.risk_level || review.risk_level}`}>
-            {decision.risk_level || review.risk_level}
+            {riskLevelLabel(decision.risk_level || review.risk_level)}
           </span>
         </div>
       </div>
       <div className="decisionMetrics">
         <div>
-          <span>Confidence</span>
+          <span>신뢰도</span>
           <strong>{decision.confidence ? Math.round(decision.confidence * 100) : 0}%</strong>
         </div>
         <div>
-          <span>Trade allowed</span>
-          <strong>{String(Boolean(decision.trade_allowed))}</strong>
+          <span>거래 검토상 허용 여부</span>
+          <strong>{booleanKo(Boolean(decision.trade_allowed))}</strong>
         </div>
         <div>
-          <span>Orders allowed</span>
-          <strong>{String(Boolean(decision.order_execution_allowed))}</strong>
+          <span>주문 실행 허용 여부</span>
+          <strong>{booleanKo(Boolean(decision.order_execution_allowed))}</strong>
         </div>
         <div>
-          <span>Linked meeting</span>
-          <strong>{linkedMeetingId ? linkedMeetingId.slice(0, 8) : "none"}</strong>
+          <span>연결된 회의</span>
+          <strong>{linkedMeetingId ? linkedMeetingId.slice(0, 8) : "없음"}</strong>
+        </div>
+        <div>
+          <span>데이터 품질</span>
+          <strong>{dataQualityLabel(decision.data_quality)}</strong>
         </div>
       </div>
       <div className="decisionLists">
         <div>
-          <h4>Risk Flags</h4>
+          <h4>리스크 플래그</h4>
           {(decision.risk_flags || []).slice(0, 6).map((flag) => (
             <span key={flag}>{flag}</span>
           ))}
         </div>
         <div>
-          <h4>Follow-up</h4>
+          <h4>추가 확인 필요사항</h4>
           {(decision.required_follow_up || []).slice(0, 4).map((item) => (
             <p key={item}>{item}</p>
           ))}
@@ -973,7 +1163,7 @@ function TradeReviewResult({
           onClick={() => linkedMeetingId && onOpenMeeting(linkedMeetingId)}
         >
           <FileText size={17} aria-hidden="true" />
-          Open linked meeting
+          연결된 회의 열기
         </button>
         <a
           className={`secondaryButton ${result.report?.available ? "" : "disabled"}`}
@@ -982,7 +1172,7 @@ function TradeReviewResult({
           rel="noreferrer"
         >
           <FileText size={17} aria-hidden="true" />
-          Report
+          리포트
         </a>
         <button
           className="secondaryButton"
@@ -991,11 +1181,11 @@ function TradeReviewResult({
           onClick={onSendTelegram}
         >
           <Send size={17} aria-hidden="true" />
-          Send review
+          검토 결과 보내기
         </button>
       </div>
       <p className="contextHint">
-        Telegram status: {telegramConfigured ? "configured" : "disabled or missing settings"}
+        텔레그램 상태: {telegramConfigured ? "설정 완료" : "비활성화 또는 설정 누락"}
       </p>
       {telegramResult && (
         <div className={`telegramResult ${telegramResult.sent ? "sent" : "disabled"}`}>
@@ -1011,22 +1201,20 @@ function SafetyBoundary() {
   return (
     <section className="safetyBoundary">
       <Shield size={18} aria-hidden="true" />
-      <p>{SAFETY_BOUNDARY}</p>
+      <p>
+        <strong>안전 경계:</strong> {KOREAN_SAFETY_BOUNDARY}
+        <br />
+        <span>{SAFETY_BOUNDARY}</span>
+      </p>
     </section>
   );
 }
 
 function RoundList({ messages }) {
-  const rounds = [
-    ["initial_opinion", "Agent Initial Opinions"],
-    ["rebuttal", "Rebuttals"],
-    ["revision", "Revised Notes"],
-    ["chairman_summary", "Chairman Summary"],
-    ["structured_decision", "Structured Decision"]
-  ];
+  const rounds = Object.entries(ROUND_LABELS);
   return (
     <section className="roundPanel">
-      <h3>Debate Rounds</h3>
+      <h3>토론 라운드</h3>
       {rounds.map(([round, title]) => {
         const roundMessages = messages.filter((message) => message.round === round);
         return (
@@ -1036,9 +1224,9 @@ function RoundList({ messages }) {
               roundMessages.map((message) => (
                 <article className="roundMessage" key={message.id || `${round}-${message.agent_key}`}>
                   <div>
-                    <strong>{message.agent_name}</strong>
+                    <strong>{agentLabel(message.agent_name)}</strong>
                     <span>
-                      {message.message_type} · {message.risk_level} ·{" "}
+                      {messageTypeLabel(message.message_type)} · {riskLevelLabel(message.risk_level)} ·{" "}
                       {Math.round(message.confidence * 100)}%
                     </span>
                   </div>
@@ -1046,7 +1234,7 @@ function RoundList({ messages }) {
                 </article>
               ))
             ) : (
-              <div className="emptyState">Run the council to generate this round</div>
+              <div className="emptyState">회의를 실행하면 이 라운드가 생성됩니다.</div>
             )}
           </div>
         );
@@ -1066,8 +1254,8 @@ function OutputGroup({ title, outputs }) {
               <div className="outputHeader">
                 <span className="stageIcon">{stageIcon(output.stage)}</span>
                 <div>
-                  <h4>{output.agent_name}</h4>
-                  <p>{output.stance} · confidence {Math.round(output.confidence * 100)}%</p>
+                  <h4>{agentLabel(output.agent_name)}</h4>
+                  <p>{output.stance} · 신뢰도 {Math.round(output.confidence * 100)}%</p>
                 </div>
               </div>
               <p className="outputContent">{output.content}</p>
@@ -1075,7 +1263,7 @@ function OutputGroup({ title, outputs }) {
           ))}
         </div>
       ) : (
-        <div className="emptyState">Run the council to generate this section</div>
+        <div className="emptyState">회의를 실행하면 이 섹션이 생성됩니다.</div>
       )}
     </section>
   );

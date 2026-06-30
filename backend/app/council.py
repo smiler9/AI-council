@@ -17,6 +17,10 @@ SAFETY_BOUNDARY = (
     "AI Council does not execute trades or connect to broker APIs. "
     "This output is for review, risk analysis, and decision support only."
 )
+KOREAN_SAFETY_BOUNDARY = (
+    "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. "
+    "이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다."
+)
 
 INITIAL_AGENT_KEYS = [
     "financial_statement",

@@ -1,6 +1,6 @@
-# Sample Webhook Smoke Test Results
+# Sample Webhook Smoke Test 결과 예시
 
-Example output from a successful local smoke test:
+아래는 로컬 smoke test가 성공했을 때 볼 수 있는 예시 출력입니다.
 
 ```text
 Backend health: ok (AI Council)
@@ -13,6 +13,6 @@ Smoke test summary
 - duplicate_signal.json: status=duplicated duplicated=True review=... decision=HOLD risk=medium orders=False
 ```
 
-Actual decision and risk level can vary by provider, but `order_execution_allowed` must remain `false`.
+Provider와 입력 데이터에 따라 `decision`과 `risk_level`은 달라질 수 있습니다. 단, `order_execution_allowed`는 항상 `false`여야 합니다.
 
-AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
+AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

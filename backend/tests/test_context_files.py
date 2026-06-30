@@ -109,11 +109,11 @@ def test_report_includes_file_summary(client, meeting):
     response = client.get(f"/api/meetings/{meeting['id']}/report")
 
     assert response.status_code == 200
-    assert "## Attached Context Files" in response.text
-    assert "## File Summaries" in response.text
+    assert "## 첨부된 참고 파일 (Attached Context Files)" in response.text
+    assert "## 파일 요약 (File Summaries)" in response.text
     assert "catalyst.log" in response.text
     assert "plain text context" in response.text
-    assert "## Context-aware Agent Notes" in response.text
+    assert "## 컨텍스트 기반 에이전트 메모 (Context-aware Agent Notes)" in response.text
 
 
 def test_file_delete(client, meeting):
@@ -134,4 +134,3 @@ def test_file_delete(client, meeting):
     list_response = client.get(f"/api/meetings/{meeting['id']}/files")
     assert list_response.status_code == 200
     assert list_response.json() == []
-

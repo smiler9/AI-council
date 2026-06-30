@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from .database import PROJECT_ROOT
-from .council import SAFETY_BOUNDARY
+from .council import KOREAN_SAFETY_BOUNDARY, SAFETY_BOUNDARY
 
 
 DEFAULT_REPORT_DIR = PROJECT_ROOT / "reports"
@@ -23,28 +23,28 @@ def build_markdown_report(
     trade_review = json.dumps(meeting["trade_review"], indent=2, sort_keys=True)
     decision_json = json.dumps(structured_decision, indent=2, sort_keys=True)
     lines = [
-        f"# AI Council Report: {meeting['topic']}",
+        f"# AI Council 회의 보고서: {meeting['topic']}",
         "",
-        "## Meeting",
+        "## 회의 정보 (Meeting)",
         "",
-        f"- Meeting ID: `{meeting['id']}`",
-        f"- Ticker: `{ticker}`",
-        f"- Meeting Mode: `{meeting.get('mode', 'quick_review')}`",
-        f"- Status: `{meeting['status']}`",
-        f"- Created: `{meeting['created_at']}`",
-        f"- Updated: `{meeting['updated_at']}`",
+        f"- 회의 ID: `{meeting['id']}`",
+        f"- 종목명: `{ticker}`",
+        f"- 회의 모드: `{meeting.get('mode', 'quick_review')}`",
+        f"- 상태: `{meeting['status']}`",
+        f"- 생성 시각: `{meeting['created_at']}`",
+        f"- 수정 시각: `{meeting['updated_at']}`",
         "",
-        "## Meeting Mode",
+        "## 회의 모드 (Meeting Mode)",
         "",
         f"`{meeting.get('mode', 'quick_review')}`",
         "",
-        "## Trade Signal Context",
+        "## 거래 신호 컨텍스트 (Trade Signal Context)",
         "",
     ]
     if trade_signal:
         lines.extend(
             [
-                "This external signal was reviewed as read-only context. It is not an order.",
+                "이 외부 신호는 읽기 전용 검토 문맥으로만 사용되었습니다. 주문이 아닙니다.",
                 "",
                 "```json",
                 json.dumps(trade_signal, indent=2, sort_keys=True),
@@ -53,10 +53,10 @@ def build_markdown_report(
             ]
         )
     else:
-        lines.extend(["No external trade signal context.", ""])
+        lines.extend(["외부 거래 신호 컨텍스트가 없습니다.", ""])
     lines.extend(
         [
-            "## Attached Context Files",
+            "## 첨부된 참고 파일 (Attached Context Files)",
             "",
         ]
     )
@@ -66,11 +66,11 @@ def build_markdown_report(
                 f"- `{file['original_filename']}` ({file['file_type']}, {file['status']}, {file['file_size']} bytes)"
             )
     else:
-        lines.append("No attached context files.")
+        lines.append("첨부된 참고 파일이 없습니다.")
     lines.extend(
         [
             "",
-            "## File Summaries",
+            "## 파일 요약 (File Summaries)",
             "",
         ]
     )
@@ -85,20 +85,20 @@ def build_markdown_report(
                 ]
             )
     else:
-        lines.extend(["No file summaries available.", ""])
+        lines.extend(["사용 가능한 파일 요약이 없습니다.", ""])
     lines.extend(
         [
-            "## Debate Rounds",
+            "## 토론 라운드 (Debate Rounds)",
             "",
         ]
     )
     if debate_messages:
         for round_name, title in [
-            ("initial_opinion", "Round 1: initial_opinion"),
-            ("rebuttal", "Round 2: rebuttal"),
-            ("revision", "Round 3: revision"),
-            ("chairman_summary", "Round 4: chairman_summary"),
-            ("structured_decision", "Round 5: structured_decision"),
+            ("initial_opinion", "1라운드: 1차 의견 (initial_opinion)"),
+            ("rebuttal", "2라운드: 반박 (rebuttal)"),
+            ("revision", "3라운드: 수정 의견 (revision)"),
+            ("chairman_summary", "4라운드: 의장 요약 (chairman_summary)"),
+            ("structured_decision", "5라운드: 구조화된 판단 (structured_decision)"),
         ]:
             round_messages = [
                 message for message in debate_messages if message["round"] == round_name
@@ -110,32 +110,32 @@ def build_markdown_report(
                         [
                             f"#### {message['agent_name']}",
                             "",
-                            f"- Type: `{message['message_type']}`",
-                            f"- Confidence: `{message['confidence']:.2f}`",
-                            f"- Risk Level: `{message['risk_level']}`",
+                            f"- 유형: `{message['message_type']}`",
+                            f"- 신뢰도: `{message['confidence']:.2f}`",
+                            f"- 리스크 수준: `{message['risk_level']}`",
                             "",
                             message["content"],
                             "",
                         ]
                     )
             else:
-                lines.extend(["No messages recorded for this round.", ""])
+                lines.extend(["이 라운드에 기록된 메시지가 없습니다.", ""])
     else:
-        lines.extend(["No debate rounds recorded.", ""])
+        lines.extend(["기록된 토론 라운드가 없습니다.", ""])
     lines.extend(
         [
-            "## Agent Initial Opinions",
+            "## 에이전트 1차 의견 (Agent Initial Opinions)",
             "",
         ]
     )
     _append_round_messages(lines, debate_messages, "initial_opinion")
-    lines.extend(["## Rebuttals", ""])
+    lines.extend(["## 반박 의견 (Rebuttals)", ""])
     _append_round_messages(lines, debate_messages, "rebuttal")
-    lines.extend(["## Revised Notes", ""])
+    lines.extend(["## 수정 의견 (Revised Notes)", ""])
     _append_round_messages(lines, debate_messages, "revision")
     lines.extend(
         [
-            "## Agent Outputs",
+            "## 에이전트 출력 (Agent Outputs)",
             "",
         ]
     )
@@ -144,9 +144,9 @@ def build_markdown_report(
             [
                 f"### {output['agent_name']}",
                 "",
-                f"- Stage: `{output['stage']}`",
-                f"- Stance: `{output['stance']}`",
-                f"- Confidence: `{output['confidence']:.2f}`",
+                f"- 단계: `{output['stage']}`",
+                f"- 관점: `{output['stance']}`",
+                f"- 신뢰도: `{output['confidence']:.2f}`",
                 f"- Provider: `{output.get('provider_name', 'mock')}`",
                 "",
                 output["content"],
@@ -155,7 +155,7 @@ def build_markdown_report(
         )
     lines.extend(
         [
-            "## Context-aware Agent Notes",
+            "## 컨텍스트 기반 에이전트 메모 (Context-aware Agent Notes)",
             "",
         ]
     )
@@ -169,20 +169,20 @@ def build_markdown_report(
             raw = output.get("structured_response", {}).get("raw", {})
             filenames = ", ".join(raw.get("context_filenames", [])) or "attached files"
             lines.append(
-                f"- {output['agent_name']} referenced {raw.get('context_file_count', 0)} file(s): {filenames}."
+                f"- {output['agent_name']}가 {raw.get('context_file_count', 0)}개 파일을 참고했습니다: {filenames}."
             )
     else:
-        lines.append("No file-aware notes were generated for this meeting.")
+        lines.append("이 회의에서는 파일 기반 메모가 생성되지 않았습니다.")
     lines.append("")
     lines.extend(
         [
-            "## Structured Decision",
+            "## 구조화된 판단 (Structured Decision)",
             "",
             "```json",
             decision_json,
             "```",
             "",
-            "## Risk Flags",
+            "## 리스크 플래그 (Risk Flags)",
             "",
         ]
     )
@@ -190,17 +190,19 @@ def build_markdown_report(
     if risk_flags:
         lines.extend(f"- `{flag}`" for flag in risk_flags)
     else:
-        lines.append("No risk flags recorded.")
-    lines.extend(["", "## Required Follow-up", ""])
+        lines.append("기록된 리스크 플래그가 없습니다.")
+    lines.extend(["", "## 추가 확인 필요사항 (Required Follow-up)", ""])
     follow_up = structured_decision.get("required_follow_up", [])
     if follow_up:
         lines.extend(f"- {item}" for item in follow_up)
     else:
-        lines.append("No follow-up recorded.")
+        lines.append("기록된 추가 확인 사항이 없습니다.")
     lines.extend(
         [
             "",
-            "## Safety Boundary",
+            "## 안전 경계 (Safety Boundary)",
+            "",
+            KOREAN_SAFETY_BOUNDARY,
             "",
             SAFETY_BOUNDARY,
             "",
@@ -208,9 +210,9 @@ def build_markdown_report(
     )
     lines.extend(
         [
-            "## Future Trade Review Metadata",
+            "## 향후 거래 검토 메타데이터 (Future Trade Review Metadata)",
             "",
-            "This metadata is for future review integration only. Phase 1 does not execute trades.",
+            "이 메타데이터는 향후 검토 연동을 위한 구조입니다. AI Council은 거래를 실행하지 않습니다.",
             "",
             "```json",
             trade_review,
@@ -224,15 +226,15 @@ def build_markdown_report(
 def _append_round_messages(lines: list[str], messages: list[dict], round_name: str) -> None:
     selected = [message for message in messages if message["round"] == round_name]
     if not selected:
-        lines.extend(["No messages recorded.", ""])
+        lines.extend(["기록된 메시지가 없습니다.", ""])
         return
     for message in selected:
         lines.extend(
             [
                 f"### {message['agent_name']}",
                 "",
-                f"- Risk Level: `{message['risk_level']}`",
-                f"- Confidence: `{message['confidence']:.2f}`",
+                f"- 리스크 수준: `{message['risk_level']}`",
+                f"- 신뢰도: `{message['confidence']:.2f}`",
                 "",
                 message["content"],
                 "",

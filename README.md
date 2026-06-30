@@ -1,176 +1,114 @@
 # AI Council
 
-AI Council is a local mock-based web program where multiple AI-style agents review one topic, challenge each other, and produce a final chairperson summary.
+AI Council은 여러 AI 에이전트가 하나의 주제나 외부 봇 후보 신호를 함께 검토하고, 반박하고, 리스크를 정리한 뒤 구조화된 판단을 만드는 로컬 웹 프로그램입니다.
 
-Phase 1 is intentionally limited to analysis and review:
+AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
 
-- No live stock prices
-- No live news APIs
-- No broker APIs
-- No order placement
-- No automated trading execution
+영문 안전 경계도 함께 유지합니다:
 
-The backend keeps a `trade_review` structure so a future trading bot can request analysis through a separate Risk Gate, but Phase 1 never executes trades.
+> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
 
-Phase 2 adds an LLM provider abstraction while keeping `mock` as the default. AI Council remains a review, risk analysis, and decision-support layer only. Broker APIs and automated order execution are still not implemented.
+## 현재 구현 범위
 
-Phase 3 adds meeting context files. Uploaded files are parsed into summaries and included as council context for mock or LLM-backed meetings. The system can review uploaded trading-related material, but it still does not connect to brokers or execute orders.
+- Phase 1: FastAPI backend, React/Vite frontend, SQLite, mock 기반 AI 회의실
+- Phase 2: LLM Provider abstraction, 기본 `mock`, `local_openai_compatible` 구조
+- Phase 3: 회의 참고 파일 업로드와 context summary 반영
+- Phase 4: 토론 라운드와 structured decision JSON
+- Phase 5: 선택적 Telegram 리포트 전송, 기본 비활성화
+- Phase 6: Ollama/vLLM OpenAI-compatible local LLM 연결 검증 구조
+- Phase 7: read-only 거래 신호 검토 API
+- Phase 8: 외부 봇 webhook receiver와 input adapter
+- Phase 9: 외부 봇 샘플 클라이언트, smoke test, sample payload, 개발 스크립트
+- Phase 10: 한글 중심 UI/문서/리포트 정리
 
-Phase 4 adds a debate engine and structured decision output. Meetings now run through explicit debate rounds and produce a JSON decision schema for review-only risk assessment. Future auto-trading integration remains decision-support only in this phase.
-
-Phase 5 adds optional Telegram report delivery. Telegram is disabled by default and is used only for notification and report delivery, never for broker access or order execution.
-
-Phase 6 verifies local LLM integration against OpenAI-compatible endpoints such as Ollama and vLLM. The default provider remains `mock`; local LLM failures are recorded safely and do not enable broker access or order execution.
-
-Phase 7 adds a read-only Trade Signal Review API. External bots can submit candidate penny-stock signals for AI Council review, risk analysis, and structured decision support. The API never connects to brokers and never creates, sends, routes, or executes orders.
-
-Phase 8 adds a read-only external bot webhook receiver and input adapter. Webhooks are disabled by default, support a shared secret header, normalize common bot payload aliases, and reuse the Phase 7 Trade Signal Review engine.
-
-Phase 9 adds an external bot sample client, webhook smoke test kit, sample payloads, and developer scripts so another local bot can integrate with AI Council safely.
-
-## Structure
+## 프로젝트 구조
 
 ```text
 AI-council/
   backend/      FastAPI + SQLite API
-  examples/     external bot sample client and integration smoke tests
   frontend/     React + Vite UI
-  reports/      generated Markdown meeting reports
-  scripts/      local development helper scripts
+  examples/     외부 봇 샘플 클라이언트와 통합 smoke test
+  scripts/      로컬 개발 실행 스크립트
+  reports/      생성된 Markdown 회의 리포트, Git 제외
 ```
 
-## Backend
+## 실행 방법
+
+Backend:
 
 ```bash
 cd ~/AI-council/backend
 python3 -m venv ../.venv
 ../.venv/bin/python -m pip install -r requirements.txt
-../.venv/bin/python -m uvicorn app.main:app --reload
+../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Backend URL: `http://127.0.0.1:8000`
-
-## Frontend
+Frontend:
 
 ```bash
 cd ~/AI-council/frontend
 npm install
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-Frontend URL: `http://127.0.0.1:5173`
+접속 URL:
 
-## Phase 2 LLM Providers
+- Frontend: `http://127.0.0.1:5173/`
+- Backend: `http://127.0.0.1:8000`
+- Health: `http://127.0.0.1:8000/health`
 
-Supported provider names:
-
-- `mock`
-- `local_openai_compatible`
-- `openai_stub`
-- `anthropic_stub`
-- `gemini_stub`
-
-Implemented in Phase 2:
-
-- `mock`: deterministic local responses, used by default.
-- `local_openai_compatible`: calls `/chat/completions` on a local OpenAI-compatible API such as Ollama or vLLM.
-
-Stub only:
-
-- `openai_stub`
-- `anthropic_stub`
-- `gemini_stub`
-
-The stub providers do not call external APIs. They exist only to keep the extension boundary explicit.
-
-Default `.env`:
+개발 스크립트:
 
 ```bash
-LLM_PROVIDER=mock
+scripts/run_backend.sh
+scripts/run_frontend.sh
+scripts/run_tests.sh
+scripts/run_webhook_smoke.sh
 ```
 
-Local LLM example:
+## 주요 API
 
-```bash
-LLM_PROVIDER=local_openai_compatible
-LLM_BASE_URL=http://localhost:11434/v1
-LLM_MODEL=qwen3-coder:30b
-LLM_API_KEY=local
-LLM_TIMEOUT_SECONDS=60
-LLM_MAX_TOKENS=1200
-```
+- `GET /health`
+- `GET /api/agents`
+- `GET /api/meetings`
+- `POST /api/meetings`
+- `GET /api/meetings/{meeting_id}`
+- `POST /api/meetings/{meeting_id}/run`
+- `GET /api/meetings/{meeting_id}/report`
+- `POST /api/meetings/{meeting_id}/files`
+- `GET /api/meetings/{meeting_id}/files`
+- `GET /api/files/{file_id}`
+- `DELETE /api/files/{file_id}`
+- `GET /api/telegram/status`
+- `POST /api/meetings/{meeting_id}/telegram/send`
+- `POST /api/trade-reviews`
+- `GET /api/trade-reviews`
+- `GET /api/trade-reviews/{trade_review_id}`
+- `POST /api/trade-reviews/{trade_review_id}/telegram/send`
+- `GET /api/webhooks/status`
+- `POST /api/webhooks/trade-signal`
+- `GET /api/webhooks/events`
+- `GET /api/webhooks/events/{event_id}`
 
-Run with local settings:
+## 회의 모드와 토론 라운드
 
-```bash
-cd ~/AI-council/backend
-LLM_PROVIDER=local_openai_compatible \
-LLM_BASE_URL=http://localhost:11434/v1 \
-LLM_MODEL=qwen3-coder:30b \
-LLM_API_KEY=local \
-LLM_TIMEOUT_SECONDS=60 \
-LLM_MAX_TOKENS=1200 \
-../.venv/bin/python -m uvicorn app.main:app --reload
-```
+회의 모드:
 
-Provider responses are stored as structured JSON with the agent output. If a provider fails, the meeting is marked `failed`, the error is recorded, and no broker connection or order execution is attempted.
+- `quick_review`: 빠른 검토
+- `deep_debate`: 심층 토론
+- `skeptic_review`: 비판 중심 검토
+- `risk_gate_review`: 리스크 게이트 검토
+- `action_plan`: 실행 계획 수립
 
-## Phase 3 Context Files
+토론 라운드:
 
-Meeting files can be uploaded from the web UI or API. The backend stores the original file, extracted text, and a context summary under:
+1. `initial_opinion`: 에이전트 1차 의견
+2. `rebuttal`: 비판 검토와 리스크 반박
+3. `revision`: 반박 반영 수정 의견
+4. `chairman_summary`: 의장 요약
+5. `structured_decision`: 구조화된 판단
 
-```text
-data/uploads/{meeting_id}/
-```
-
-Supported file types:
-
-- `.txt`
-- `.md`
-- `.csv`
-- `.json`
-- `.log`
-- `.pdf` is accepted as a Phase 3 stub, stored as `unsupported`, and excluded from evidence-based analysis until a PDF parser is added.
-
-Safety limits:
-
-- Maximum file size: 2MB
-- Filenames are sanitized before storage
-- Path traversal is prevented by storing files under the controlled upload directory
-- Unsupported extensions are rejected
-- Binary content is rejected for text-based file types
-- Uploaded context is treated as user-provided evidence that still requires validation
-
-API example:
-
-```bash
-MEETING_ID="<meeting id>"
-curl -F "file=@notes.md" "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/files"
-curl "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/files"
-curl -X POST "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/run"
-```
-
-When a meeting is run, ready file summaries are included in the provider prompt. Reports include `Attached Context Files`, `File Summaries`, and `Context-aware Agent Notes`.
-
-## Phase 4 Debate Engine
-
-Meeting modes:
-
-- `quick_review`
-- `deep_debate`
-- `skeptic_review`
-- `risk_gate_review`
-- `action_plan`
-
-Debate rounds:
-
-1. `initial_opinion`: primary agents create first-pass role-specific opinions.
-2. `rebuttal`: Skeptic Agent and Risk Manager Agent challenge assumptions and downside.
-3. `revision`: primary agents revise notes after rebuttal.
-4. `chairman_summary`: Chairman Agent synthesizes consensus, dissent, and risk posture.
-5. `structured_decision`: final review-only JSON decision.
-
-Structured decision schema:
+Structured decision 예시:
 
 ```json
 {
@@ -187,31 +125,70 @@ Structured decision schema:
 }
 ```
 
-Decision values: `ALLOW`, `HOLD`, `BLOCK`, `NEED_MORE_DATA`.
+`order_execution_allowed`는 항상 `false`입니다.
 
-Risk levels: `low`, `medium`, `high`, `critical`.
+## Local LLM 설정
 
-Safety boundary:
-
-> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
-
-Create a mode-specific meeting:
+기본값은 mock provider입니다.
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/api/meetings" \
-  -H "Content-Type: application/json" \
-  -d '{"topic":"Review a high-risk setup","ticker":"RISK","mode":"risk_gate_review"}'
+LLM_PROVIDER=mock
 ```
 
-## Phase 5 Telegram Notifications
+Ollama 예시:
 
-Telegram delivery is disabled by default:
+```bash
+LLM_PROVIDER=local_openai_compatible
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=qwen3:8b
+LLM_API_KEY=local
+LLM_TIMEOUT_SECONDS=60
+LLM_MAX_TOKENS=1200
+```
+
+vLLM 예시:
+
+```bash
+LLM_PROVIDER=local_openai_compatible
+LLM_BASE_URL=http://localhost:8000/v1
+LLM_MODEL=<served-model-name>
+LLM_API_KEY=local
+LLM_TIMEOUT_SECONDS=60
+LLM_MAX_TOKENS=1200
+```
+
+Local LLM 서버가 없거나 실패하면 meeting은 실패 또는 안전한 fallback 상태로 기록되고, 앱 전체가 죽지 않도록 처리합니다. 실패하더라도 브로커 연결이나 주문 실행은 시도하지 않습니다.
+
+## 파일 업로드
+
+회의 상세 화면에서 참고 파일을 업로드할 수 있습니다. 파일 요약은 다음 회의 실행 시 context로 포함됩니다.
+
+지원 형식:
+
+- `.txt`
+- `.md`
+- `.csv`
+- `.json`
+- `.log`
+- `.pdf`: Phase 3 stub, unsupported 상태로 안전 처리
+
+제한:
+
+- 최대 2MB
+- 파일명 sanitization
+- path traversal 방지
+- 허용 확장자 제한
+- text 기반 형식의 binary content 거부
+
+## Telegram 설정
+
+Telegram은 리포트 전송 전용이며 기본 비활성화입니다.
 
 ```bash
 TELEGRAM_ENABLED=false
 ```
 
-Enable it with environment variables:
+활성화 예시:
 
 ```bash
 TELEGRAM_ENABLED=true
@@ -220,183 +197,13 @@ TELEGRAM_CHAT_ID=<your chat id>
 TELEGRAM_TIMEOUT_SECONDS=10
 ```
 
-Do not commit real bot tokens or chat IDs. Keep secrets in a local `.env` or shell environment only. The repository `.gitignore` excludes `.env`.
+실제 token과 chat id는 Git에 커밋하지 마십시오. `.env`는 `.gitignore`에 포함되어 있습니다.
 
-Send a completed meeting report:
+## Webhook 설정
 
-```bash
-curl -X POST "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/telegram/send"
-```
+외부 봇은 후보 신호를 webhook으로 보낼 수 있습니다. 이 endpoint는 주문 지시를 받는 곳이 아니라 read-only 검토 접수 endpoint입니다.
 
-Check Telegram configuration status:
-
-```bash
-curl "http://127.0.0.1:8000/api/telegram/status"
-```
-
-Telegram messages include the meeting title, mode, structured decision, confidence, risk level, risk flags, required follow-up, report path, and safety boundary. Telegram delivery is report-only and does not connect to broker APIs or execute orders.
-
-## Phase 6 Local LLM Verification
-
-AI Council can use a local OpenAI-compatible LLM server for agent responses while keeping the same debate engine, structured decision schema, and safety boundary.
-
-Default safe mode:
-
-```bash
-LLM_PROVIDER=mock
-```
-
-Check for an Ollama OpenAI-compatible endpoint:
-
-```bash
-curl "http://localhost:11434/v1/models"
-```
-
-Run the backend with Ollama:
-
-```bash
-cd ~/AI-council/backend
-LLM_PROVIDER=local_openai_compatible \
-LLM_BASE_URL=http://localhost:11434/v1 \
-LLM_MODEL=qwen3:8b \
-LLM_API_KEY=local \
-LLM_TIMEOUT_SECONDS=60 \
-LLM_MAX_TOKENS=1200 \
-../.venv/bin/python -m uvicorn app.main:app --reload
-```
-
-Check for a vLLM OpenAI-compatible endpoint:
-
-```bash
-curl "http://localhost:8000/v1/models"
-```
-
-Run the backend with vLLM:
-
-```bash
-cd ~/AI-council/backend
-LLM_PROVIDER=local_openai_compatible \
-LLM_BASE_URL=http://localhost:8000/v1 \
-LLM_MODEL=<served-model-name> \
-LLM_API_KEY=local \
-LLM_TIMEOUT_SECONDS=60 \
-LLM_MAX_TOKENS=1200 \
-../.venv/bin/python -m uvicorn app.main:app --reload
-```
-
-Use the API as usual:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/api/meetings" \
-  -H "Content-Type: application/json" \
-  -d '{"topic":"Verify local LLM review","ticker":"LLM","mode":"deep_debate"}'
-
-curl -X POST "http://127.0.0.1:8000/api/meetings/${MEETING_ID}/run"
-```
-
-If the local LLM server is not running, or if it returns invalid JSON, the meeting is marked `failed`, the provider error is stored in the meeting output and trade review metadata, and `order_execution_allowed` remains `false`.
-
-For Ollama Qwen thinking models, the local provider sends a `/no_think` directive and a `max_tokens` cap so the final JSON response is returned in `message.content`. Raw provider metadata is stored without saving reasoning text.
-
-Return to mock mode:
-
-```bash
-LLM_PROVIDER=mock
-```
-
-Safety boundary:
-
-> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
-
-## Phase 7 Trade Signal Review API
-
-The Trade Signal Review API accepts candidate signals from an external scanner or automation bot as read-only context. It creates an internal `risk_gate_review` meeting, runs the same AI Council debate engine, stores a `trade_reviews` record, and returns the structured decision.
-
-Endpoints:
-
-- `POST /api/trade-reviews`
-- `GET /api/trade-reviews`
-- `GET /api/trade-reviews/{trade_review_id}`
-- `POST /api/trade-reviews/{trade_review_id}/telegram/send`
-
-Example request:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/api/trade-reviews" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "ticker": "ABCD",
-    "strategy_signal": "breakout",
-    "side": "watch_only",
-    "price": 0.82,
-    "volume": 12500000,
-    "timeframe": "1m",
-    "source": "external_bot",
-    "notes": "candidate signal generated by existing bot",
-    "technical_indicators": {
-      "rsi": 68,
-      "vwap_distance": 0.04
-    },
-    "news_headlines": [],
-    "risk_context": {
-      "spread_pct": 4.5,
-      "float_rotation": 2.1,
-      "premarket": true
-    }
-  }'
-```
-
-Example response shape:
-
-```json
-{
-  "trade_review": {
-    "id": "...",
-    "ticker": "ABCD",
-    "strategy_signal": "breakout",
-    "side": "watch_only",
-    "decision": "HOLD",
-    "risk_level": "high",
-    "trade_allowed": false,
-    "order_execution_allowed": false,
-    "linked_meeting_id": "..."
-  },
-  "structured_decision": {
-    "decision": "HOLD",
-    "confidence": 0.72,
-    "risk_level": "high",
-    "trade_allowed": false,
-    "position_size_multiplier": 0.0,
-    "primary_reasons": [],
-    "risk_flags": [],
-    "required_follow_up": [],
-    "data_quality": "limited",
-    "order_execution_allowed": false
-  },
-  "order_execution_allowed": false
-}
-```
-
-Safety rules:
-
-- `side` is stored as review context only. Values such as `buy` or `sell` do not trigger order behavior.
-- High spreads add spread risk flags and result in `HOLD` or `BLOCK`.
-- Low or missing volume results in additional evidence gaps or risk flags.
-- Premarket signals add a premarket risk flag.
-- Missing news headlines mark data quality as `limited`.
-- `order_execution_allowed` is always `false`.
-
-Telegram delivery for trade reviews is optional and disabled by default. With `TELEGRAM_ENABLED=false`, the send endpoint returns a safe disabled response.
-
-Safety boundary:
-
-> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
-
-## Phase 8 External Bot Webhooks
-
-The webhook receiver lets an external penny-stock scanner or automation bot submit candidate signals to AI Council. It is a review intake endpoint only. It does not accept order instructions, connect to brokers, approve orders, cancel orders, or execute trades.
-
-Environment defaults:
+기본값:
 
 ```bash
 WEBHOOKS_ENABLED=false
@@ -410,126 +217,30 @@ Endpoint:
 POST /api/webhooks/trade-signal
 ```
 
-Status and event APIs:
-
-- `GET /api/webhooks/status`
-- `GET /api/webhooks/events`
-- `GET /api/webhooks/events/{event_id}`
-
-When enabled with a required secret, send the shared secret in this header:
+Secret header:
 
 ```text
 X-AI-Council-Webhook-Secret: <your local secret>
 ```
 
-Example webhook request:
+Webhook payload alias:
 
-```bash
-curl -X POST "http://127.0.0.1:8000/api/webhooks/trade-signal" \
-  -H "Content-Type: application/json" \
-  -H "X-AI-Council-Webhook-Secret: ${WEBHOOK_SECRET}" \
-  -d '{
-    "source": "external_penny_bot",
-    "signal_id": "sig_20260630_001",
-    "ticker": "ABCD",
-    "strategy_signal": "breakout",
-    "side": "buy",
-    "price": 0.82,
-    "volume": 12500000,
-    "timeframe": "1m",
-    "timestamp": "2026-06-30T09:35:00Z",
-    "technical_indicators": {
-      "rsi": 68,
-      "vwap_distance": 0.04,
-      "relative_volume": 5.2
-    },
-    "news_headlines": [],
-    "risk_context": {
-      "spread_pct": 4.5,
-      "float_rotation": 2.1,
-      "premarket": true
-    },
-    "notes": "candidate generated by external bot"
-  }'
-```
+- `ticker` 또는 `symbol`
+- `strategy_signal` 또는 `signal` 또는 `setup`
+- `price` 또는 `last_price`
+- `volume` 또는 `current_volume`
+- `timeframe` 또는 `interval`
+- `technical_indicators` 또는 `indicators`
+- `news_headlines` 또는 `headlines`
+- `risk_context` 또는 `risk`
+- `timestamp` 또는 `event_time`
 
-Supported aliases:
+중복 방지:
 
-- `ticker` or `symbol`
-- `strategy_signal` or `signal` or `setup`
-- `price` or `last_price`
-- `volume` or `current_volume`
-- `timeframe` or `interval`
-- `technical_indicators` or `indicators`
-- `news_headlines` or `headlines`
-- `risk_context` or `risk`
-- `timestamp` or `event_time`
+- `source + signal_id` 조합이 이미 들어온 경우 기존 `trade_review_id`를 반환합니다.
+- 중복 요청은 새 meeting이나 새 review를 만들지 않습니다.
 
-Example normalized output:
-
-```json
-{
-  "ticker": "ABCD",
-  "strategy_signal": "breakout",
-  "side": "buy",
-  "price": 0.82,
-  "volume": 12500000,
-  "timeframe": "1m",
-  "source": "external_penny_bot",
-  "technical_indicators": {
-    "rsi": 68,
-    "vwap_distance": 0.04,
-    "relative_volume": 5.2
-  },
-  "news_headlines": [],
-  "risk_context": {
-    "spread_pct": 4.5,
-    "float_rotation": 2.1,
-    "premarket": true,
-    "event_time": "2026-06-30T09:35:00Z",
-    "signal_id": "sig_20260630_001"
-  },
-  "order_execution_allowed": false
-}
-```
-
-Idempotency:
-
-- `source + signal_id` is unique.
-- If the same signal is received again, AI Council returns the existing `trade_review_id`.
-- Duplicate requests do not create a new meeting or a new trade review.
-
-Telegram option:
-
-- Add `?auto_send_telegram=true` or `"auto_send_telegram": true` to request report delivery.
-- If Telegram is disabled, the response includes a safe disabled result.
-- Telegram is reporting-only and is not connected to trading or order systems.
-
-Safety boundary:
-
-> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
-
-## Phase 9 Sample Client And Smoke Tests
-
-Phase 9 provides local integration tools for external bot developers.
-
-Files:
-
-```text
-examples/
-  external_bot/
-    send_trade_signal.py
-    sample_payloads/
-  integration/
-    run_webhook_smoke_test.py
-scripts/
-  run_backend.sh
-  run_frontend.sh
-  run_tests.sh
-  run_webhook_smoke.sh
-```
-
-Sample client usage:
+## External Bot 샘플 클라이언트
 
 ```bash
 cd ~/AI-council/examples/external_bot
@@ -538,17 +249,26 @@ export AI_COUNCIL_WEBHOOK_SECRET=change-me
 python3 send_trade_signal.py --payload sample_payloads/breakout_signal.json --pretty
 ```
 
-Smoke test usage:
+샘플 payload:
+
+- `breakout_signal.json`: 일반 watch-only breakout 후보
+- `high_spread_signal.json`: 높은 spread와 premarket 리스크 후보
+- `missing_news_signal.json`: 뉴스가 비어 있어 data_quality가 제한적인 후보
+- `duplicate_signal.json`: breakout과 같은 `source + signal_id`로 idempotency 검증
+
+## Smoke Test
+
+Backend를 webhook 활성화 상태로 실행합니다.
 
 ```bash
-cd ~/AI-council
+cd ~/AI-council/backend
 WEBHOOKS_ENABLED=true \
 WEBHOOK_SECRET=change-me \
 WEBHOOK_REQUIRE_SECRET=true \
-scripts/run_backend.sh
+../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-In a second terminal:
+다른 터미널에서 smoke test를 실행합니다.
 
 ```bash
 cd ~/AI-council
@@ -557,63 +277,56 @@ export AI_COUNCIL_WEBHOOK_SECRET=change-me
 scripts/run_webhook_smoke.sh
 ```
 
-The smoke test checks `/health`, `/api/webhooks/status`, sample payload delivery, `order_execution_allowed=false`, and duplicate idempotency behavior.
+검증 항목:
 
-Sample payloads:
+- `/health`
+- `/api/webhooks/status`
+- sample payload 전송
+- `order_execution_allowed=false`
+- duplicate payload의 `duplicated=true`
 
-- `breakout_signal.json`: ordinary watch-only sample with example headlines.
-- `high_spread_signal.json`: elevated spread and premarket risk sample.
-- `missing_news_signal.json`: no headlines, expected to produce limited data quality.
-- `duplicate_signal.json`: same `source + signal_id` as breakout sample.
-
-Duplicate behavior:
-
-- The first `source + signal_id` creates a trade review.
-- The duplicate request returns `duplicated=true`.
-- No new meeting or trade review is created for the duplicate.
-
-Developer scripts:
-
-```bash
-scripts/run_backend.sh
-scripts/run_frontend.sh
-scripts/run_tests.sh
-scripts/run_webhook_smoke.sh
-```
-
-Secrets are read from environment variables and are not hardcoded in scripts.
-
-Safety boundary:
-
-> AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only.
-
-## Tests
+## 테스트
 
 ```bash
 cd ~/AI-council/backend
 ../.venv/bin/python -m pytest
 ```
 
-## API
+Frontend build:
 
-- `GET /health`
-- `GET /api/agents`
-- `GET /api/meetings`
-- `POST /api/meetings` accepts optional `mode`
-- `GET /api/meetings/{meeting_id}` includes `messages` and `structured_decision`
-- `GET /api/telegram/status`
-- `POST /api/trade-reviews`
-- `GET /api/trade-reviews`
-- `GET /api/trade-reviews/{trade_review_id}`
-- `POST /api/trade-reviews/{trade_review_id}/telegram/send`
-- `GET /api/webhooks/status`
-- `POST /api/webhooks/trade-signal`
-- `GET /api/webhooks/events`
-- `GET /api/webhooks/events/{event_id}`
-- `POST /api/meetings/{meeting_id}/files`
-- `GET /api/meetings/{meeting_id}/files`
-- `POST /api/meetings/{meeting_id}/run`
-- `POST /api/meetings/{meeting_id}/telegram/send`
-- `GET /api/meetings/{meeting_id}/report`
-- `GET /api/files/{file_id}`
-- `DELETE /api/files/{file_id}`
+```bash
+cd ~/AI-council/frontend
+npm run build
+```
+
+## Git에 포함하면 안 되는 파일
+
+다음 파일과 산출물은 Git에 포함하지 않습니다.
+
+- `.env`
+- `.env.local`
+- `.venv/`
+- `node_modules/`
+- `frontend/dist/`
+- `backend/data/*.sqlite`
+- `backend/data/uploads/`
+- `data/uploads/`
+- `reports/*.md`
+- `data/reports/*.md`
+- `__pycache__/`
+
+## 안전 경계
+
+AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
+
+구현 금지 범위:
+
+- 실제 브로커 API 연결
+- 매수/매도 주문 생성
+- 주문 전송
+- 주문 승인
+- 주문 취소
+- 포지션 변경
+- 자동매매 실행
+
+외부 봇 연동은 후보 신호를 받아 검토 결과를 반환하는 용도입니다. `trade_allowed`는 분석상 판단 메타데이터일 뿐이며, 실제 주문 실행 허가가 아닙니다. `order_execution_allowed`는 항상 `false`입니다.

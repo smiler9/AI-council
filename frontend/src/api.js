@@ -32,6 +32,7 @@ async function request(path, options = {}) {
 
 export const api = {
   baseUrl: API_BASE_URL,
+  getHealth: () => request("/health"),
   getAgents: () => request("/api/agents"),
   getTelegramStatus: () => request("/api/telegram/status"),
   getWebhookStatus: () => request("/api/webhooks/status"),
