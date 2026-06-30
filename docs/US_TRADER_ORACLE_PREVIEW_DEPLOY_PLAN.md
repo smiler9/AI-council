@@ -27,6 +27,22 @@ scripts/run_oracle_readiness_check_dryrun.sh
 
 모든 결과는 `order_execution_allowed=false`여야 합니다.
 
+## Phase 24H read-only readiness 결과 반영
+
+Phase 24H에서는 Oracle 서버를 read-only로 점검해 preview-only sidecar 배치 가능성을 확인했습니다.
+
+관련 문서:
+
+- `docs/US_TRADER_ORACLE_READONLY_READINESS_REPORT.md`
+
+확인된 일반화된 전제:
+
+- `<oracle-trading-dir>`가 존재해야 함
+- Python 3 계열과 sidecar bridge 실행 가능 환경이 필요함
+- sidecar 후보 directory는 별도 manual approval 전까지 생성하지 않음
+- AI Council endpoint는 Oracle에서 접근 가능한 URL이어야 하며, `127.0.0.1`은 Oracle 자신을 가리키므로 로컬 Mac backend에는 도달하지 않음
+- systemd 운영봇 service는 preview-only sidecar 배치 과정에서 start/stop/restart하지 않음
+
 ## Preview deploy plan 생성
 
 ```bash

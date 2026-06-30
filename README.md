@@ -1719,6 +1719,34 @@ Phase 24G의 기본 원칙:
 - 브로커 API 연결 없음
 - `order_execution_allowed=false`
 
+## Phase 24H Oracle Read-only Preview Deployment Readiness Check
+
+Phase 24H는 Oracle 서버에 preview-only sidecar를 배치할 수 있는지 read-only로 점검하고 readiness report를 추가합니다.
+
+추가 문서:
+
+- `docs/US_TRADER_ORACLE_READONLY_READINESS_REPORT.md`
+
+확인 범위:
+
+- Oracle 접속 가능 여부
+- trading directory 존재 여부
+- Python/requests 환경
+- disk/memory 여유
+- systemd service active 상태
+- sidecar/outbox 후보 경로
+- AI Council endpoint 접근성 검토
+
+Phase 24H에서 하지 않는 것:
+
+- Oracle 서버 파일 쓰기
+- 파일 업로드
+- systemd start/stop/restart/reload
+- 운영봇 실행/중지/재시작
+- `penny_stock_bot.py` 수정
+- 실제 주문 실행
+- 브로커 API 연결
+
 ## 테스트
 
 ```bash

@@ -4284,6 +4284,28 @@ function WebhookPanel({
           Preview-only 배치 준비는 plan과 command preview만 생성합니다. 실제 Oracle 서버에 자동 업로드하지 않고,
           systemd 운영봇을 재시작하지 않으며, 실제 주문을 실행하지 않습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Read-only 점검</span>
+            <strong>docs/US_TRADER_ORACLE_READONLY_READINESS_REPORT.md</strong>
+          </div>
+          <div>
+            <span>Preview-only 배치 전 점검</span>
+            <strong>완료 보고서 기준</strong>
+          </div>
+          <div>
+            <span>서버 파일 쓰기</span>
+            <strong>없음</strong>
+          </div>
+          <div>
+            <span>systemd 서비스 재시작</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          운영 서버에 파일을 쓰지 않고 배치 가능성만 확인합니다. 실제 Oracle 서버 수정, 운영봇 재시작,
+          실제 주문 실행은 수행하지 않습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">
