@@ -1796,6 +1796,48 @@ Phase 24I에서는 실제 tunnel, public endpoint, SSH reverse tunnel, firewall/
 - 브로커 API 연결 없음
 - `order_execution_allowed=false`
 
+## Phase 24J Mac Pull Oracle Outbox Preview Pipeline
+
+Phase 24J는 Oracle이 로컬 Mac AI Council로 직접 webhook을 호출하지 않고, Mac이 Oracle outbox JSON을 read-only 방식으로 가져와 AI Council preview에 넣는 pipeline을 준비합니다.
+
+추가 파일:
+
+- `examples/oracle_pull/oracle_outbox_pull_preview.py`
+- `examples/oracle_pull/process_pulled_signals.py`
+- `examples/oracle_pull/verify_pull_plan.py`
+- `examples/oracle_pull/sample_pulled_signals/`
+- `examples/integration/run_oracle_pull_smoke.py`
+- `docs/US_TRADER_ORACLE_MAC_PULL_PLAN.md`
+- `scripts/run_oracle_pull_smoke.sh`
+
+Smoke test:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_pull_smoke.sh
+```
+
+Sample preview:
+
+```bash
+python examples/oracle_pull/process_pulled_signals.py \
+  --inbox examples/oracle_pull/sample_pulled_signals \
+  --mode preview \
+  --pretty
+```
+
+안전 원칙:
+
+- Oracle 서버 파일 쓰기 없음
+- 원격 삭제/이동 금지
+- 원격 권한 변경 금지
+- 실제 tunnel 자동 실행 없음
+- 기본은 `normalize-preview`
+- review mode는 명시 옵션 필요
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

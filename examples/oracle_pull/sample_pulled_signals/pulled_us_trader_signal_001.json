@@ -1,0 +1,25 @@
+{
+  "source": "us_trader_oracle",
+  "signal_id": "pull_sig_001",
+  "symbol": "TESTA",
+  "signal": "breakout",
+  "action": "buy",
+  "price": 0.82,
+  "volume": 12500000,
+  "timeframe": "1m",
+  "timestamp": "2026-07-01T09:35:00Z",
+  "indicators": {
+    "rsi": 68,
+    "relative_volume": 4.8,
+    "vwap_distance": 0.03
+  },
+  "news": [
+    "TESTA announces mock product milestone"
+  ],
+  "risk": {
+    "spread_pct": 3.2,
+    "premarket": false,
+    "source": "sample_pull"
+  },
+  "order_execution_allowed": false
+}

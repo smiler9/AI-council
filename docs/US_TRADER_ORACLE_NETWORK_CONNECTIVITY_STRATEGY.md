@@ -188,7 +188,7 @@ scripts/run_oracle_connectivity_strategy_dryrun.sh
 - systemd service 조작 없음
 - `order_execution_allowed=false`
 
-## 다음 Phase 24J 제안
+## Phase 24J Mac Pull Pipeline
 
 Phase 24J는 별도 승인 후 다음 중 하나를 진행할 수 있습니다.
 
@@ -196,6 +196,12 @@ Phase 24J는 별도 승인 후 다음 중 하나를 진행할 수 있습니다.
 2. outbox-only sample JSON을 수동 배치하는 절차 확정
 3. Mac pull dry-run 도구 작성
 4. AI Council normalize-preview에 local pulled JSON을 공급하는 workflow 작성
+
+Phase 24J 결과 문서:
+
+- `docs/US_TRADER_ORACLE_MAC_PULL_PLAN.md`
+
+Phase 24J는 `mac_pull_oracle_outbox`를 preview pipeline으로 구체화하되, 원격 파일 삭제/이동 없이 local inbox와 `normalize-preview` 중심으로 처리합니다.
 
 ## 안전 경계
 

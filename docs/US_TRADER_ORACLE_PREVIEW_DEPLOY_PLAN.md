@@ -185,6 +185,16 @@ scripts/run_oracle_preview_deploy_dryrun.sh
 - `simulation_only=true`
 - 실제 체결/주문/포지션 변경 없음
 
+## Phase 24J Mac Pull 연결
+
+네트워크 연결 전략의 2순위인 `mac_pull_oracle_outbox`는 별도 문서에서 다룹니다.
+
+- `docs/US_TRADER_ORACLE_MAC_PULL_PLAN.md`
+- Oracle outbox JSON을 Mac local inbox로 read-only copy
+- 원격 파일 삭제/이동 금지
+- 기본은 `normalize-preview`
+- review/paper simulation은 별도 승인 후 명시적으로만 수행
+
 ## 절대 하지 말아야 할 것
 
 - `penny_stock_bot.py` 직접 수정

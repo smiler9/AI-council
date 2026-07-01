@@ -318,6 +318,30 @@ scripts/run_oracle_connectivity_strategy_dryrun.sh
 - public endpoint 생성 없음
 - `order_execution_allowed=false`
 
+## Oracle Mac Pull Smoke Test
+
+Phase 24J는 Oracle outbox JSON을 Mac local inbox로 read-only 방식으로 가져와 `normalize-preview`로 처리하는 pipeline을 검증합니다.
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_pull_smoke.sh
+```
+
+검증 항목:
+
+- backend `/health`
+- diagnostics summary
+- sample pull plan 검증
+- sample pulled signal JSON validation
+- `process_pulled_signals.py --mode preview`
+- order-like field warning
+- high-risk signal preview
+- state 기반 duplicate suppression
+- 원격 삭제/이동 없음
+- 실제 Oracle SSH 접속 없음
+- 실제 주문 없음
+- `order_execution_allowed=false`
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

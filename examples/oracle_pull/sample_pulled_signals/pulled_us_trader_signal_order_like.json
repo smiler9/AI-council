@@ -1,0 +1,23 @@
+{
+  "source": "us_trader_oracle",
+  "signal_id": "pull_sig_order_like",
+  "symbol": "TESTC",
+  "signal": "momentum_scan",
+  "action": "buy",
+  "price": 0.64,
+  "volume": 8500000,
+  "quantity": 1000,
+  "order_type": "limit",
+  "stop_loss": 0.58,
+  "take_profit": 0.72,
+  "indicators": {
+    "rsi": 61,
+    "relative_volume": 3.9
+  },
+  "risk_flags": {
+    "spread_pct": 4.1,
+    "premarket": false,
+    "note": "order-like fields are present for safety validation only"
+  },
+  "order_execution_allowed": false
+}

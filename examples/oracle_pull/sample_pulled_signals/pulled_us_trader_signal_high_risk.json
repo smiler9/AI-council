@@ -1,0 +1,22 @@
+{
+  "source": "us_trader_oracle",
+  "signal_id": "pull_sig_high_risk",
+  "symbol": "TESTB",
+  "signal": "gap_momentum",
+  "action": "entry",
+  "price": 0.37,
+  "volume": 19200000,
+  "timeframe": "1m",
+  "indicators": {
+    "relative_volume": 7.4,
+    "rsi": 79
+  },
+  "risk_flags": {
+    "spread_pct": 12.8,
+    "premarket": true,
+    "float_rotation": 2.8,
+    "warning": "high spread mock signal"
+  },
+  "news": [],
+  "order_execution_allowed": false
+}

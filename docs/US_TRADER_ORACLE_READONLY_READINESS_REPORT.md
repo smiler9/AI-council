@@ -160,6 +160,12 @@ Phase 24I 결과 문서:
 
 - `docs/US_TRADER_ORACLE_NETWORK_CONNECTIVITY_STRATEGY.md`
 
+Phase 24J 결과 문서:
+
+- `docs/US_TRADER_ORACLE_MAC_PULL_PLAN.md`
+
+Phase 24J는 Oracle outbox JSON을 Mac이 read-only로 가져오는 pipeline을 준비합니다. 원격 삭제/이동 없이 local inbox에서 `normalize-preview`를 수행하는 방향입니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

@@ -4328,6 +4328,28 @@ function WebhookPanel({
           로컬 AI Council에 접근하려면 pull, tunnel, Oracle 배포 중 하나가 필요합니다. Phase 24I는 실제 tunnel을
           열지 않고 outbox-only 또는 Mac pull 중심의 계획만 검증합니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Mac Pull 방식</span>
+            <strong>scripts/run_oracle_pull_smoke.sh</strong>
+          </div>
+          <div>
+            <span>Pull 대상</span>
+            <strong>Oracle outbox signal JSON</strong>
+          </div>
+          <div>
+            <span>원격 파일 삭제/이동</span>
+            <strong>없음</strong>
+          </div>
+          <div>
+            <span>처리 모드</span>
+            <strong>Preview</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          Oracle outbox의 signal JSON을 Mac에서 read-only로 가져와 local inbox에서 normalize-preview로 검증합니다.
+          터널 없이 시작할 수 있는 안전한 방식이며, 실제 주문을 실행하지 않습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

@@ -1,0 +1,6 @@
+total 24
+drwxr-xr-x 2 <oracle-user> <oracle-user> 4096 Jul  1 09:00 .
+drwxr-xr-x 8 <oracle-user> <oracle-user> 4096 Jul  1 08:59 ..
+-rw-r--r-- 1 <oracle-user> <oracle-user>  612 Jul  1 09:00 us_trader_signal_001.json
+-rw-r--r-- 1 <oracle-user> <oracle-user>  738 Jul  1 09:01 us_trader_signal_order_like.json
+-rw-r--r-- 1 <oracle-user> <oracle-user>  690 Jul  1 09:02 us_trader_signal_high_risk.json

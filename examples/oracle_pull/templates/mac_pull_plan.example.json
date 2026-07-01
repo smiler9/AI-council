@@ -1,0 +1,18 @@
+{
+  "manual_approval_required": true,
+  "mode": "preview",
+  "oracle": {
+    "host": "<oracle-host>",
+    "outbox_dir": "<oracle-outbox-dir>",
+    "ssh_key": "<path-to-private-key>",
+    "user": "<oracle-user>"
+  },
+  "order_execution_allowed": false,
+  "remote_delete": false,
+  "remote_move": false,
+  "strategy": "mac_pull_oracle_outbox",
+  "local": {
+    "inbox_dir": "tmp/oracle_pull/inbox",
+    "state_path": "tmp/oracle_pull/state.json"
+  }
+}

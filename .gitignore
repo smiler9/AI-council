@@ -31,3 +31,8 @@ examples/oracle_preview_deploy/commands/
 examples/oracle_preview_deploy/.state/
 examples/oracle_connectivity/output/
 examples/oracle_connectivity/.state/
+tmp/oracle_pull/
+oracle_pulled_signals/
+examples/oracle_pull/cache/
+examples/oracle_pull/output/
+examples/oracle_pull/.state/

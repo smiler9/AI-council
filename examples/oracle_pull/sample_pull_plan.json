@@ -1,0 +1,19 @@
+{
+  "manual_approval_required": true,
+  "mode": "preview",
+  "oracle": {
+    "host": "<oracle-host>",
+    "outbox_dir": "<oracle-outbox-dir>",
+    "ssh_key": "<path-to-private-key>",
+    "user": "<oracle-user>"
+  },
+  "order_execution_allowed": false,
+  "remote_delete": false,
+  "remote_move": false,
+  "safety_boundary": "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.",
+  "strategy": "mac_pull_oracle_outbox",
+  "local": {
+    "inbox_dir": "tmp/oracle_pull/inbox",
+    "state_path": "tmp/oracle_pull/state.json"
+  }
+}
