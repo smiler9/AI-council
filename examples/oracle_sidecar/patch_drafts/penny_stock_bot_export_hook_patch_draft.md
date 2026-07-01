@@ -4,6 +4,13 @@
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
 
+## 적용 현황 (2026-07-02)
+
+두 단계 hook이 운영본에 적용되어 있습니다. 백업본은 `penny_stock_bot.py.backup_ai_council_preview_*`, `penny_stock_bot.py.backup_ai_council_candidate_*`로 Oracle trading 디렉터리에 보존됩니다.
+
+1. **entry-attempt hook** — `scan_and_enter()`에서 position sizing 통과 후, `place_order` 호출 직전. `raw_side="buy"`.
+2. **scanner-candidate hook** — `analyze_signals()` 결과로 candidate entry가 만들어진 직후(데드존/포지션 한도/사이징 필터 이전). `raw_side="watch"`, `risk_context.stage="scanner_candidate"`. 같은 `ticker:signal:stage` 조합은 `AI_COUNCIL_CANDIDATE_EXPORT_COOLDOWN_SECONDS`(기본 900초) 동안 재-export하지 않습니다. 쿨다운 dict는 프로세스 메모리에만 있으며 재시작 시 초기화됩니다.
+
 ## 적용하지 말 것
 
 이 draft는 Oracle live bot에 자동 적용하지 않습니다. 실제 적용 전에는 백업, preflight, sidecar dry-run, normalize-preview가 모두 통과해야 합니다.
@@ -84,12 +91,48 @@ def maybe_export_ai_council_candidate(candidate):
         print(f"[AI Council export skipped] {candidate.get('ticker')}: {exc}")
 ```
 
+## Scanner candidate hook (적용된 형태)
+
+candidate 단계 export는 쿨다운과 stage 컨텍스트를 포함합니다. 함수 전체가 try/except로 감싸져 있어 어떤 실패도 trading flow로 전파되지 않습니다.
+
+```python
+AI_COUNCIL_CANDIDATE_EXPORT_COOLDOWN_SECONDS = 900
+_ai_council_candidate_last_export = {}
+
+
+def maybe_export_ai_council_candidate(candidate, stage):
+    if not (build_ai_council_signal and export_ai_council_signal):
+        return
+    try:
+        ticker = candidate.get("ticker")
+        signals = candidate.get("signals") or []
+        signal_label = "+".join(signals) or "scanner_candidate"
+        cooldown_key = f"{ticker}:{signal_label}:{stage}"
+        now_seconds = time.time()
+        last_export = _ai_council_candidate_last_export.get(cooldown_key, 0.0)
+        if now_seconds - last_export < AI_COUNCIL_CANDIDATE_EXPORT_COOLDOWN_SECONDS:
+            return
+        _ai_council_candidate_last_export[cooldown_key] = now_seconds
+        payload = build_ai_council_signal(
+            symbol=ticker,
+            strategy_signal=signal_label,
+            raw_side="watch",
+            price=candidate.get("current_price"),
+            timeframe="5m",
+            indicators={...},
+            risk_context={"source_function": "scan_and_enter", "stage": stage, ...},
+        )
+        export_ai_council_signal(payload, AI_COUNCIL_OUTBOX_DIR)
+    except Exception as export_exc:
+        print(f"[AI Council candidate export skipped] {candidate.get('ticker')}: {export_exc}")
+```
+
 사용 후보:
 
 ```python
 if result:
     entry = {"ticker": ticker, **result}
-    maybe_export_ai_council_candidate(entry)
+    maybe_export_ai_council_candidate(entry, "scanner_candidate")
 ```
 
 또는 주문 호출 전에:
