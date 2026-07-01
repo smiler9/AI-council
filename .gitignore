@@ -36,3 +36,8 @@ oracle_pulled_signals/
 examples/oracle_pull/cache/
 examples/oracle_pull/output/
 examples/oracle_pull/.state/
+tmp/oracle_outbox_approval/
+outbox_approval_packages/
+examples/oracle_outbox_approval/output/
+examples/oracle_outbox_approval/packages/
+examples/oracle_outbox_approval/.state/

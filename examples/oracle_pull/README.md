@@ -59,3 +59,16 @@ python examples/oracle_pull/oracle_outbox_pull_preview.py \
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
 
 Remote file deletion, remote movement, systemd operations, broker API calls, and order execution are out of scope. `order_execution_allowed=false` is always required.
+
+## Phase 24K Outbox Approval
+
+Outbox path finalization and approval package documents are available at:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PATH_APPROVAL.md`
+- `examples/oracle_outbox_approval/`
+
+Run:
+
+```bash
+scripts/run_oracle_outbox_approval_dryrun.sh
+```

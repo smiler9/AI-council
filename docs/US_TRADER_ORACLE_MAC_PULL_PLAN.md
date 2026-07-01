@@ -163,6 +163,12 @@ Mac pull 방식은 AI Council을 외부에 노출하지 않고, Oracle이 Mac으
 3. pulled signal에서 read-only trade review 생성 조건 정의
 4. paper simulation 연결을 별도 approval gate로 준비
 
+Phase 24K 결과 문서:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PATH_APPROVAL.md`
+
+Phase 24K는 outbox/processed/failed/state/log 경로 후보와 file contract, retention policy, rollback plan, manual checklist를 approval package로 묶습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

@@ -195,6 +195,15 @@ scripts/run_oracle_preview_deploy_dryrun.sh
 - 기본은 `normalize-preview`
 - review/paper simulation은 별도 승인 후 명시적으로만 수행
 
+## Phase 24K Outbox 경로 승인
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PATH_APPROVAL.md`
+- `examples/oracle_outbox_approval/templates/outbox_file_contract.md`
+- `examples/oracle_outbox_approval/templates/outbox_retention_policy.md`
+- `examples/oracle_outbox_approval/templates/outbox_rollback_plan.md`
+- 실제 Oracle directory 생성은 아직 하지 않음
+- active `mkdir`, `chmod`, `systemctl` 명령 없음
+
 ## 절대 하지 말아야 할 것
 
 - `penny_stock_bot.py` 직접 수정

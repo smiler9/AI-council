@@ -4350,6 +4350,28 @@ function WebhookPanel({
           Oracle outbox의 signal JSON을 Mac에서 read-only로 가져와 local inbox에서 normalize-preview로 검증합니다.
           터널 없이 시작할 수 있는 안전한 방식이며, 실제 주문을 실행하지 않습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Outbox 경로 승인</span>
+            <strong>scripts/run_oracle_outbox_approval_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>Signal JSON 파일 계약</span>
+            <strong>outbox_file_contract.md</strong>
+          </div>
+          <div>
+            <span>보존 정책 / Rollback</span>
+            <strong>retention + rollback plan</strong>
+          </div>
+          <div>
+            <span>원격 파일 삭제/이동</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          Outbox 경로 승인 패키지는 실제 Oracle 서버에 디렉터리를 자동 생성하지 않습니다. 파일 계약, 보존 정책,
+          rollback 계획과 수동 체크리스트만 준비하며 실제 주문과 브로커 API 연결은 없습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

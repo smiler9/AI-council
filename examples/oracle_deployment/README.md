@@ -59,6 +59,25 @@ scripts/run_oracle_preview_deploy_dryrun.sh
 
 이 명령은 bundle build/verify, readiness dry-run, preview deploy plan 생성/검증, command preview 생성을 로컬에서만 수행합니다.
 
+## Outbox approval dry-run
+
+Phase 24K builds and verifies the outbox approval package before any Oracle path creation.
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_outbox_approval_dryrun.sh
+```
+
+The package includes:
+
+- outbox path candidates
+- signal file contract
+- retention policy
+- rollback plan
+- manual checklist
+
+No Oracle files are changed.
+
 ## Safety Boundary
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

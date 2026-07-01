@@ -203,6 +203,12 @@ Phase 24J 결과 문서:
 
 Phase 24J는 `mac_pull_oracle_outbox`를 preview pipeline으로 구체화하되, 원격 파일 삭제/이동 없이 local inbox와 `normalize-preview` 중심으로 처리합니다.
 
+Phase 24K 결과 문서:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PATH_APPROVAL.md`
+
+Phase 24K는 Mac pull이 읽을 outbox 경로 후보를 placeholder로 확정하고, 실제 Oracle 적용 전 수동 승인 패키지를 생성합니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

@@ -166,6 +166,12 @@ Phase 24J 결과 문서:
 
 Phase 24J는 Oracle outbox JSON을 Mac이 read-only로 가져오는 pipeline을 준비합니다. 원격 삭제/이동 없이 local inbox에서 `normalize-preview`를 수행하는 방향입니다.
 
+Phase 24K 결과 문서:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PATH_APPROVAL.md`
+
+Phase 24K는 outbox 경로 후보, file contract, retention policy, rollback plan, manual checklist를 approval package로 묶습니다. 실제 Oracle directory 생성이나 권한 변경은 수행하지 않습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

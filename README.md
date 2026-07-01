@@ -1838,6 +1838,39 @@ python examples/oracle_pull/process_pulled_signals.py \
 - 브로커 API 연결 없음
 - `order_execution_allowed=false`
 
+## Phase 24K Oracle Outbox Path Approval Package
+
+Phase 24K는 Oracle 운영봇 export hook 적용 전에 outbox/processed/failed/state/log 경로 후보를 placeholder 기준으로 확정하고, file contract, retention policy, rollback plan, manual checklist를 포함한 approval package를 만듭니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PATH_APPROVAL.md`
+- `examples/oracle_outbox_approval/build_outbox_approval_package.py`
+- `examples/oracle_outbox_approval/verify_outbox_approval_package.py`
+- `examples/oracle_outbox_approval/templates/`
+- `scripts/build_oracle_outbox_approval_package.sh`
+- `scripts/verify_oracle_outbox_approval_package.sh`
+- `scripts/run_oracle_outbox_approval_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_outbox_approval_dryrun.sh
+```
+
+안전 원칙:
+
+- 실제 Oracle 적용 없음
+- 원격 directory 생성 없음
+- 원격 삭제/이동/권한변경 없음
+- active `mkdir`, `chmod`, `systemctl` 명령 없음
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `remote_delete=false`
+- `remote_move=false`
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

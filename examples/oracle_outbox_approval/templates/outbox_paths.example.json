@@ -1,0 +1,19 @@
+{
+  "manual_approval_required": true,
+  "order_execution_allowed": false,
+  "remote_delete": false,
+  "remote_move": false,
+  "oracle_paths": {
+    "trading_dir": "<oracle-trading-dir>",
+    "outbox_dir": "<oracle-trading-dir>/ai_council_outbox/",
+    "processed_dir": "<oracle-trading-dir>/ai_council_processed/",
+    "failed_dir": "<oracle-trading-dir>/ai_council_failed/",
+    "state_dir": "<oracle-trading-dir>/ai_council_state/",
+    "export_log": "<oracle-trading-dir>/logs/ai_council_export.log"
+  },
+  "local_mac_paths": {
+    "inbox_dir": "tmp/oracle_pull/inbox",
+    "state_path": "tmp/oracle_pull/state.json",
+    "failed_dir": "tmp/oracle_pull/failed"
+  }
+}
