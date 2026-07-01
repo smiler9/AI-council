@@ -142,6 +142,15 @@ Phase 24M 결과 문서:
 
 Phase 24M은 Phase 24L의 precreation plan과 manual command package를 읽어 final approval packet을 생성합니다. `approval_record.example.json`은 기본값이 `approved=false`이며, 활성 위험 명령이 있으면 packet verify가 실패합니다. 실제 Oracle 적용은 여전히 수행하지 않습니다.
 
+## Phase 24N Read-only Precheck
+
+Phase 24N은 실제 outbox directory 생성 전 read-only precheck command plan과 결과 기록/검증 도구를 추가합니다.
+
+- `docs/US_TRADER_ORACLE_READONLY_PRECHECK_EXECUTION.md`
+- `scripts/run_oracle_readonly_precheck_dryrun.sh`
+
+Precheck 결과가 `passed`가 아니면 write 단계로 진행하지 않습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

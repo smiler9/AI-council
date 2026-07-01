@@ -47,3 +47,6 @@ examples/oracle_outbox_precreation/.state/
 tmp/oracle_final_approval/
 examples/oracle_final_approval/output/
 examples/oracle_final_approval/.state/
+tmp/oracle_readonly_precheck/
+examples/oracle_readonly_precheck/output/
+examples/oracle_readonly_precheck/.state/

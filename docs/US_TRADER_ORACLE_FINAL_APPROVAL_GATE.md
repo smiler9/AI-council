@@ -115,6 +115,16 @@ scripts/verify_oracle_final_approval_packet.sh
 
 Phase 24N에서는 사람이 승인한 경우에도 바로 운영봇을 수정하지 않고, Oracle read-only precheck 결과와 승인 기록을 바탕으로 실제 outbox directory 생성 절차를 수동으로 수행할지 결정할 수 있습니다.
 
+## Phase 24N Read-only Precheck
+
+Phase 24N 결과 문서:
+
+- `docs/US_TRADER_ORACLE_READONLY_PRECHECK_EXECUTION.md`
+- `examples/oracle_readonly_precheck/`
+- `scripts/run_oracle_readonly_precheck_dryrun.sh`
+
+Phase 24N은 실제 write 작업 전 read-only 명령 목록과 결과 기록/검증 도구를 제공합니다. `result_status`가 `passed`가 아니면 다음 단계로 진행하지 않습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

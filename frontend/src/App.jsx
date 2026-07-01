@@ -4416,6 +4416,28 @@ function WebhookPanel({
           실제 서버에 명령을 실행하기 전 수동 승인 패킷을 검토합니다. read-only 사전 확인 명령과 주석 처리된 생성
           후보 명령을 분리하며, 실제 주문과 브로커 API 연결은 없습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Read-only 사전 점검</span>
+            <strong>scripts/run_oracle_readonly_precheck_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>명령 범위</span>
+            <strong>읽기 전용</strong>
+          </div>
+          <div>
+            <span>파일 생성/삭제/권한 변경</span>
+            <strong>없음</strong>
+          </div>
+          <div>
+            <span>systemd 조작</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          실제 서버에서 실행 가능한 읽기 전용 명령만 정리하고, 사람이 확인한 결과를 로컬 JSON으로 기록/검증합니다.
+          이번 단계도 Oracle 서버 쓰기와 실제 주문 실행을 수행하지 않습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

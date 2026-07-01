@@ -172,6 +172,12 @@ Phase 24K 결과 문서:
 
 Phase 24K는 outbox 경로 후보, file contract, retention policy, rollback plan, manual checklist를 approval package로 묶습니다. 실제 Oracle directory 생성이나 권한 변경은 수행하지 않습니다.
 
+Phase 24N 결과 문서:
+
+- `docs/US_TRADER_ORACLE_READONLY_PRECHECK_EXECUTION.md`
+
+Phase 24N은 이 readiness report 이후 실제 서버에서 사람이 실행할 수 있는 read-only precheck 명령과 결과 기록/검증 절차를 별도로 정리합니다. 여전히 Oracle 서버 파일 쓰기, systemd 조작, 운영봇 수정은 수행하지 않습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

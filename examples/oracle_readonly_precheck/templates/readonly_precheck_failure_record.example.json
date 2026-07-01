@@ -1,0 +1,14 @@
+{
+  "result_status": "failed",
+  "checked_at": null,
+  "oracle": {
+    "host": "<oracle-host>",
+    "user": "<oracle-user>",
+    "trading_dir": "<oracle-trading-dir>"
+  },
+  "failure_reason": "<manual-failure-reason>",
+  "next_action": "stop_and_review",
+  "remote_write_executed": false,
+  "systemd_changed": false,
+  "order_execution_allowed": false
+}

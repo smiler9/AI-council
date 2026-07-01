@@ -1945,6 +1945,46 @@ scripts/run_oracle_final_approval_dryrun.sh
 - `remote_write_executed=false`
 - `order_execution_allowed=false`
 
+## Phase 24N Oracle Read-only Precheck Recorder
+
+Phase 24N은 Oracle outbox 생성 전 사람이 실제 서버에서 실행해도 되는 read-only precheck 명령만 정리하고, 수동 확인 결과를 안전한 JSON으로 기록/검증하는 도구를 추가합니다. 실제 Oracle 접속/쓰기/서비스 조작은 수행하지 않습니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_READONLY_PRECHECK_EXECUTION.md`
+- `examples/oracle_readonly_precheck/build_readonly_precheck_plan.py`
+- `examples/oracle_readonly_precheck/verify_readonly_precheck_plan.py`
+- `examples/oracle_readonly_precheck/record_readonly_precheck_result.py`
+- `examples/oracle_readonly_precheck/verify_readonly_precheck_result.py`
+- `examples/oracle_readonly_precheck/templates/`
+- `scripts/build_oracle_readonly_precheck_plan.sh`
+- `scripts/verify_oracle_readonly_precheck_plan.sh`
+- `scripts/record_oracle_readonly_precheck_sample_result.sh`
+- `scripts/verify_oracle_readonly_precheck_result.sh`
+- `scripts/run_oracle_readonly_precheck_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_readonly_precheck_dryrun.sh
+```
+
+안전 원칙:
+
+- 실제 Oracle 접속 없음
+- 실제 원격 쓰기 없음
+- read-only command plan만 생성
+- result record는 `tmp/oracle_readonly_precheck/`에만 생성
+- active `mkdir`, `chmod`, `chown`, `rm`, `mv`, service 변경 명령 없음
+- Oracle live bot 미수정
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `remote_write_allowed=false`
+- `remote_write_executed=false`
+- `systemd_changes_allowed=false`
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash
