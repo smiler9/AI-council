@@ -129,8 +129,20 @@ scripts/run_oracle_outbox_approval_dryrun.sh
 - Mac pull smoke 통과
 - normalize-preview 통과
 - approval package verify 통과
+- precreation plan verify 통과
+- manual precreation command package 검토
 - rollback plan 확인
 - 실제 주문 연결 없음 확인
+
+## Phase 24L Outbox 생성 전 리허설
+
+Phase 24L은 이 문서의 경로 후보를 바탕으로 실제 Oracle 서버에 디렉터리를 만들기 전 precreation plan과 manual command package를 생성합니다.
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PRECREATION_REHEARSAL.md`
+- `examples/oracle_outbox_precreation/`
+- `scripts/run_oracle_outbox_precreation_dryrun.sh`
+
+생성되는 command package는 로컬 `tmp/oracle_outbox_precreation/commands/`에만 저장됩니다. `mkdir`, `chmod`, `chown`, `rm`, `mv` 예시는 주석 처리되어 있으며 `systemctl` 조작은 포함하지 않습니다.
 
 ## 안전 경계
 

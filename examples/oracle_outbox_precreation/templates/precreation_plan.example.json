@@ -1,0 +1,19 @@
+{
+  "mode": "precreation_manual",
+  "manual_approval_required": true,
+  "remote_write_planned": true,
+  "remote_write_executed": false,
+  "remote_delete": false,
+  "remote_move": false,
+  "systemd_changes_planned": false,
+  "paths": {
+    "trading_dir": "<oracle-trading-dir>",
+    "outbox_dir": "<oracle-trading-dir>/ai_council_outbox",
+    "processed_dir": "<oracle-trading-dir>/ai_council_processed",
+    "failed_dir": "<oracle-trading-dir>/ai_council_failed",
+    "state_dir": "<oracle-trading-dir>/ai_council_state",
+    "log_path": "<oracle-trading-dir>/logs/ai_council_export.log"
+  },
+  "order_execution_allowed": false,
+  "safety_boundary": "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다."
+}

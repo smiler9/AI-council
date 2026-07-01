@@ -72,3 +72,13 @@ Run:
 ```bash
 scripts/run_oracle_outbox_approval_dryrun.sh
 ```
+
+## Phase 24L Outbox Pre-creation
+
+Before any real Oracle directory creation, generate and verify the manual-only precreation package:
+
+```bash
+scripts/run_oracle_outbox_precreation_dryrun.sh
+```
+
+This remains a local dry-run. It does not create remote directories, move/delete remote files, change permissions, or touch systemd.

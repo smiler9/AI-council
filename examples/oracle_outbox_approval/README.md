@@ -26,6 +26,16 @@ python examples/oracle_outbox_approval/verify_outbox_approval_package.py \
 scripts/run_oracle_outbox_approval_dryrun.sh
 ```
 
+## Phase 24L Pre-creation Rehearsal
+
+After approval package verification, Phase 24L creates a manual-only pre-creation plan and command package:
+
+```bash
+scripts/run_oracle_outbox_precreation_dryrun.sh
+```
+
+The pre-creation package still does not connect to Oracle, create directories, change permissions, touch systemd, or modify the live bot.
+
 ## Safety Boundary
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

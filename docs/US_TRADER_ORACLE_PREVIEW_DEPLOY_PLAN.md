@@ -204,6 +204,15 @@ scripts/run_oracle_preview_deploy_dryrun.sh
 - 실제 Oracle directory 생성은 아직 하지 않음
 - active `mkdir`, `chmod`, `systemctl` 명령 없음
 
+## Phase 24L Outbox 생성 전 리허설
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PRECREATION_REHEARSAL.md`
+- `scripts/run_oracle_outbox_precreation_dryrun.sh`
+- precreation plan과 manual command package만 생성
+- command package는 로컬 `tmp/` 아래에만 저장
+- active `mkdir`, `chmod`, `chown`, `rm`, `mv`, `systemctl` 명령 없음
+- 실제 Oracle directory 생성은 아직 하지 않음
+
 ## 절대 하지 말아야 할 것
 
 - `penny_stock_bot.py` 직접 수정

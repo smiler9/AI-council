@@ -1871,6 +1871,44 @@ scripts/run_oracle_outbox_approval_dryrun.sh
 - `remote_move=false`
 - `order_execution_allowed=false`
 
+## Phase 24L Oracle Outbox Pre-creation Rehearsal
+
+Phase 24L은 Oracle 서버에 실제 outbox/processed/failed/state 디렉터리를 만들기 전에 사람이 검토할 수 있는 precreation plan, manual command package, approval checklist, rollback 절차를 준비합니다. 이번 단계도 실제 Oracle 적용은 수행하지 않습니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PRECREATION_REHEARSAL.md`
+- `examples/oracle_outbox_precreation/build_outbox_precreation_plan.py`
+- `examples/oracle_outbox_precreation/verify_outbox_precreation_plan.py`
+- `examples/oracle_outbox_precreation/generate_manual_precreation_commands.py`
+- `examples/oracle_outbox_precreation/templates/`
+- `scripts/build_oracle_outbox_precreation_plan.sh`
+- `scripts/verify_oracle_outbox_precreation_plan.sh`
+- `scripts/generate_oracle_outbox_precreation_commands.sh`
+- `scripts/run_oracle_outbox_precreation_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_outbox_precreation_dryrun.sh
+```
+
+안전 원칙:
+
+- 실제 Oracle 접속 없음
+- 실제 원격 directory 생성 없음
+- generated command는 `tmp/oracle_outbox_precreation/commands/`에만 생성
+- active `mkdir`, `chmod`, `chown`, `rm`, `mv`, `systemctl` 명령 없음
+- 원격 삭제/이동/권한변경 없음
+- Oracle live bot 미수정
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `remote_write_executed=false`
+- `remote_delete=false`
+- `remote_move=false`
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

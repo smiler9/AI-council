@@ -169,6 +169,15 @@ Phase 24K 결과 문서:
 
 Phase 24K는 outbox/processed/failed/state/log 경로 후보와 file contract, retention policy, rollback plan, manual checklist를 approval package로 묶습니다.
 
+## Phase 24L Outbox Pre-creation
+
+Phase 24L 결과 문서:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_PRECREATION_REHEARSAL.md`
+- `examples/oracle_outbox_precreation/`
+
+Phase 24L은 Oracle outbox 디렉터리를 실제 생성하기 전 로컬에서 precreation plan과 manual command package를 생성/검증합니다. Mac pull은 계속 원격 파일 삭제/이동 없이 read-only 원칙을 유지합니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

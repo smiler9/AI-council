@@ -4372,6 +4372,28 @@ function WebhookPanel({
           Outbox 경로 승인 패키지는 실제 Oracle 서버에 디렉터리를 자동 생성하지 않습니다. 파일 계약, 보존 정책,
           rollback 계획과 수동 체크리스트만 준비하며 실제 주문과 브로커 API 연결은 없습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Outbox 생성 전 리허설</span>
+            <strong>scripts/run_oracle_outbox_precreation_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>수동 명령 패키지</span>
+            <strong>tmp/oracle_outbox_precreation/commands</strong>
+          </div>
+          <div>
+            <span>자동 생성/자동 적용</span>
+            <strong>없음</strong>
+          </div>
+          <div>
+            <span>systemd 조작</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          실제 서버에 디렉터리를 만들기 전 수동 명령 패키지를 검증합니다. 생성 명령은 주석 처리된 예시로만 제공되며,
+          원격 삭제/이동/권한변경과 실제 주문 실행은 수행하지 않습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">
