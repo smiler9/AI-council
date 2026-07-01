@@ -117,6 +117,15 @@ Phase 24P 결과 문서:
 
 Phase 24P의 command packet은 사람이 검토할 주석 처리된 생성 후보와 read-only 검증 명령을 묶습니다. 실제 Oracle 적용은 여전히 자동 수행하지 않습니다.
 
+## Phase 24Q Creation Result Verification
+
+Phase 24Q는 사람이 수동 생성 결과를 기록하고 검증한 뒤 preview signal file write rehearsal로 넘어갈 수 있는지 판단합니다.
+
+- `docs/US_TRADER_ORACLE_OUTBOX_CREATION_RESULT_VERIFICATION.md`
+- `scripts/run_oracle_outbox_creation_result_dryrun.sh`
+
+Phase 24Q의 GO는 운영봇 patch 승인이 아니며 실제 주문이나 브로커 API 연결을 허용하지 않습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

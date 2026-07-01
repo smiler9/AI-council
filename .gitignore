@@ -56,3 +56,6 @@ examples/oracle_precheck_intake/.state/
 tmp/oracle_outbox_manual_creation/
 examples/oracle_outbox_manual_creation/output/
 examples/oracle_outbox_manual_creation/.state/
+tmp/oracle_outbox_creation_result/
+examples/oracle_outbox_creation_result/output/
+examples/oracle_outbox_creation_result/.state/

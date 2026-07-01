@@ -4482,6 +4482,28 @@ function WebhookPanel({
           GO는 실제 적용 승인이 아니라 다음 검토 단계 허용입니다. 수동 생성 패킷은 사람이 검토할 command 후보와
           실행 후 read-only 검증 템플릿만 준비하며, 실제 주문은 없습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Outbox 생성 결과 검증</span>
+            <strong>scripts/run_oracle_outbox_creation_result_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>다음 단계</span>
+            <strong>Preview 파일 리허설</strong>
+          </div>
+          <div>
+            <span>운영봇 patch 승인</span>
+            <strong>아님</strong>
+          </div>
+          <div>
+            <span>운영봇 수정</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          수동 생성 결과를 기록하고 다음 단계 가능 여부를 판단합니다. GO는 운영봇 patch 승인이 아니라 preview signal
+          file write rehearsal로 넘어갈 수 있다는 뜻이며, systemd 조작과 실제 주문은 없습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

@@ -1,0 +1,9 @@
+{
+  "approved": false,
+  "decision": "GO",
+  "next_phase_allowed": true,
+  "next_phase": "Phase 24R Oracle preview signal file write rehearsal",
+  "decision_scope": "Allows only preview signal file write rehearsal, not live bot patching or order execution.",
+  "manual_approval_required": true,
+  "order_execution_allowed": false
+}

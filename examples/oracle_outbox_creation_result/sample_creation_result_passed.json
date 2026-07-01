@@ -1,0 +1,40 @@
+{
+  "result_status": "passed",
+  "manual_operator": "<manual-operator>",
+  "created_at": "<manual-created-at>",
+  "oracle_target": {
+    "host": "<oracle-host>",
+    "user": "<oracle-user>",
+    "trading_dir": "<oracle-trading-dir>"
+  },
+  "created_paths": {
+    "outbox_dir": "<oracle-trading-dir>/ai_council_outbox",
+    "processed_dir": "<oracle-trading-dir>/ai_council_processed",
+    "failed_dir": "<oracle-trading-dir>/ai_council_failed",
+    "state_dir": "<oracle-trading-dir>/ai_council_state"
+  },
+  "observations": {
+    "outbox_dir_exists": true,
+    "processed_dir_exists": true,
+    "failed_dir_exists": true,
+    "state_dir_exists": true,
+    "dirs_owned_by_expected_user": true,
+    "dirs_readable": true,
+    "dirs_writable_by_expected_user": true,
+    "disk_space_ok": true,
+    "post_creation_verify_readonly_only": true
+  },
+  "safety": {
+    "systemd_changed": false,
+    "live_bot_modified": false,
+    "penny_stock_bot_modified": false,
+    "secrets_exposed": false,
+    "order_execution_allowed": false,
+    "broker_api_called": false
+  },
+  "notes": [
+    "Placeholder sample only. Do not store secret values."
+  ],
+  "next_step_requested": "preview_signal_file_write_rehearsal",
+  "safety_boundary": "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다."
+}

@@ -2056,6 +2056,43 @@ scripts/run_oracle_outbox_manual_creation_dryrun.sh
 - `creation_executed=false`
 - `order_execution_allowed=false`
 
+## Phase 24Q Oracle Outbox Creation Result Verification
+
+Phase 24Q는 사람이 Oracle에서 outbox 디렉터리를 수동 생성한 뒤 그 결과를 표준 JSON으로 기록/검증하고, 다음 단계인 preview signal file write rehearsal로 넘어갈 수 있는지 GO/NO-GO를 판단합니다. GO는 운영봇 patch 승인이 아닙니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_CREATION_RESULT_VERIFICATION.md`
+- `examples/oracle_outbox_creation_result/build_creation_result_template.py`
+- `examples/oracle_outbox_creation_result/record_creation_result.py`
+- `examples/oracle_outbox_creation_result/verify_creation_result.py`
+- `examples/oracle_outbox_creation_result/decide_post_creation_go_no_go.py`
+- `examples/oracle_outbox_creation_result/templates/`
+- `scripts/build_oracle_outbox_creation_result_template.sh`
+- `scripts/record_oracle_outbox_creation_sample_result.sh`
+- `scripts/verify_oracle_outbox_creation_result.sh`
+- `scripts/decide_oracle_post_creation_go_no_go.sh`
+- `scripts/run_oracle_outbox_creation_result_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_outbox_creation_result_dryrun.sh
+```
+
+안전 원칙:
+
+- 실제 Oracle 접속 없음
+- 실제 원격 쓰기 없음
+- GO는 운영봇 patch 승인 아님
+- generated result/decision은 `tmp/oracle_outbox_creation_result/`에만 생성
+- Oracle live bot 미수정
+- systemd 조작 없음
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

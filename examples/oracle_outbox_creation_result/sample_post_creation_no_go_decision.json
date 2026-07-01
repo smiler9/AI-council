@@ -1,0 +1,11 @@
+{
+  "decision": "NO_GO",
+  "next_phase_allowed": false,
+  "next_phase": "Phase 24R Oracle preview signal file write rehearsal",
+  "decision_scope": "Blocks preview signal file write rehearsal until issues are resolved.",
+  "reasons": [
+    "result_status=failed"
+  ],
+  "next_action": "stop_and_review",
+  "order_execution_allowed": false
+}

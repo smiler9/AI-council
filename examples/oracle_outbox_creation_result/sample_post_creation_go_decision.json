@@ -1,0 +1,13 @@
+{
+  "decision": "GO",
+  "next_phase_allowed": true,
+  "next_phase": "Phase 24R Oracle preview signal file write rehearsal",
+  "decision_scope": "Allows only preview signal file write rehearsal, not live bot patching or order execution.",
+  "reasons": [],
+  "required_manual_acknowledgements": [
+    "GO is not live bot patch approval.",
+    "GO does not permit broker API connection or order execution.",
+    "The next phase is preview signal file write rehearsal only."
+  ],
+  "order_execution_allowed": false
+}

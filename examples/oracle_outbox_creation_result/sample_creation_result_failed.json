@@ -1,0 +1,39 @@
+{
+  "result_status": "failed",
+  "manual_operator": "<manual-operator>",
+  "created_at": "<manual-created-at>",
+  "oracle_target": {
+    "host": "<oracle-host>",
+    "user": "<oracle-user>",
+    "trading_dir": "<oracle-trading-dir>"
+  },
+  "created_paths": {
+    "outbox_dir": "<oracle-trading-dir>/ai_council_outbox",
+    "processed_dir": "<oracle-trading-dir>/ai_council_processed",
+    "failed_dir": "<oracle-trading-dir>/ai_council_failed",
+    "state_dir": "<oracle-trading-dir>/ai_council_state"
+  },
+  "observations": {
+    "outbox_dir_exists": false,
+    "processed_dir_exists": true,
+    "failed_dir_exists": true,
+    "state_dir_exists": true,
+    "dirs_owned_by_expected_user": false,
+    "dirs_readable": false,
+    "dirs_writable_by_expected_user": false,
+    "disk_space_ok": true,
+    "post_creation_verify_readonly_only": true
+  },
+  "safety": {
+    "systemd_changed": false,
+    "live_bot_modified": false,
+    "penny_stock_bot_modified": false,
+    "secrets_exposed": false,
+    "order_execution_allowed": false,
+    "broker_api_called": false
+  },
+  "notes": [
+    "Placeholder failed sample only."
+  ],
+  "next_step_requested": "preview_signal_file_write_rehearsal"
+}

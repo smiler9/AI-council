@@ -169,6 +169,15 @@ Phase 24P는 GO decision을 입력으로 받아 사람이 검토할 outbox manua
 
 생성 후보 명령은 기본 주석 처리되어 있으며, Codex/AI Council은 Oracle에 디렉터리를 만들지 않습니다.
 
+## Phase 24Q Creation Result Verification
+
+Phase 24Q는 outbox 수동 생성 결과를 표준 JSON으로 기록하고 post-creation GO/NO-GO를 판단합니다.
+
+- `docs/US_TRADER_ORACLE_OUTBOX_CREATION_RESULT_VERIFICATION.md`
+- `scripts/run_oracle_outbox_creation_result_dryrun.sh`
+
+GO는 preview signal file write rehearsal 단계만 허용하며 운영봇 patch 승인이나 주문 실행 허가가 아닙니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
