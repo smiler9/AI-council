@@ -1,0 +1,11 @@
+{
+  "creation_executed": false,
+  "created_by": "<manual-operator>",
+  "created_at": null,
+  "paths_checked": {},
+  "remote_write_executed": false,
+  "systemd_changed": false,
+  "live_bot_modified": false,
+  "order_execution_allowed": false,
+  "result_status": "incomplete"
+}

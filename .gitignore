@@ -53,3 +53,6 @@ examples/oracle_readonly_precheck/.state/
 tmp/oracle_precheck_intake/
 examples/oracle_precheck_intake/output/
 examples/oracle_precheck_intake/.state/
+tmp/oracle_outbox_manual_creation/
+examples/oracle_outbox_manual_creation/output/
+examples/oracle_outbox_manual_creation/.state/

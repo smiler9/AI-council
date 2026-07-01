@@ -1,0 +1,12 @@
+{
+  "packet_name": "oracle_outbox_manual_creation_packet",
+  "decision": "GO",
+  "next_phase_allowed": true,
+  "manual_approval_required": true,
+  "go_is_not_deployment_approval": true,
+  "creation_executed": false,
+  "remote_write_executed": false,
+  "systemd_changed": false,
+  "oracle_live_bot_modified": false,
+  "order_execution_allowed": false
+}

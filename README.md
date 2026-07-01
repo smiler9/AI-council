@@ -2020,6 +2020,42 @@ scripts/run_oracle_precheck_intake_dryrun.sh
 - 브로커 API 연결 없음
 - `order_execution_allowed=false`
 
+## Phase 24P Oracle Outbox Manual Creation Packet
+
+Phase 24P는 Phase 24O의 GO decision을 기반으로 사람이 Oracle에서 수동으로 outbox/processed/failed/state 디렉터리를 만들기 전에 검토할 command packet을 생성합니다. GO는 실제 적용 승인이 아니라 packet 검토 단계 허용입니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_MANUAL_CREATION_PACKET.md`
+- `examples/oracle_outbox_manual_creation/build_manual_creation_packet.py`
+- `examples/oracle_outbox_manual_creation/review_creation_commands.py`
+- `examples/oracle_outbox_manual_creation/verify_manual_creation_packet.py`
+- `examples/oracle_outbox_manual_creation/templates/`
+- `scripts/build_oracle_outbox_manual_creation_packet.sh`
+- `scripts/review_oracle_outbox_creation_commands.sh`
+- `scripts/verify_oracle_outbox_manual_creation_packet.sh`
+- `scripts/run_oracle_outbox_manual_creation_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_outbox_manual_creation_dryrun.sh
+```
+
+안전 원칙:
+
+- 실제 Oracle 접속 없음
+- 실제 원격 쓰기 없음
+- 생성 후보 명령은 기본 주석 처리
+- generated packet은 `tmp/oracle_outbox_manual_creation/`에만 생성
+- Oracle live bot 미수정
+- systemd 조작 없음
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `creation_executed=false`
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

@@ -107,6 +107,16 @@ Dry-run은 sample intake를 로컬 `tmp/` 아래에 복사해 validate와 decisi
 - 사람이 GO의 범위를 이해하고 별도 수동 승인
 - 실제 쓰기 작업은 여전히 자동화하지 않음
 
+## Phase 24P Manual Creation Packet
+
+Phase 24P 결과 문서:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_MANUAL_CREATION_PACKET.md`
+- `examples/oracle_outbox_manual_creation/`
+- `scripts/run_oracle_outbox_manual_creation_dryrun.sh`
+
+Phase 24P의 command packet은 사람이 검토할 주석 처리된 생성 후보와 read-only 검증 명령을 묶습니다. 실제 Oracle 적용은 여전히 자동 수행하지 않습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

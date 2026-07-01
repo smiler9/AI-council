@@ -134,6 +134,15 @@ Phase 24O 결과 문서:
 
 Phase 24O의 GO decision은 outbox 수동 생성 검토로 넘어갈 수 있다는 뜻일 뿐이며 실제 적용 승인, 운영봇 수정, systemd 조작, 주문 실행 허가가 아닙니다.
 
+## Phase 24P Manual Creation Packet
+
+Phase 24P 결과 문서:
+
+- `docs/US_TRADER_ORACLE_OUTBOX_MANUAL_CREATION_PACKET.md`
+- `scripts/run_oracle_outbox_manual_creation_dryrun.sh`
+
+Phase 24P는 주석 처리된 manual creation 후보 명령과 post-creation read-only 검증 템플릿을 생성합니다. 실제 Oracle 적용은 아직 하지 않습니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
