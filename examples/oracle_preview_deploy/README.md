@@ -34,6 +34,16 @@ scripts/generate_oracle_preview_commands.sh
 - 브로커 API 연결 없음
 - `order_execution_allowed=false`
 
+## Phase 24I 연결 전략
+
+Oracle에서 로컬 Mac AI Council `127.0.0.1`로는 접근할 수 없습니다. 연결 방식 비교와 dry-run은 다음을 사용합니다.
+
+```bash
+scripts/run_oracle_connectivity_strategy_dryrun.sh
+```
+
+기본 추천은 `oracle_outbox_only_preview`이며, 자동화가 필요하면 `mac_pull_oracle_outbox`를 다음 단계로 검토합니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

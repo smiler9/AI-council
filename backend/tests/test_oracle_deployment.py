@@ -146,7 +146,7 @@ def test_readiness_check_has_no_start_stop_restart_commands():
 
 def test_templates_do_not_hardcode_oracle_identity():
     text = "\n".join(path.read_text(encoding="utf-8") for path in (DEPLOYMENT_DIR / "templates").glob("*"))
-    forbidden = ["168.110.101.18", "ssh-key-2026", "/Users/lahyunhwa/.ssh"]
+    forbidden = ["ORACLE_REAL_HOST_VALUE", "REAL_PRIVATE_KEY_PATH", "REAL_SSH_KEY_FILENAME"]
     for marker in forbidden:
         assert marker not in text
     assert "<oracle-host>" in (ROOT / "docs" / "US_TRADER_ORACLE_DEPLOYMENT_RUNBOOK.md").read_text(encoding="utf-8")

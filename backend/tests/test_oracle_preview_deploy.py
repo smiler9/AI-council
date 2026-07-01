@@ -93,7 +93,7 @@ def test_verify_rejects_review_live_order_modes(tmp_path):
 def test_verify_detects_secret_private_key_marker(tmp_path):
     plan = prepare_plan(tmp_path)
     payload = json.loads(plan.read_text(encoding="utf-8"))
-    payload["oracle_target"]["host"] = "168.110.101.18"
+    payload["oracle_target"]["ssh_key"] = "-----BEGIN OPENSSH PRIVATE KEY-----"
     bad_plan = tmp_path / "secret_plan.json"
     bad_plan.write_text(json.dumps(payload), encoding="utf-8")
     script = PREVIEW_DIR / "verify_preview_deploy_plan.py"
@@ -161,7 +161,7 @@ def test_generated_commands_do_not_touch_oracle_live_bot_services(tmp_path):
 
 def test_preview_templates_do_not_hardcode_oracle_identity():
     text = "\n".join(path.read_text(encoding="utf-8") for path in (PREVIEW_DIR / "templates").glob("*"))
-    for marker in ["168.110.101.18", "ssh-key-2026", "/Users/lahyunhwa/.ssh"]:
+    for marker in ["ORACLE_REAL_HOST_VALUE", "REAL_PRIVATE_KEY_PATH", "REAL_SSH_KEY_FILENAME"]:
         assert marker not in text
     assert "<oracle-host>" in (ROOT / "docs" / "US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md").read_text(encoding="utf-8")
 

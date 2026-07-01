@@ -1,0 +1,21 @@
+{
+  "option": "oracle_outbox_only_preview",
+  "mode": "preview",
+  "manual_approval_required": true,
+  "network_changes_required": false,
+  "oracle_file_write_required": true,
+  "ai_council_public_exposure_required": false,
+  "risk_level": "low",
+  "steps": [
+    "Keep Oracle sidecar offline from AI Council.",
+    "Write signal JSON files to an approved outbox directory only after separate manual approval.",
+    "Review JSON samples locally before enabling any network path."
+  ],
+  "rollback": [
+    "Stop sidecar preview process if manually started.",
+    "Preserve outbox/state files for audit.",
+    "Remove preview-only sidecar files only after manual approval."
+  ],
+  "order_execution_allowed": false,
+  "safety_boundary": "AI Council does not execute trades or connect to broker APIs. This output is for review, risk analysis, and decision support only."
+}

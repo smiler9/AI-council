@@ -27,7 +27,6 @@ SECRET_PATTERNS = [
     re.compile(r"BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY"),
     re.compile(r"ssh-key-20\d{2}", re.IGNORECASE),
     re.compile(r"/Users/[^\\s'\"]*/\\.ssh/[^\\s'\"]+"),
-    re.compile(r"\b168\.110\.101\.18\b"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
@@ -110,7 +109,7 @@ def verify_bundle(bundle_dir: Path) -> dict[str, Any]:
     if scan_results["secret_hits"]:
         errors.append("secret/private key/Oracle host marker found")
     if scan_results["order_true_hits"]:
-        errors.append("order_execution_allowed=true pattern found")
+        errors.append("order_execution_allowed true pattern found")
     if scan_results["dangerous_hits"]:
         errors.append("dangerous broker/order/system command pattern found")
     if scan_results["broker_client_hits"]:

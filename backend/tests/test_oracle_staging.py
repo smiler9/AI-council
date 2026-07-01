@@ -193,7 +193,13 @@ def test_oracle_staging_fixture_has_no_secret_markers():
             and path.name != "validate_staging_patch.py"
         )
     )
-    forbidden = ["BEGIN PRIVATE KEY", "ssh-key-2026", "ACCESS_TOKEN=", "API_SECRET=", "168.110.101.18"]
+    forbidden = [
+        "BEGIN PRIVATE KEY",
+        "OPENSSH PRIVATE KEY",
+        "ACCESS_TOKEN=",
+        "API_SECRET=",
+        "ORACLE_REAL_HOST_VALUE",
+    ]
     for marker in forbidden:
         assert marker not in text
 

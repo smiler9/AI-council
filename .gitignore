@@ -29,3 +29,5 @@ examples/oracle_deployment/.state/
 examples/oracle_preview_deploy/output/
 examples/oracle_preview_deploy/commands/
 examples/oracle_preview_deploy/.state/
+examples/oracle_connectivity/output/
+examples/oracle_connectivity/.state/

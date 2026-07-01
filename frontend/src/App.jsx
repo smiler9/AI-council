@@ -4306,6 +4306,28 @@ function WebhookPanel({
           운영 서버에 파일을 쓰지 않고 배치 가능성만 확인합니다. 실제 Oracle 서버 수정, 운영봇 재시작,
           실제 주문 실행은 수행하지 않습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle 네트워크 연결 전략</span>
+            <strong>scripts/run_oracle_connectivity_strategy_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>127.0.0.1 의미</span>
+            <strong>Oracle 자신</strong>
+          </div>
+          <div>
+            <span>권장 preview 전략</span>
+            <strong>Outbox-only / Mac pull</strong>
+          </div>
+          <div>
+            <span>실제 tunnel 자동 실행</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          로컬 AI Council에 접근하려면 pull, tunnel, Oracle 배포 중 하나가 필요합니다. Phase 24I는 실제 tunnel을
+          열지 않고 outbox-only 또는 Mac pull 중심의 계획만 검증합니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

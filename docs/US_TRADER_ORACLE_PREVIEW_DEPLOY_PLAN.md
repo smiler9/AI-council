@@ -43,6 +43,22 @@ Phase 24H에서는 Oracle 서버를 read-only로 점검해 preview-only sidecar 
 - AI Council endpoint는 Oracle에서 접근 가능한 URL이어야 하며, `127.0.0.1`은 Oracle 자신을 가리키므로 로컬 Mac backend에는 도달하지 않음
 - systemd 운영봇 service는 preview-only sidecar 배치 과정에서 start/stop/restart하지 않음
 
+## Phase 24I network connectivity strategy
+
+Phase 24I는 Oracle에서 AI Council에 접근하는 방식을 비교하고, 실제 네트워크 변경 없이 connectivity plan을 생성/검증합니다.
+
+관련 문서:
+
+- `docs/US_TRADER_ORACLE_NETWORK_CONNECTIVITY_STRATEGY.md`
+
+권장 순서:
+
+1. `oracle_outbox_only_preview`
+2. `mac_pull_oracle_outbox`
+3. `ssh_reverse_tunnel_preview`
+
+실제 tunnel 또는 public endpoint는 Phase 24I에서 실행하지 않습니다.
+
 ## Preview deploy plan 생성
 
 ```bash

@@ -298,6 +298,26 @@ scripts/run_oracle_preview_deploy_dryrun.sh
 - systemd 운영봇 조작 없음
 - `order_execution_allowed=false`
 
+## Oracle Connectivity Strategy Dry-run
+
+Phase 24I는 Oracle sidecar가 AI Council에 접근하는 네트워크 방식을 비교하고 plan을 생성/검증합니다.
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_connectivity_strategy_dryrun.sh
+```
+
+검증 항목:
+
+- 옵션 A~F 비교
+- 기본 추천 `oracle_outbox_only_preview`
+- connectivity plan 생성
+- connectivity plan verify
+- 실제 tunnel 실행 없음
+- SSH reverse tunnel 실행 없음
+- public endpoint 생성 없음
+- `order_execution_allowed=false`
+
 ## 안전
 
 Smoke test와 E2E 시나리오는 브로커 API를 호출하지 않고, 주문을 생성하지 않고, 주문 승인/취소/라우팅을 하지 않으며, 실제 포지션을 변경하지 않습니다. Paper Trading은 내부 가상 시뮬레이션 전용입니다.

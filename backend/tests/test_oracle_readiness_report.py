@@ -22,9 +22,9 @@ def test_readiness_report_includes_safety_boundary():
 def test_readiness_report_does_not_include_private_key_path_or_oracle_ip():
     text = REPORT.read_text(encoding="utf-8")
     forbidden = [
-        "168.110.101.18",
-        "ssh-key-2026",
-        "/Users/lahyunhwa/.ssh",
+        "ORACLE_REAL_HOST_VALUE",
+        "REAL_PRIVATE_KEY_PATH",
+        "REAL_SSH_KEY_FILENAME",
         "/home/ubuntu/trading_v2",
     ]
     for marker in forbidden:

@@ -1747,6 +1747,55 @@ Phase 24H에서 하지 않는 것:
 - 실제 주문 실행
 - 브로커 API 연결
 
+## Phase 24I Oracle Network Connectivity Strategy
+
+Phase 24I는 Oracle US Trader sidecar가 AI Council webhook/normalize-preview에 접근하는 네트워크 방식을 비교하고, 실제 네트워크 변경 없이 preview-only connectivity plan을 생성/검증합니다.
+
+추가 파일:
+
+- `examples/oracle_connectivity/compare_connectivity_options.py`
+- `examples/oracle_connectivity/generate_connectivity_plan.py`
+- `examples/oracle_connectivity/verify_connectivity_plan.py`
+- `examples/oracle_connectivity/templates/`
+- `docs/US_TRADER_ORACLE_NETWORK_CONNECTIVITY_STRATEGY.md`
+- `scripts/compare_oracle_connectivity_options.sh`
+- `scripts/generate_oracle_connectivity_plan.sh`
+- `scripts/verify_oracle_connectivity_plan.sh`
+- `scripts/run_oracle_connectivity_strategy_dryrun.sh`
+
+전체 dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_connectivity_strategy_dryrun.sh
+```
+
+추천 전략:
+
+1. `oracle_outbox_only_preview`
+2. `mac_pull_oracle_outbox`
+3. `ssh_reverse_tunnel_preview`
+
+보류:
+
+- `cloudflare_tunnel_preview`
+- `oracle_local_ai_council_preview`
+
+비추천:
+
+- `direct_mac_public_webhook`
+
+Phase 24I에서는 실제 tunnel, public endpoint, SSH reverse tunnel, firewall/security group 변경을 만들지 않습니다. 기본 plan은 `tmp/oracle_connectivity_plan.json`에 생성되며 Git에 포함하지 않습니다.
+
+안전 원칙:
+
+- Oracle에서 `127.0.0.1`은 Oracle 자신
+- 로컬 AI Council에 접근하려면 pull/tunnel/Oracle 배포 중 하나가 필요
+- preview 단계에서는 outbox-only 또는 Mac pull 우선
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

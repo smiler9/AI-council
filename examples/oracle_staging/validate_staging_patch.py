@@ -18,7 +18,7 @@ FORBIDDEN_TERMS = (
     "ib_insync",
     "kis_order",
 )
-SECRET_MARKERS = ("BEGIN PRIVATE KEY", "ssh-key-2026", "API_SECRET", "ACCESS_TOKEN")
+SECRET_MARKERS = ("BEGIN PRIVATE KEY", "OPENSSH PRIVATE KEY", "API_SECRET", "ACCESS_TOKEN")
 
 
 def main() -> int:

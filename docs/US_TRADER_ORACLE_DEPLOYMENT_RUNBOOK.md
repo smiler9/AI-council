@@ -63,6 +63,12 @@ scripts/run_oracle_preview_deploy_dryrun.sh
 
 - `docs/US_TRADER_ORACLE_PREVIEW_DEPLOY_PLAN.md`
 
+Phase 24I에서는 Oracle sidecar가 AI Council에 접근하는 네트워크 방식을 비교합니다. 기본 권장안은 outbox-only preview 후 Mac pull입니다.
+
+관련 문서:
+
+- `docs/US_TRADER_ORACLE_NETWORK_CONNECTIVITY_STRATEGY.md`
+
 ## Level 4: Preview-only Sidecar 실행
 
 sidecar는 `US_TRADER_BRIDGE_MODE=preview`로만 시작합니다. Preview mode는 `normalize-preview`만 호출하며 trade review를 생성하지 않습니다.
