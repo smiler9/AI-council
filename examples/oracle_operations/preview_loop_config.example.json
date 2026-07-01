@@ -17,6 +17,12 @@
     "max_notional_per_trade": 100,
     "allow_only_decision": false
   },
+  "telegram_alerts": {
+    "enabled": false,
+    "send_only_on_problem": true,
+    "bot_token": "<telegram-bot-token>",
+    "chat_id": "<telegram-chat-id>"
+  },
   "remote_delete": false,
   "remote_move": false,
   "systemd_changes_allowed": false,

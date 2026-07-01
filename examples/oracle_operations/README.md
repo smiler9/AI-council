@@ -31,6 +31,26 @@ Without those values, it processes JSON files already present in `tmp/oracle_pul
 - `ORACLE_PREVIEW_LOOP_LOG=tmp/oracle_operations/preview_loop.log`
 - `PAPER_PORTFOLIO_NAME=Oracle Preview Paper Portfolio`
 - `ORACLE_PREVIEW_LOOP_MODE=run_once`
+- `ORACLE_PREVIEW_LOOP_TELEGRAM_ALERTS=false`
+- `TELEGRAM_ENABLED=false`
+- `TELEGRAM_BOT_TOKEN=<telegram-bot-token>`
+- `TELEGRAM_CHAT_ID=<telegram-chat-id>`
+
+## Telegram Problem Alerts
+
+The loop can send Telegram alerts only when a signal or loop run has a problem, such as invalid JSON, missing required fields, unsafe `order_execution_allowed`, webhook failure, Paper simulation safety failure, or a remote pull safety violation.
+
+Telegram alerts are optional and report-only. They never trigger broker calls, order creation, Oracle file moves/deletes, or systemd operations. Enable them on the Mac loop process with:
+
+```bash
+ORACLE_PREVIEW_LOOP_TELEGRAM_ALERTS=true \
+TELEGRAM_ENABLED=true \
+TELEGRAM_BOT_TOKEN=<telegram-bot-token> \
+TELEGRAM_CHAT_ID=<telegram-chat-id> \
+scripts/run_oracle_preview_operations_once.sh --pretty
+```
+
+Secret values are not printed in summaries, logs, or alert text. If Telegram is not configured, the loop records a disabled alert result and continues.
 
 ## Safety Boundary
 

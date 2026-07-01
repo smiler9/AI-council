@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -23,6 +24,7 @@ DEFAULT_STATE = ROOT / "tmp" / "oracle_operations" / "preview_loop_state.json"
 DEFAULT_LOG = ROOT / "tmp" / "oracle_operations" / "preview_loop.log"
 DEFAULT_PORTFOLIO_NAME = "Oracle Preview Paper Portfolio"
 SECRET_HEADER = "X-AI-Council-Webhook-Secret"
+TELEGRAM_SEND_MESSAGE_URL = "https://api.telegram.org/bot{token}/sendMessage"
 SAFE_ENTRY_RISK_LEVELS = {"low", "medium"}
 SKIP_DECISIONS = {"HOLD", "BLOCK", "NEED_MORE_DATA"}
 REQUIRED_SIGNAL_FIELDS = {
@@ -53,6 +55,7 @@ SAFETY_BOUNDARY = (
     "Paper Trading records. It does not execute trades, modify the Oracle bot, move "
     "Oracle outbox files, or operate Oracle systemd services."
 )
+ALERT_TITLE = "AI Council Oracle Preview Loop Alert"
 
 
 @dataclass(frozen=True)
@@ -73,6 +76,10 @@ class LoopConfig:
     paper_policy: str
     max_notional_per_trade: float
     allow_only_decision: bool
+    telegram_alerts_enabled: bool
+    telegram_bot_token: str | None
+    telegram_chat_id: str | None
+    telegram_timeout: float
 
 
 def main() -> int:
@@ -99,6 +106,15 @@ def main() -> int:
     parser.add_argument("--paper-policy", default="risk_gate_conservative")
     parser.add_argument("--max-notional-per-trade", type=float, default=100.0)
     parser.add_argument("--allow-only-decision", action="store_true")
+    parser.add_argument(
+        "--telegram-alerts",
+        action="store_true",
+        default=env_bool("ORACLE_PREVIEW_LOOP_TELEGRAM_ALERTS", env_bool("TELEGRAM_ENABLED", False)),
+        help="Send Telegram alerts for invalid/problem signals when Telegram credentials are configured.",
+    )
+    parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN") or None)
+    parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID") or None)
+    parser.add_argument("--telegram-timeout", type=float, default=float(os.getenv("TELEGRAM_TIMEOUT_SECONDS", "10")))
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
 
@@ -119,6 +135,10 @@ def main() -> int:
         paper_policy=args.paper_policy,
         max_notional_per_trade=args.max_notional_per_trade,
         allow_only_decision=args.allow_only_decision,
+        telegram_alerts_enabled=bool(args.telegram_alerts),
+        telegram_bot_token=args.telegram_bot_token,
+        telegram_chat_id=args.telegram_chat_id,
+        telegram_timeout=args.telegram_timeout,
     )
 
     if args.poll:
@@ -148,10 +168,66 @@ def run_poll(config: LoopConfig, poll_interval: float, max_iterations: int | Non
 def run_once(config: LoopConfig) -> dict[str, Any]:
     started_at = now_iso()
     state = load_state(config.state_path)
-    pull_summary = run_remote_pull(config)
-    webhook_status = get_json(f"{config.base_url}/api/webhooks/status", config.timeout)
-    validate_webhook_status(webhook_status)
-    portfolio = get_or_create_portfolio(config)
+    telegram_alerts: list[dict[str, Any]] = []
+    try:
+        pull_summary = run_remote_pull(config)
+        webhook_status = get_json(f"{config.base_url}/api/webhooks/status", config.timeout)
+        validate_webhook_status(webhook_status)
+        portfolio = get_or_create_portfolio(config)
+    except Exception as exc:
+        error = safe_error_message(exc)
+        result = {
+            "status": "failed",
+            "started_at": started_at,
+            "completed_at": now_iso(),
+            "mode": "run_once",
+            "profile": config.profile,
+            "local_inbox": str(config.local_inbox),
+            "state_path": str(config.state_path),
+            "log_path": str(config.log_path),
+            "signals_seen": 0,
+            "signals_processed": 0,
+            "signals_skipped_duplicate": 0,
+            "signals_failed": 1,
+            "trade_reviews_created": 0,
+            "trade_reviews_reused": 0,
+            "paper_simulations_created": 0,
+            "simulated_entries": 0,
+            "simulated_skips": 0,
+            "remote_pull": {"status": "failed", "error": error, "order_execution_allowed": False},
+            "remote_delete_performed": False,
+            "remote_move_performed": False,
+            "oracle_live_bot_modified": False,
+            "oracle_systemd_touched": False,
+            "paper_policy": config.paper_policy,
+            "order_execution_allowed": False,
+            "simulation_only": True,
+            "telegram_alerts": {},
+            "safety_boundary": SAFETY_BOUNDARY,
+            "results": [
+                {
+                    "status": "failed",
+                    "stage": "setup",
+                    "error": error,
+                    "order_execution_allowed": False,
+                    "simulation_only": True,
+                }
+            ],
+        }
+        alert = send_problem_alert(
+            config,
+            "preview_loop_setup_failed",
+            {"stage": "setup", "error": error, "order_execution_allowed": False, "simulation_only": True},
+        )
+        result["telegram_alerts"] = summarize_alerts(config, [alert])
+        append_log(config.log_path, {"summary": result, "order_execution_allowed": False, "simulation_only": True})
+        state["updated_at"] = now_iso()
+        state["remote_delete_performed"] = False
+        state["remote_move_performed"] = False
+        state["order_execution_allowed"] = False
+        state["simulation_only"] = True
+        save_state(config.state_path, state)
+        return result
 
     files = sorted(config.local_inbox.glob("*.json")) if config.local_inbox.exists() else []
     processed_ids = set(state.get("processed_signal_ids", []))
@@ -231,16 +307,28 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
             processed_ids.add(signal_identity)
         except Exception as exc:
             failures += 1
+            error = safe_error_message(exc)
             result = {
                 "file": path.name,
                 "status": "failed",
-                "error": str(exc),
+                "error": error,
                 "order_execution_allowed": False,
                 "simulation_only": True,
             }
             results.append(result)
-            mark_failed(state, path, exc)
+            mark_failed(state, path, error)
             append_log(config.log_path, result)
+            alert = send_problem_alert(
+                config,
+                "signal_processing_failed",
+                {
+                    "file": path.name,
+                    "error": error,
+                    "order_execution_allowed": False,
+                    "simulation_only": True,
+                },
+            )
+            telegram_alerts.append(alert)
 
     state["updated_at"] = now_iso()
     state["remote_delete_performed"] = False
@@ -277,6 +365,7 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
         "paper_policy": config.paper_policy,
         "order_execution_allowed": False,
         "simulation_only": True,
+        "telegram_alerts": summarize_alerts(config, telegram_alerts),
         "safety_boundary": SAFETY_BOUNDARY,
         "results": results,
     }
@@ -318,7 +407,14 @@ def run_remote_pull(config: LoopConfig) -> dict[str, Any]:
         str(config.local_inbox),
         "--enable-readonly-copy",
     ]
-    result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=config.timeout + 30)
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=config.timeout + 30)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"remote pull helper timed out after {exc.timeout} seconds") from exc
+    except subprocess.CalledProcessError as exc:
+        output = sanitize_text((exc.stderr or exc.stdout or "").strip())
+        detail = f": {output}" if output else ""
+        raise RuntimeError(f"remote pull helper failed with exit code {exc.returncode}{detail}") from exc
     stdout = result.stdout.strip()
     payload = json.loads(stdout) if stdout else {}
     if payload.get("remote_delete_performed") is not False:
@@ -555,12 +651,12 @@ def mark_duplicate(state: dict[str, Any], signal_identity: str, path: Path) -> N
     )
 
 
-def mark_failed(state: dict[str, Any], path: Path, exc: Exception) -> None:
+def mark_failed(state: dict[str, Any], path: Path, error: str) -> None:
     state["failed"].append(
         {
             "file": path.name,
             "failed_at": now_iso(),
-            "error": str(exc),
+            "error": error,
             "order_execution_allowed": False,
             "simulation_only": True,
         }
@@ -599,6 +695,152 @@ def read_json_response(request: urllib.request.Request, timeout: float) -> Any:
         raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"connection failed: {exc.reason}") from exc
+
+
+def send_problem_alert(config: LoopConfig, reason: str, context: dict[str, Any]) -> dict[str, Any]:
+    status = telegram_alert_status(config)
+    base = {
+        "reason": reason,
+        "enabled": status["enabled"],
+        "configured": status["configured"],
+        "sent": False,
+        "status": "disabled" if not status["configured"] else "not_sent",
+        "order_execution_allowed": False,
+        "simulation_only": True,
+    }
+    if not status["enabled"]:
+        return {**base, "detail": "Telegram alerts are disabled for the preview loop."}
+    if not status["configured"]:
+        return {
+            **base,
+            "detail": "Telegram alerts are enabled but credentials are not configured.",
+            "missing": status["missing"],
+        }
+
+    message = format_problem_alert_message(reason, context)
+    payload = {
+        "chat_id": config.telegram_chat_id,
+        "text": message,
+        "disable_web_page_preview": True,
+    }
+    request = urllib.request.Request(
+        TELEGRAM_SEND_MESSAGE_URL.format(token=config.telegram_bot_token or ""),
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=config.telegram_timeout) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = sanitize_text(exc.read().decode("utf-8", errors="replace"))
+        return {**base, "status": "error", "detail": f"Telegram HTTP {exc.code}: {detail}"}
+    except urllib.error.URLError as exc:
+        return {**base, "status": "error", "detail": sanitize_text(f"Telegram connection failed: {exc.reason}")}
+
+    sent = bool(response_payload.get("ok", False))
+    return {
+        **base,
+        "sent": sent,
+        "status": "sent" if sent else "error",
+        "detail": sanitize_text(response_payload.get("description") or "Telegram API response received"),
+    }
+
+
+def telegram_alert_status(config: LoopConfig) -> dict[str, Any]:
+    missing = []
+    if config.telegram_alerts_enabled and not config.telegram_bot_token:
+        missing.append("TELEGRAM_BOT_TOKEN")
+    if config.telegram_alerts_enabled and not config.telegram_chat_id:
+        missing.append("TELEGRAM_CHAT_ID")
+    return {
+        "enabled": bool(config.telegram_alerts_enabled),
+        "configured": bool(config.telegram_alerts_enabled and config.telegram_bot_token and config.telegram_chat_id),
+        "missing": missing,
+        "order_execution_allowed": False,
+        "simulation_only": True,
+    }
+
+
+def summarize_alerts(config: LoopConfig, alerts: list[dict[str, Any]]) -> dict[str, Any]:
+    status = telegram_alert_status(config)
+    return {
+        "enabled": status["enabled"],
+        "configured": status["configured"],
+        "attempted": len(alerts),
+        "sent": len([alert for alert in alerts if alert.get("sent") is True]),
+        "failed": len([alert for alert in alerts if alert.get("status") == "error"]),
+        "disabled": len([alert for alert in alerts if alert.get("status") == "disabled"]),
+        "results": alerts,
+        "order_execution_allowed": False,
+        "simulation_only": True,
+    }
+
+
+def format_problem_alert_message(reason: str, context: dict[str, Any]) -> str:
+    safe_context = sanitize_value(context)
+    lines = [
+        ALERT_TITLE,
+        f"Reason: {sanitize_text(reason)}",
+        "Mode: preview-only",
+        "Order execution allowed: false",
+        "Simulation only: true",
+        "Remote delete/move: false",
+    ]
+    for key in ["file", "signal_identity", "stage", "error"]:
+        value = safe_context.get(key)
+        if value not in {None, ""}:
+            lines.append(f"{key}: {value}")
+    lines.extend(
+        [
+            f"Safety Boundary: {SAFETY_BOUNDARY}",
+            "Action: review the local preview loop log and Oracle outbox read-only state.",
+        ]
+    )
+    return "\n".join(lines)[:3500]
+
+
+def sanitize_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {sanitize_text(str(key)): sanitize_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [sanitize_value(item) for item in value]
+    if isinstance(value, str):
+        return sanitize_text(value)
+    return value
+
+
+def safe_error_message(exc: Exception) -> str:
+    if isinstance(exc, subprocess.CalledProcessError):
+        output = (exc.stderr or exc.stdout or "").strip()
+        detail = f": {output}" if output else ""
+        return sanitize_text(f"command failed with exit code {exc.returncode}{detail}")
+    return sanitize_text(str(exc))
+
+
+def sanitize_text(text: str) -> str:
+    sanitized = str(text)
+    replacements = [
+        (r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", "<redacted-private-key>"),
+        (r"/Users/[^\s'\";]+/\.ssh/[^\s'\";]+", "<path-to-private-key>"),
+        (r"/home/[^\s'\";]+/\.ssh/[^\s'\";]+", "<path-to-private-key>"),
+        (r"ssh-key-[0-9A-Za-z_.-]+", "<path-to-private-key>"),
+        (
+            r"(?i)(telegram[_-]?bot[_-]?token|webhook[_-]?secret|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+",
+            r"\1=<redacted>",
+        ),
+        (r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "<redacted-ip>"),
+    ]
+    for pattern, replacement in replacements:
+        sanitized = re.sub(pattern, replacement, sanitized, flags=re.DOTALL)
+    return sanitized
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def contains_secret_marker(value: Any) -> bool:
