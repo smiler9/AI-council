@@ -55,7 +55,7 @@ SAFETY_BOUNDARY = (
     "Paper Trading records. It does not execute trades, modify the Oracle bot, move "
     "Oracle outbox files, or operate Oracle systemd services."
 )
-ALERT_TITLE = "AI Council Oracle Preview Loop Alert"
+ALERT_TITLE = "AI Council Oracle Preview Loop 알림"
 
 
 @dataclass(frozen=True)
@@ -781,20 +781,28 @@ def format_problem_alert_message(reason: str, context: dict[str, Any]) -> str:
     safe_context = sanitize_value(context)
     lines = [
         ALERT_TITLE,
-        f"Reason: {sanitize_text(reason)}",
-        "Mode: preview-only",
-        "Order execution allowed: false",
-        "Simulation only: true",
-        "Remote delete/move: false",
+        f"문제 유형: {sanitize_text(reason)}",
+        "모드: preview-only",
+        "실제 주문 실행: 없음",
+        "브로커 API 호출: 없음",
+        "Oracle 원격 파일 삭제/이동: 없음",
+        "order_execution_allowed=false",
+        "simulation_only=true",
     ]
+    labels = {
+        "file": "파일",
+        "signal_identity": "Signal ID",
+        "stage": "단계",
+        "error": "오류",
+    }
     for key in ["file", "signal_identity", "stage", "error"]:
         value = safe_context.get(key)
         if value not in {None, ""}:
-            lines.append(f"{key}: {value}")
+            lines.append(f"{labels[key]}: {value}")
     lines.extend(
         [
-            f"Safety Boundary: {SAFETY_BOUNDARY}",
-            "Action: review the local preview loop log and Oracle outbox read-only state.",
+            "조치: 로컬 preview loop 로그와 Oracle outbox read-only 상태를 확인하세요.",
+            f"안전 경계: {SAFETY_BOUNDARY}",
         ]
     )
     return "\n".join(lines)[:3500]

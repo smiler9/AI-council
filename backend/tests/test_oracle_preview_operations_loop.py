@@ -200,7 +200,9 @@ def test_problem_alert_sends_without_leaking_token(monkeypatch, tmp_path):
     assert "SECRET_TOKEN" not in captured["body"]["text"]
     assert "203.0.113." not in captured["body"]["text"]
     assert "/.ssh/" not in captured["body"]["text"]
-    assert "order execution allowed: false" in captured["body"]["text"].lower()
+    assert "AI Council Oracle Preview Loop 알림" in captured["body"]["text"]
+    assert "실제 주문 실행: 없음" in captured["body"]["text"]
+    assert "order_execution_allowed=false" in captured["body"]["text"]
 
 
 def test_problem_alert_http_error_redacts_response(monkeypatch, tmp_path):

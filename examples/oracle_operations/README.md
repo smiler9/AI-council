@@ -50,7 +50,7 @@ TELEGRAM_CHAT_ID=<telegram-chat-id> \
 scripts/run_oracle_preview_operations_once.sh --pretty
 ```
 
-Secret values are not printed in summaries, logs, or alert text. If Telegram is not configured, the loop records a disabled alert result and continues.
+Alert messages are written in Korean with explicit safety flags such as `order_execution_allowed=false` and `simulation_only=true`. Secret values are not printed in summaries, logs, or alert text. If Telegram is not configured, the loop records a disabled alert result and continues.
 
 ## Safety Boundary
 
