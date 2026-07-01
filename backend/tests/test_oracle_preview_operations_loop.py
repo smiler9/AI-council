@@ -93,6 +93,34 @@ def test_validate_signal_payload_rejects_order_execution_allowed_true():
         raise AssertionError("unsafe order execution flag must be rejected")
 
 
+def test_validate_signal_payload_rejects_order_like_fields():
+    module = load_module()
+    payload = {
+        "source": "us_trader_oracle_manual_preview",
+        "signal_id": "manual_preview_002",
+        "symbol": "TESTA",
+        "signal": "manual_preview_signal",
+        "action": "buy",
+        "price": 0.82,
+        "volume": 12500000,
+        "timestamp": "2026-01-01T00:00:00+00:00",
+        "quantity": 100,
+        "stop_loss": 0.75,
+        "review_only": True,
+        "simulation_only": True,
+        "order_execution_allowed": False,
+    }
+
+    try:
+        module.validate_signal_payload(payload)
+    except ValueError as exc:
+        assert "order-like fields" in str(exc)
+        assert "quantity" in str(exc)
+        assert "stop_loss" in str(exc)
+    else:
+        raise AssertionError("order-like signal fields must be rejected in preview mode")
+
+
 def test_validate_simulation_against_review_rejects_high_risk_entry():
     module = load_module()
 
@@ -118,6 +146,58 @@ def test_state_duplicate_marker_is_safe(tmp_path):
     assert saved["skipped_duplicates"][0]["signal_identity"] == "source:signal"
     assert saved["order_execution_allowed"] is False
     assert saved["simulation_only"] is True
+
+
+def test_mark_duplicate_records_once_per_identity(tmp_path):
+    module = load_module()
+    state = module.load_state(tmp_path / "state.json")
+
+    assert module.mark_duplicate(state, "source:signal", Path("signal.json")) is True
+    assert module.mark_duplicate(state, "source:signal", Path("signal.json")) is False
+    assert module.mark_duplicate(state, "source:signal", Path("signal.json")) is False
+
+    assert len(state["skipped_duplicates"]) == 1
+    assert state["skipped_duplicates"][0]["skip_count"] == 3
+
+
+def test_mark_failed_records_once_per_file_and_error(tmp_path):
+    module = load_module()
+    state = module.load_state(tmp_path / "state.json")
+
+    assert module.mark_failed(state, Path("bad.json"), "invalid JSON") is True
+    assert module.mark_failed(state, Path("bad.json"), "invalid JSON") is False
+    assert module.mark_failed(state, Path("bad.json"), "missing fields") is True
+
+    assert len(state["failed"]) == 2
+    assert state["failed"][0]["fail_count"] == 2
+
+
+def test_load_state_compacts_legacy_duplicate_entries(tmp_path):
+    module = load_module()
+    state_path = tmp_path / "state.json"
+    legacy_entries = [
+        {
+            "signal_identity": "source:signal",
+            "file": "signal.json",
+            "skipped_at": f"2026-07-01T00:{index:02d}:00+00:00",
+            "order_execution_allowed": False,
+            "simulation_only": True,
+        }
+        for index in range(50)
+    ]
+    state_path.write_text(
+        json.dumps({"version": 1, "skipped_duplicates": legacy_entries}),
+        encoding="utf-8",
+    )
+
+    state = module.load_state(state_path)
+
+    assert len(state["skipped_duplicates"]) == 1
+    entry = state["skipped_duplicates"][0]
+    assert entry["signal_identity"] == "source:signal"
+    assert entry["skip_count"] == 50
+    assert entry["first_skipped_at"] == "2026-07-01T00:00:00+00:00"
+    assert entry["last_skipped_at"] == "2026-07-01T00:49:00+00:00"
 
 
 def test_preview_loop_config_uses_placeholders_only():
@@ -203,6 +283,78 @@ def test_problem_alert_sends_without_leaking_token(monkeypatch, tmp_path):
     assert "AI Council Oracle Preview Loop 알림" in captured["body"]["text"]
     assert "실제 주문 실행: 없음" in captured["body"]["text"]
     assert "order_execution_allowed=false" in captured["body"]["text"]
+
+
+def test_problem_alert_repeat_suppressed_by_cooldown(monkeypatch, tmp_path):
+    module = load_module()
+    send_attempts = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
+
+    def fake_urlopen(request, timeout):
+        send_attempts.append(request.full_url)
+        return FakeResponse()
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+    config = make_config(
+        module,
+        tmp_path,
+        telegram_alerts_enabled=True,
+        telegram_bot_token="12345:SECRET_TOKEN",
+        telegram_chat_id="999",
+        telegram_alert_cooldown_seconds=3600.0,
+    )
+    state = module.load_state(tmp_path / "state.json")
+    context = {"file": "bad.json", "error": "invalid JSON"}
+
+    first = module.send_problem_alert(config, "signal_processing_failed", context, state=state)
+    second = module.send_problem_alert(config, "signal_processing_failed", context, state=state)
+    other = module.send_problem_alert(
+        config, "signal_processing_failed", {"file": "other.json", "error": "invalid JSON"}, state=state
+    )
+
+    assert first["status"] == "sent"
+    assert second["status"] == "suppressed_cooldown"
+    assert second["sent"] is False
+    assert other["status"] == "sent"
+    assert len(send_attempts) == 2
+    alert_entry = next(iter(state["telegram_alerted"].values()))
+    assert alert_entry["sent_count"] >= 1
+
+
+def test_problem_alert_without_state_still_sends(monkeypatch, tmp_path):
+    module = load_module()
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda request, timeout: FakeResponse())
+    config = make_config(
+        module,
+        tmp_path,
+        telegram_alerts_enabled=True,
+        telegram_bot_token="12345:SECRET_TOKEN",
+        telegram_chat_id="999",
+    )
+
+    result = module.send_problem_alert(config, "signal_processing_failed", {"file": "bad.json"})
+
+    assert result["status"] == "sent"
 
 
 def test_problem_alert_http_error_redacts_response(monkeypatch, tmp_path):

@@ -50,6 +50,9 @@ ORDER_LIKE_FIELDS = {
     "tif",
     "extended_hours",
 }
+MAX_LOG_BYTES = 5 * 1024 * 1024
+MAX_ALERT_HISTORY_KEYS = 100
+DEFAULT_ALERT_COOLDOWN_SECONDS = 3600.0
 SAFETY_BOUNDARY = (
     "AI Council preview operations loop creates read-only reviews and simulation-only "
     "Paper Trading records. It does not execute trades, modify the Oracle bot, move "
@@ -80,6 +83,7 @@ class LoopConfig:
     telegram_bot_token: str | None
     telegram_chat_id: str | None
     telegram_timeout: float
+    telegram_alert_cooldown_seconds: float = DEFAULT_ALERT_COOLDOWN_SECONDS
 
 
 def main() -> int:
@@ -115,6 +119,20 @@ def main() -> int:
     parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN") or None)
     parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID") or None)
     parser.add_argument("--telegram-timeout", type=float, default=float(os.getenv("TELEGRAM_TIMEOUT_SECONDS", "10")))
+    parser.add_argument(
+        "--telegram-alert-cooldown-seconds",
+        type=float,
+        default=float(
+            os.getenv("ORACLE_PREVIEW_LOOP_ALERT_COOLDOWN_SECONDS", str(DEFAULT_ALERT_COOLDOWN_SECONDS))
+        ),
+        help="Suppress repeat Telegram alerts for the same problem within this window.",
+    )
+    parser.add_argument(
+        "--compact-idle",
+        action="store_true",
+        default=env_bool("ORACLE_PREVIEW_LOOP_COMPACT_IDLE", False),
+        help="Print a compact one-line summary when a pass processed nothing new.",
+    )
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
 
@@ -139,24 +157,38 @@ def main() -> int:
         telegram_bot_token=args.telegram_bot_token,
         telegram_chat_id=args.telegram_chat_id,
         telegram_timeout=args.telegram_timeout,
+        telegram_alert_cooldown_seconds=max(args.telegram_alert_cooldown_seconds, 0.0),
     )
 
     if args.poll:
-        return run_poll(config, args.poll_interval_seconds, args.max_iterations, pretty=args.pretty)
+        return run_poll(
+            config,
+            args.poll_interval_seconds,
+            args.max_iterations,
+            pretty=args.pretty,
+            compact_idle=args.compact_idle,
+        )
 
     summary = run_once(config)
-    print_json(summary, pretty=args.pretty)
+    print_summary(summary, pretty=args.pretty, compact_idle=args.compact_idle)
     return 0 if summary["status"] == "completed" else 1
 
 
-def run_poll(config: LoopConfig, poll_interval: float, max_iterations: int | None, *, pretty: bool) -> int:
+def run_poll(
+    config: LoopConfig,
+    poll_interval: float,
+    max_iterations: int | None,
+    *,
+    pretty: bool,
+    compact_idle: bool = False,
+) -> int:
     iteration = 0
     final_status = 0
     while True:
         iteration += 1
         summary = run_once(config)
         summary["poll_iteration"] = iteration
-        print_json(summary, pretty=pretty)
+        print_summary(summary, pretty=pretty, compact_idle=compact_idle)
         sys.stdout.flush()
         if summary["status"] != "completed":
             final_status = 1
@@ -218,6 +250,7 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
             config,
             "preview_loop_setup_failed",
             {"stage": "setup", "error": error, "order_execution_allowed": False, "simulation_only": True},
+            state=state,
         )
         result["telegram_alerts"] = summarize_alerts(config, [alert])
         append_log(config.log_path, {"summary": result, "order_execution_allowed": False, "simulation_only": True})
@@ -234,6 +267,8 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     failures = 0
     duplicate_count = 0
+    new_duplicate_count = 0
+    new_failure_count = 0
     processed_count = 0
     review_created_count = 0
     review_reused_count = 0
@@ -248,6 +283,7 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
             signal_identity = build_signal_identity(payload, path)
             if signal_identity in processed_ids:
                 duplicate_count += 1
+                first_duplicate_pass = mark_duplicate(state, signal_identity, path)
                 result = {
                     "file": path.name,
                     "status": "skipped_duplicate",
@@ -256,8 +292,9 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
                     "simulation_only": True,
                 }
                 results.append(result)
-                append_log(config.log_path, result)
-                mark_duplicate(state, signal_identity, path)
+                if first_duplicate_pass:
+                    new_duplicate_count += 1
+                    append_log(config.log_path, result)
                 continue
 
             review_response = create_trade_review(payload, config)
@@ -316,8 +353,10 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
                 "simulation_only": True,
             }
             results.append(result)
-            mark_failed(state, path, error)
-            append_log(config.log_path, result)
+            first_failure_pass = mark_failed(state, path, error)
+            if first_failure_pass:
+                new_failure_count += 1
+                append_log(config.log_path, result)
             alert = send_problem_alert(
                 config,
                 "signal_processing_failed",
@@ -327,6 +366,7 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
                     "order_execution_allowed": False,
                     "simulation_only": True,
                 },
+                state=state,
             )
             telegram_alerts.append(alert)
 
@@ -369,7 +409,19 @@ def run_once(config: LoopConfig) -> dict[str, Any]:
         "safety_boundary": SAFETY_BOUNDARY,
         "results": results,
     }
-    append_log(config.log_path, {"summary": summary, "order_execution_allowed": False, "simulation_only": True})
+    summary["idle_pass"] = bool(
+        processed_count == 0
+        and failures == 0
+        and new_duplicate_count == 0
+        and not telegram_alerts
+        and pull_summary.get("status") in {"passed", "skipped"}
+    )
+    if not summary["idle_pass"]:
+        log_summary = {key: value for key, value in summary.items() if key != "results"}
+        append_log(
+            config.log_path,
+            {"summary": log_summary, "order_execution_allowed": False, "simulation_only": True},
+        )
     return summary
 
 
@@ -563,6 +615,11 @@ def validate_signal_payload(payload: dict[str, Any]) -> None:
         missing.append("symbol_or_ticker")
     if missing:
         raise ValueError("signal JSON missing required fields: " + ", ".join(missing))
+    order_like = sorted(field for field in ORDER_LIKE_FIELDS if field in payload)
+    if order_like:
+        raise ValueError(
+            "signal JSON contains order-like fields not allowed in preview mode: " + ", ".join(order_like)
+        )
     if payload.get("order_execution_allowed") is not False:
         raise ValueError("signal JSON must include order_execution_allowed=false")
     if payload.get("review_only") is not True:
@@ -596,6 +653,7 @@ def load_state(path: Path) -> dict[str, Any]:
             "processed": [],
             "skipped_duplicates": [],
             "failed": [],
+            "telegram_alerted": {},
             "remote_delete_performed": False,
             "remote_move_performed": False,
             "order_execution_allowed": False,
@@ -609,9 +667,64 @@ def load_state(path: Path) -> dict[str, Any]:
     payload.setdefault("processed", [])
     payload.setdefault("skipped_duplicates", [])
     payload.setdefault("failed", [])
+    payload.setdefault("telegram_alerted", {})
+    payload["skipped_duplicates"] = compact_duplicate_entries(payload["skipped_duplicates"])
+    payload["failed"] = compact_failed_entries(payload["failed"])
     payload["order_execution_allowed"] = False
     payload["simulation_only"] = True
     return payload
+
+
+def compact_duplicate_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compacted: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        identity = str(entry.get("signal_identity") or entry.get("file") or "")
+        skipped_at = entry.get("last_skipped_at") or entry.get("skipped_at")
+        current = compacted.get(identity)
+        if current is None:
+            order.append(identity)
+            compacted[identity] = {
+                "signal_identity": entry.get("signal_identity"),
+                "file": entry.get("file"),
+                "first_skipped_at": entry.get("first_skipped_at") or skipped_at,
+                "last_skipped_at": skipped_at,
+                "skip_count": int(entry.get("skip_count") or 1),
+                "order_execution_allowed": False,
+                "simulation_only": True,
+            }
+        else:
+            current["skip_count"] += int(entry.get("skip_count") or 1)
+            current["last_skipped_at"] = skipped_at or current["last_skipped_at"]
+    return [compacted[identity] for identity in order]
+
+
+def compact_failed_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compacted: dict[tuple[str, str], dict[str, Any]] = {}
+    order: list[tuple[str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        key = (str(entry.get("file") or ""), str(entry.get("error") or ""))
+        failed_at = entry.get("last_failed_at") or entry.get("failed_at")
+        current = compacted.get(key)
+        if current is None:
+            order.append(key)
+            compacted[key] = {
+                "file": entry.get("file"),
+                "error": entry.get("error"),
+                "first_failed_at": entry.get("first_failed_at") or failed_at,
+                "last_failed_at": failed_at,
+                "fail_count": int(entry.get("fail_count") or 1),
+                "order_execution_allowed": False,
+                "simulation_only": True,
+            }
+        else:
+            current["fail_count"] += int(entry.get("fail_count") or 1)
+            current["last_failed_at"] = failed_at or current["last_failed_at"]
+    return [compacted[key] for key in order]
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
@@ -639,35 +752,62 @@ def mark_processed(state: dict[str, Any], signal_identity: str, path: Path, resu
     )
 
 
-def mark_duplicate(state: dict[str, Any], signal_identity: str, path: Path) -> None:
+def mark_duplicate(state: dict[str, Any], signal_identity: str, path: Path) -> bool:
+    """Record a duplicate skip once per signal identity. Returns True on first sighting."""
+    for entry in state["skipped_duplicates"]:
+        if entry.get("signal_identity") == signal_identity:
+            entry["skip_count"] = int(entry.get("skip_count") or 1) + 1
+            entry["last_skipped_at"] = now_iso()
+            return False
     state["skipped_duplicates"].append(
         {
             "signal_identity": signal_identity,
             "file": path.name,
-            "skipped_at": now_iso(),
+            "first_skipped_at": now_iso(),
+            "last_skipped_at": now_iso(),
+            "skip_count": 1,
             "order_execution_allowed": False,
             "simulation_only": True,
         }
     )
+    return True
 
 
-def mark_failed(state: dict[str, Any], path: Path, error: str) -> None:
+def mark_failed(state: dict[str, Any], path: Path, error: str) -> bool:
+    """Record a failure once per (file, error) pair. Returns True on first sighting."""
+    for entry in state["failed"]:
+        if entry.get("file") == path.name and entry.get("error") == error:
+            entry["fail_count"] = int(entry.get("fail_count") or 1) + 1
+            entry["last_failed_at"] = now_iso()
+            return False
     state["failed"].append(
         {
             "file": path.name,
-            "failed_at": now_iso(),
             "error": error,
+            "first_failed_at": now_iso(),
+            "last_failed_at": now_iso(),
+            "fail_count": 1,
             "order_execution_allowed": False,
             "simulation_only": True,
         }
     )
+    return True
 
 
 def append_log(path: Path, item: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    rotate_log_if_needed(path)
     event = {"logged_at": now_iso(), **item}
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n")
+
+
+def rotate_log_if_needed(path: Path, max_bytes: int = MAX_LOG_BYTES) -> None:
+    try:
+        if path.exists() and path.stat().st_size >= max_bytes:
+            path.replace(path.with_suffix(path.suffix + ".1"))
+    except OSError:
+        pass
 
 
 def get_json(url: str, timeout: float) -> Any:
@@ -697,7 +837,12 @@ def read_json_response(request: urllib.request.Request, timeout: float) -> Any:
         raise RuntimeError(f"connection failed: {exc.reason}") from exc
 
 
-def send_problem_alert(config: LoopConfig, reason: str, context: dict[str, Any]) -> dict[str, Any]:
+def send_problem_alert(
+    config: LoopConfig,
+    reason: str,
+    context: dict[str, Any],
+    state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     status = telegram_alert_status(config)
     base = {
         "reason": reason,
@@ -715,6 +860,19 @@ def send_problem_alert(config: LoopConfig, reason: str, context: dict[str, Any])
             **base,
             "detail": "Telegram alerts are enabled but credentials are not configured.",
             "missing": status["missing"],
+        }
+
+    alert_key = build_alert_key(reason, context)
+    if state is not None and alert_within_cooldown(state, alert_key, config.telegram_alert_cooldown_seconds):
+        record_alert_suppressed(state, alert_key)
+        return {
+            **base,
+            "status": "suppressed_cooldown",
+            "detail": (
+                "Identical problem alert was sent within the cooldown window; "
+                "not re-sending to avoid Telegram spam."
+            ),
+            "alert_key": alert_key,
         }
 
     message = format_problem_alert_message(reason, context)
@@ -739,12 +897,67 @@ def send_problem_alert(config: LoopConfig, reason: str, context: dict[str, Any])
         return {**base, "status": "error", "detail": sanitize_text(f"Telegram connection failed: {exc.reason}")}
 
     sent = bool(response_payload.get("ok", False))
+    if sent and state is not None:
+        record_alert_sent(state, alert_key)
     return {
         **base,
         "sent": sent,
         "status": "sent" if sent else "error",
         "detail": sanitize_text(response_payload.get("description") or "Telegram API response received"),
     }
+
+
+def build_alert_key(reason: str, context: dict[str, Any]) -> str:
+    parts = [
+        str(reason),
+        str(context.get("file") or ""),
+        str(context.get("stage") or ""),
+        str(context.get("error") or ""),
+    ]
+    return sanitize_text("|".join(parts))[:300]
+
+
+def alert_within_cooldown(state: dict[str, Any], alert_key: str, cooldown_seconds: float) -> bool:
+    if cooldown_seconds <= 0:
+        return False
+    entry = state.get("telegram_alerted", {}).get(alert_key)
+    if not isinstance(entry, dict):
+        return False
+    try:
+        last_sent = datetime.fromisoformat(str(entry.get("last_sent_at")))
+    except ValueError:
+        return False
+    if last_sent.tzinfo is None:
+        last_sent = last_sent.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - last_sent).total_seconds() < cooldown_seconds
+
+
+def record_alert_sent(state: dict[str, Any], alert_key: str) -> None:
+    alerted = state.setdefault("telegram_alerted", {})
+    entry = alerted.get(alert_key) if isinstance(alerted.get(alert_key), dict) else {}
+    alerted[alert_key] = {
+        "last_sent_at": now_iso(),
+        "sent_count": int(entry.get("sent_count") or 0) + 1,
+        "suppressed_count": int(entry.get("suppressed_count") or 0),
+    }
+    prune_alert_history(alerted)
+
+
+def record_alert_suppressed(state: dict[str, Any], alert_key: str) -> None:
+    alerted = state.setdefault("telegram_alerted", {})
+    entry = alerted.get(alert_key)
+    if isinstance(entry, dict):
+        entry["suppressed_count"] = int(entry.get("suppressed_count") or 0) + 1
+
+
+def prune_alert_history(alerted: dict[str, Any], max_keys: int = MAX_ALERT_HISTORY_KEYS) -> None:
+    if len(alerted) <= max_keys:
+        return
+    def sort_key(item: tuple[str, Any]) -> str:
+        entry = item[1]
+        return str(entry.get("last_sent_at") or "") if isinstance(entry, dict) else ""
+    for key, _ in sorted(alerted.items(), key=sort_key)[: len(alerted) - max_keys]:
+        alerted.pop(key, None)
 
 
 def telegram_alert_status(config: LoopConfig) -> dict[str, Any]:
@@ -771,6 +984,7 @@ def summarize_alerts(config: LoopConfig, alerts: list[dict[str, Any]]) -> dict[s
         "sent": len([alert for alert in alerts if alert.get("sent") is True]),
         "failed": len([alert for alert in alerts if alert.get("status") == "error"]),
         "disabled": len([alert for alert in alerts if alert.get("status") == "disabled"]),
+        "suppressed_cooldown": len([alert for alert in alerts if alert.get("status") == "suppressed_cooldown"]),
         "results": alerts,
         "order_execution_allowed": False,
         "simulation_only": True,
@@ -868,6 +1082,30 @@ def contains_secret_marker(value: Any) -> bool:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def print_summary(summary: dict[str, Any], *, pretty: bool, compact_idle: bool) -> None:
+    if compact_idle and summary.get("idle_pass"):
+        compact = {
+            key: summary.get(key)
+            for key in (
+                "status",
+                "completed_at",
+                "poll_iteration",
+                "signals_seen",
+                "signals_processed",
+                "signals_skipped_duplicate",
+                "signals_failed",
+                "idle_pass",
+                "order_execution_allowed",
+                "simulation_only",
+            )
+            if key in summary
+        }
+        compact["remote_pull_status"] = (summary.get("remote_pull") or {}).get("status")
+        print_json(compact, pretty=False)
+        return
+    print_json(summary, pretty=pretty)
 
 
 def print_json(payload: dict[str, Any], *, pretty: bool) -> None:

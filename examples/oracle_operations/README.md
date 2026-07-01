@@ -32,6 +32,8 @@ Without those values, it processes JSON files already present in `tmp/oracle_pul
 - `PAPER_PORTFOLIO_NAME=Oracle Preview Paper Portfolio`
 - `ORACLE_PREVIEW_LOOP_MODE=run_once`
 - `ORACLE_PREVIEW_LOOP_TELEGRAM_ALERTS=false`
+- `ORACLE_PREVIEW_LOOP_ALERT_COOLDOWN_SECONDS=3600`
+- `ORACLE_PREVIEW_LOOP_COMPACT_IDLE=false`
 - `TELEGRAM_ENABLED=false`
 - `TELEGRAM_BOT_TOKEN=<telegram-bot-token>`
 - `TELEGRAM_CHAT_ID=<telegram-chat-id>`
@@ -51,6 +53,16 @@ scripts/run_oracle_preview_operations_once.sh --pretty
 ```
 
 Alert messages are written in Korean with explicit safety flags such as `order_execution_allowed=false` and `simulation_only=true`. Secret values are not printed in summaries, logs, or alert text. If Telegram is not configured, the loop records a disabled alert result and continues.
+
+Identical problem alerts (same reason, file, stage, and error) are suppressed for `ORACLE_PREVIEW_LOOP_ALERT_COOLDOWN_SECONDS` (default 3600 seconds) so a persistently failing signal file or an unreachable backend does not spam Telegram every pass. Suppressed alerts are still counted in the run summary as `suppressed_cooldown`.
+
+## State and Log Growth Controls
+
+- Duplicate skips are recorded once per signal identity in the state file with a `skip_count` and `last_skipped_at` instead of appending a new entry every pass. Legacy state files are compacted automatically on load.
+- Failures are recorded once per file/error pair with a `fail_count`.
+- Signals containing order-like fields (for example `order_id`, `quantity`, `stop_loss`, `take_profit`) are rejected during validation; preview signals must stay review-only.
+- The JSONL log rotates to `<name>.log.1` when it reaches 5 MB, and idle passes (nothing new processed, skipped, or failed) are not appended to it.
+- With `--compact-idle` (or `ORACLE_PREVIEW_LOOP_COMPACT_IDLE=true`), idle passes print a one-line compact summary to stdout instead of the full JSON, which keeps screen logs small.
 
 ## Safety Boundary
 
