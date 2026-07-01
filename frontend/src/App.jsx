@@ -4504,6 +4504,28 @@ function WebhookPanel({
           수동 생성 결과를 기록하고 다음 단계 가능 여부를 판단합니다. GO는 운영봇 patch 승인이 아니라 preview signal
           file write rehearsal로 넘어갈 수 있다는 뜻이며, systemd 조작과 실제 주문은 없습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Preview Signal 파일 쓰기 리허설</span>
+            <strong>scripts/run_oracle_preview_signal_write_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>테스트 Signal</span>
+            <strong>TESTA preview signal</strong>
+          </div>
+          <div>
+            <span>다음 단계</span>
+            <strong>Mac Pull 리허설</strong>
+          </div>
+          <div>
+            <span>운영봇 patch 승인</span>
+            <strong>아님</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          TESTA preview signal JSON을 생성하고 수동 업로드 절차를 검증합니다. GO는 Mac Pull 리허설 허용이며
+          운영봇 patch 승인이 아닙니다. systemd 조작, 운영봇 수정, 실제 주문은 없습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

@@ -187,6 +187,15 @@ Phase 24M 결과 문서:
 
 Mac pull은 최종 승인 게이트 이후에도 원격 파일 삭제/이동 없이 동작해야 합니다. 승인 패킷의 `approved=false` 기본값은 Git에 유지되며, 실제 승인 기록은 사람이 별도로 관리합니다.
 
+## Phase 24R Preview Signal Write Rehearsal
+
+Phase 24R 결과 문서:
+
+- `docs/US_TRADER_ORACLE_PREVIEW_SIGNAL_WRITE_REHEARSAL.md`
+- `scripts/run_oracle_preview_signal_write_dryrun.sh`
+
+Mac pull actual rehearsal로 넘어가기 전에 TESTA preview signal 파일을 수동 outbox write 대상으로 검증합니다. Phase 24R의 GO는 Mac pull rehearsal 허용일 뿐이며 운영봇 patch 승인이나 주문 실행 승인이 아닙니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

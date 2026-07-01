@@ -59,3 +59,6 @@ examples/oracle_outbox_manual_creation/.state/
 tmp/oracle_outbox_creation_result/
 examples/oracle_outbox_creation_result/output/
 examples/oracle_outbox_creation_result/.state/
+tmp/oracle_preview_signal_write/
+examples/oracle_preview_signal_write/output/
+examples/oracle_preview_signal_write/.state/

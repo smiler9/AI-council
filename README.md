@@ -2093,6 +2093,44 @@ scripts/run_oracle_outbox_creation_result_dryrun.sh
 - 브로커 API 연결 없음
 - `order_execution_allowed=false`
 
+## Phase 24R Oracle Preview Signal Write Rehearsal
+
+Phase 24R는 Oracle outbox 디렉터리가 수동 생성/검증된 뒤, 운영봇 patch 전에 테스트용 preview signal JSON 파일 하나를 사람이 수동으로 outbox에 넣어볼 수 있도록 signal 파일, manual write packet, write result recorder, Mac pull rehearsal GO/NO-GO 도구를 추가합니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_PREVIEW_SIGNAL_WRITE_REHEARSAL.md`
+- `examples/oracle_preview_signal_write/build_preview_signal_file.py`
+- `examples/oracle_preview_signal_write/verify_preview_signal_file.py`
+- `examples/oracle_preview_signal_write/build_manual_signal_write_packet.py`
+- `examples/oracle_preview_signal_write/verify_manual_signal_write_packet.py`
+- `examples/oracle_preview_signal_write/record_preview_signal_write_result.py`
+- `examples/oracle_preview_signal_write/verify_preview_signal_write_result.py`
+- `examples/oracle_preview_signal_write/decide_pull_rehearsal_go_no_go.py`
+- `examples/oracle_preview_signal_write/templates/`
+- `scripts/run_oracle_preview_signal_write_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_preview_signal_write_dryrun.sh
+```
+
+안전 원칙:
+
+- TESTA preview signal만 사용
+- `review_only=true`
+- `simulation_only=true`
+- `order_execution_allowed=false`
+- manual write command의 scp/rsync는 기본 주석 처리
+- Codex가 Oracle에 자동 업로드하지 않음
+- GO는 Mac Pull 리허설 허용일 뿐 운영봇 patch 승인 아님
+- Oracle live bot 미수정
+- systemd 조작 없음
+- 실제 주문 없음
+- 브로커 API 연결 없음
+
 ## 테스트
 
 ```bash

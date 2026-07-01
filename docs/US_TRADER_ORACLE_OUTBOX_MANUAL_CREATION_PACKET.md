@@ -134,3 +134,13 @@ Phase 24Q의 GO decision은 preview signal file write rehearsal로 넘어갈 수
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
 
 `order_execution_allowed`는 항상 `false`입니다.
+
+## Phase 24R Preview Signal Write Rehearsal
+
+Phase 24R 결과 문서:
+
+- `docs/US_TRADER_ORACLE_PREVIEW_SIGNAL_WRITE_REHEARSAL.md`
+- `examples/oracle_preview_signal_write/`
+- `scripts/run_oracle_preview_signal_write_dryrun.sh`
+
+Phase 24R의 manual signal write packet은 preview signal 파일을 사람이 수동 업로드할 수 있도록 주석 처리된 scp/rsync 후보만 제공합니다. Codex가 Oracle에 파일을 쓰거나 업로드하지 않으며 GO는 Mac Pull 리허설 허용일 뿐 운영봇 patch 승인이 아닙니다.

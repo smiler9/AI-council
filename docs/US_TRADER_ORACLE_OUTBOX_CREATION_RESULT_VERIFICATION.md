@@ -98,6 +98,16 @@ GO가 의미하지 않는 것:
 - post-creation GO decision 생성
 - 사람이 GO의 범위를 이해하고 별도 수동 승인
 
+## Phase 24R Preview Signal Write Rehearsal
+
+Phase 24R 결과 문서:
+
+- `docs/US_TRADER_ORACLE_PREVIEW_SIGNAL_WRITE_REHEARSAL.md`
+- `examples/oracle_preview_signal_write/`
+- `scripts/run_oracle_preview_signal_write_dryrun.sh`
+
+Phase 24R는 TESTA preview signal JSON과 주석 처리된 manual upload 후보를 준비합니다. GO는 Mac pull rehearsal로 넘어갈 수 있다는 뜻이며 운영봇 patch 승인, systemd 조작 승인, 주문 실행 승인이 아닙니다.
+
 ## 금지 사항
 
 - Oracle 서버에 자동 파일 쓰기

@@ -1,0 +1,26 @@
+{
+  "source": "us_trader_oracle_manual_preview",
+  "signal_id": "manual_preview_<timestamp>",
+  "symbol": "TESTA",
+  "signal": "manual_preview_signal",
+  "action": "buy",
+  "price": 0.82,
+  "volume": 12500000,
+  "timestamp": "<iso-timestamp>",
+  "indicators": {
+    "relative_volume": 5.2,
+    "rsi": 68
+  },
+  "risk_context": {
+    "spread_pct": 2.5,
+    "premarket": false,
+    "manual_preview": true
+  },
+  "review_only": true,
+  "simulation_only": true,
+  "order_execution_allowed": false,
+  "notes": [
+    "Manual preview only. Raw action is review context, not an order.",
+    "This TESTA payload is not a real ticker recommendation."
+  ]
+}

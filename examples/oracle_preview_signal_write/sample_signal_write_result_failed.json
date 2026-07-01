@@ -1,0 +1,36 @@
+{
+  "manual_operator": "<manual-operator>",
+  "next_step_requested": "mac_pull_actual_preview_signal_rehearsal",
+  "notes": [
+    "Sample failed record. Stop and review before continuing."
+  ],
+  "oracle_target": {
+    "host": "<oracle-host>",
+    "outbox_dir": "<oracle-outbox-dir>",
+    "user": "<oracle-user>"
+  },
+  "result_status": "failed",
+  "safety": {
+    "broker_api_called": false,
+    "live_bot_modified": false,
+    "order_execution_allowed": false,
+    "penny_stock_bot_modified": false,
+    "secrets_exposed": false,
+    "systemd_changed": false
+  },
+  "safety_boundary": "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.",
+  "signal_file": {
+    "filename": "us_trader_preview_signal.json",
+    "sha256": "<sha256>",
+    "signal_id": "manual_preview_sample",
+    "size_bytes": 0
+  },
+  "observations": {
+    "file_exists_in_outbox": false,
+    "file_json_valid": false,
+    "file_readable": false,
+    "file_uploaded_manually": false,
+    "post_write_verify_readonly_only": true
+  },
+  "written_at": null
+}

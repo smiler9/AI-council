@@ -1,0 +1,27 @@
+{
+  "action": "buy",
+  "indicators": {
+    "relative_volume": 5.2,
+    "rsi": 68
+  },
+  "notes": [
+    "Manual preview only. Raw action is review context, not an order.",
+    "This TESTA payload is not a real ticker recommendation.",
+    "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다."
+  ],
+  "order_execution_allowed": false,
+  "price": 0.82,
+  "review_only": true,
+  "risk_context": {
+    "manual_preview": true,
+    "premarket": false,
+    "spread_pct": 2.5
+  },
+  "signal": "manual_preview_signal",
+  "signal_id": "manual_preview_sample",
+  "simulation_only": true,
+  "source": "us_trader_oracle_manual_preview",
+  "symbol": "TESTA",
+  "timestamp": "2026-07-01T00:00:00+00:00",
+  "volume": 12500000
+}
