@@ -1985,6 +1985,41 @@ scripts/run_oracle_readonly_precheck_dryrun.sh
 - `systemd_changes_allowed=false`
 - `order_execution_allowed=false`
 
+## Phase 24O Oracle Precheck Intake Go/No-Go
+
+Phase 24O는 사람이 수행한 Oracle read-only precheck 결과를 표준 intake JSON으로 입력/검증하고, 다음 단계인 outbox 수동 생성 검토로 넘어갈 수 있는지 GO/NO-GO를 판단합니다. GO는 실제 적용 승인이 아니라 다음 수동 검토 단계 허용입니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_PRECHECK_INTAKE_GO_NO_GO.md`
+- `examples/oracle_precheck_intake/build_precheck_intake_template.py`
+- `examples/oracle_precheck_intake/validate_precheck_intake.py`
+- `examples/oracle_precheck_intake/decide_precreation_go_no_go.py`
+- `examples/oracle_precheck_intake/templates/`
+- `scripts/build_oracle_precheck_intake_template.sh`
+- `scripts/validate_oracle_precheck_intake.sh`
+- `scripts/decide_oracle_precreation_go_no_go.sh`
+- `scripts/run_oracle_precheck_intake_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_precheck_intake_dryrun.sh
+```
+
+안전 원칙:
+
+- 실제 Oracle 접속 없음
+- 실제 원격 쓰기 없음
+- GO는 실제 적용 승인 아님
+- generated intake/decision은 `tmp/oracle_precheck_intake/`에만 생성
+- Oracle live bot 미수정
+- systemd 조작 없음
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

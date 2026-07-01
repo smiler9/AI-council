@@ -1,0 +1,35 @@
+{
+  "result_status": "incomplete",
+  "manual_operator": "<manual-operator>",
+  "checked_at": null,
+  "oracle_target": {
+    "host": "<oracle-host>",
+    "user": "<oracle-user>",
+    "trading_dir": "<oracle-trading-dir>"
+  },
+  "observations": {
+    "hostname_checked": false,
+    "user_checked": false,
+    "trading_dir_exists": false,
+    "penny_stock_bot_exists": false,
+    "server_py_exists": false,
+    "secrets_dir_exists": false,
+    "python3_available": false,
+    "disk_space_ok": false,
+    "services_observed": [],
+    "active_services": [],
+    "process_listing_reviewed": false,
+    "crontab_reviewed": false,
+    "systemd_status_readonly_only": false
+  },
+  "safety": {
+    "remote_write_executed": false,
+    "systemd_changed": false,
+    "live_bot_modified": false,
+    "secrets_exposed": false,
+    "order_execution_allowed": false
+  },
+  "notes": [],
+  "next_step_requested": "outbox_precreation_manual_review",
+  "safety_boundary": "AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다."
+}

@@ -42,4 +42,14 @@ python examples/oracle_readonly_precheck/verify_readonly_precheck_result.py \
 scripts/run_oracle_readonly_precheck_dryrun.sh
 ```
 
+## Phase 24O Intake Go/No-Go
+
+After recording a read-only precheck result, validate it and generate a GO/NO-GO decision:
+
+```bash
+scripts/run_oracle_precheck_intake_dryrun.sh
+```
+
+GO only allows considering the next manual review stage. It is not Oracle deployment approval and does not permit live bot changes, systemd changes, broker API connections, or orders.
+
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

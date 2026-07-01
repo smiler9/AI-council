@@ -4438,6 +4438,28 @@ function WebhookPanel({
           실제 서버에서 실행 가능한 읽기 전용 명령만 정리하고, 사람이 확인한 결과를 로컬 JSON으로 기록/검증합니다.
           이번 단계도 Oracle 서버 쓰기와 실제 주문 실행을 수행하지 않습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle Precheck 결과 반영</span>
+            <strong>scripts/run_oracle_precheck_intake_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>GO 의미</span>
+            <strong>다음 검토 단계</strong>
+          </div>
+          <div>
+            <span>파일 생성/삭제/권한 변경</span>
+            <strong>없음</strong>
+          </div>
+          <div>
+            <span>실제 적용 승인</span>
+            <strong>아님</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          Read-only 점검 결과를 기록하고 다음 단계 가능 여부를 판단합니다. GO는 실제 적용 승인이 아니라 outbox 수동
+          생성 검토 단계로 넘어갈 수 있다는 뜻이며, systemd 조작과 실제 주문은 없습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

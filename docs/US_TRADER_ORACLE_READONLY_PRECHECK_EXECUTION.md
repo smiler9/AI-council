@@ -134,6 +134,16 @@ Phase 24O로 넘어가려면 다음이 필요합니다.
 - 사람이 별도 승인 기록을 남김
 - 그래도 Oracle write 작업은 자동화하지 않음
 
+## Phase 24O Intake Go/No-Go
+
+Phase 24O 결과 문서:
+
+- `docs/US_TRADER_ORACLE_PRECHECK_INTAKE_GO_NO_GO.md`
+- `examples/oracle_precheck_intake/`
+- `scripts/run_oracle_precheck_intake_dryrun.sh`
+
+Phase 24O는 사람이 기록한 read-only precheck 결과를 intake JSON으로 검증하고 GO/NO-GO를 판단합니다. GO는 실제 적용 승인이 아니라 다음 수동 검토 단계 허용입니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

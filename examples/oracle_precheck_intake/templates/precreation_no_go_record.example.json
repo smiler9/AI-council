@@ -1,0 +1,8 @@
+{
+  "approved": false,
+  "decision": "NO_GO",
+  "next_phase_allowed": false,
+  "next_action": "stop_and_review",
+  "manual_approval_required": true,
+  "order_execution_allowed": false
+}

@@ -1,0 +1,19 @@
+{
+  "decision": "NO_GO",
+  "next_phase_allowed": false,
+  "next_phase": "Phase 24P Oracle outbox manual precreation command packet",
+  "decision_scope": "Blocks the next manual review stage until issues are resolved.",
+  "reasons": [
+    "result_status=failed"
+  ],
+  "required_manual_acknowledgements": [
+    "Do not create Oracle outbox directories.",
+    "Do not modify the live bot.",
+    "Do not change systemd services.",
+    "Do not connect broker APIs or execute orders."
+  ],
+  "remote_write_executed": false,
+  "systemd_changed": false,
+  "live_bot_modified": false,
+  "order_execution_allowed": false
+}

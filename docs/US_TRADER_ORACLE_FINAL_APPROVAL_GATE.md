@@ -125,6 +125,15 @@ Phase 24N 결과 문서:
 
 Phase 24N은 실제 write 작업 전 read-only 명령 목록과 결과 기록/검증 도구를 제공합니다. `result_status`가 `passed`가 아니면 다음 단계로 진행하지 않습니다.
 
+## Phase 24O Precheck Intake Go/No-Go
+
+Phase 24O 결과 문서:
+
+- `docs/US_TRADER_ORACLE_PRECHECK_INTAKE_GO_NO_GO.md`
+- `scripts/run_oracle_precheck_intake_dryrun.sh`
+
+Phase 24O의 GO decision은 outbox 수동 생성 검토로 넘어갈 수 있다는 뜻일 뿐이며 실제 적용 승인, 운영봇 수정, systemd 조작, 주문 실행 허가가 아닙니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.
