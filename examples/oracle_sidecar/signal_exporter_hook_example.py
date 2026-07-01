@@ -50,6 +50,7 @@ def build_ai_council_signal(
         "notes": notes or "Review-only signal export for AI Council.",
         "order_execution_allowed": False,
         "review_only": True,
+        "simulation_only": True,
     }
 
 
@@ -65,6 +66,7 @@ def export_ai_council_signal(signal_payload: dict, outbox_dir: str | Path) -> Pa
         **signal_payload,
         "order_execution_allowed": False,
         "review_only": True,
+        "simulation_only": True,
     }
     with temp.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)

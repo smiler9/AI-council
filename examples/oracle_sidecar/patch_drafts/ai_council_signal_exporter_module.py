@@ -67,7 +67,7 @@ def build_ai_council_signal(
         "notes": notes or "Review-only AI Council signal export.",
         "extra_context": extra_context or {},
         "review_only": True,
-        "simulation_only": False,
+        "simulation_only": True,
         "order_execution_allowed": False,
     }
     validate_export_payload(payload)
@@ -86,6 +86,8 @@ def validate_export_payload(payload: dict) -> bool:
         raise SignalExportError("order_execution_allowed must be false")
     if payload.get("review_only") is not True:
         raise SignalExportError("review_only must be true")
+    if payload.get("simulation_only") is not True:
+        raise SignalExportError("simulation_only must be true")
     if _contains_order_intent(payload):
         warning = "order-like fields preserved as review context only"
         warnings = payload.setdefault("adapter_warnings", [])
@@ -104,7 +106,7 @@ def export_ai_council_signal(payload: dict, outbox_dir: str | os.PathLike[str]) 
     signal_id = _safe_filename(str(payload.get("signal_id") or uuid4().hex))
     target = outbox / f"{signal_id}.json"
     temp = target.with_suffix(".json.tmp")
-    payload = {**payload, "order_execution_allowed": False, "review_only": True}
+    payload = {**payload, "order_execution_allowed": False, "review_only": True, "simulation_only": True}
     with temp.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
         handle.write("\n")

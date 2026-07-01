@@ -92,6 +92,7 @@ def main() -> int:
                 "price": exported_payload.get("price"),
                 "volume": exported_payload.get("volume"),
                 "review_only": exported_payload.get("review_only"),
+                "simulation_only": exported_payload.get("simulation_only"),
                 "order_execution_allowed": exported_payload.get("order_execution_allowed"),
                 "adapter_warnings": exported_payload.get("adapter_warnings", []),
             },

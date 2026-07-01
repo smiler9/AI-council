@@ -94,6 +94,7 @@ def test_signal_exporter_hook_example_exports_review_only_payload(tmp_path):
     assert written["source"] == "us_trader_oracle"
     assert written["order_execution_allowed"] is False
     assert written["review_only"] is True
+    assert written["simulation_only"] is True
 
 
 def test_patch_draft_exporter_module_import_build_validate_and_atomic_write(tmp_path):
@@ -127,6 +128,7 @@ def test_patch_draft_exporter_module_import_build_validate_and_atomic_write(tmp_
     assert written["symbol"] == "TESTA"
     assert written["action"] == "buy"
     assert written["review_only"] is True
+    assert written["simulation_only"] is True
     assert written["order_execution_allowed"] is False
     assert "order-like fields preserved as review context only" in written["adapter_warnings"]
 

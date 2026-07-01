@@ -97,7 +97,7 @@ hook은 US Trader가 만든 후보 signal/candidate를 outbox JSON 파일로만 
   },
   "news": [],
   "review_only": true,
-  "simulation_only": false,
+  "simulation_only": true,
   "order_execution_allowed": false
 }
 ```
