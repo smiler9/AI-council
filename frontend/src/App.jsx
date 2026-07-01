@@ -4394,6 +4394,28 @@ function WebhookPanel({
           실제 서버에 디렉터리를 만들기 전 수동 명령 패키지를 검증합니다. 생성 명령은 주석 처리된 예시로만 제공되며,
           원격 삭제/이동/권한변경과 실제 주문 실행은 수행하지 않습니다.
         </p>
+        <div className="webhookStatusGrid">
+          <div>
+            <span>Oracle 최종 승인 게이트</span>
+            <strong>scripts/run_oracle_final_approval_dryrun.sh</strong>
+          </div>
+          <div>
+            <span>승인 기본값</span>
+            <strong>approved=false</strong>
+          </div>
+          <div>
+            <span>운영봇 수정</span>
+            <strong>없음</strong>
+          </div>
+          <div>
+            <span>systemd 조작</span>
+            <strong>없음</strong>
+          </div>
+        </div>
+        <p className="contextHint">
+          실제 서버에 명령을 실행하기 전 수동 승인 패킷을 검토합니다. read-only 사전 확인 명령과 주석 처리된 생성
+          후보 명령을 분리하며, 실제 주문과 브로커 API 연결은 없습니다.
+        </p>
       </div>
       <div className="webhookPreview">
         <div className="tradeReviewHeader compact">

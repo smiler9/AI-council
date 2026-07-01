@@ -144,6 +144,16 @@ Phase 24L은 이 문서의 경로 후보를 바탕으로 실제 Oracle 서버에
 
 생성되는 command package는 로컬 `tmp/oracle_outbox_precreation/commands/`에만 저장됩니다. `mkdir`, `chmod`, `chown`, `rm`, `mv` 예시는 주석 처리되어 있으며 `systemctl` 조작은 포함하지 않습니다.
 
+## Phase 24M 최종 승인 게이트
+
+Phase 24M은 실제 디렉터리 생성 직전 approval packet을 만듭니다.
+
+- `docs/US_TRADER_ORACLE_FINAL_APPROVAL_GATE.md`
+- `examples/oracle_final_approval/`
+- `scripts/run_oracle_final_approval_dryrun.sh`
+
+최종 승인 기록 템플릿은 `approved=false`가 기본값입니다. 승인 패킷 검증은 활성 위험 명령, secret marker, 실제 Oracle 접속 정보, `order_execution_allowed` true 상태, 기본 `approved` true 상태를 거부합니다.
+
 ## 안전 경계
 
 AI Council은 거래를 실행하거나 브로커 API에 연결하지 않습니다. 이 결과는 검토, 리스크 분석, 의사결정 보조 목적으로만 사용됩니다.

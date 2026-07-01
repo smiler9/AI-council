@@ -1,0 +1,12 @@
+{
+  "approved": false,
+  "approved_by": "<manual-approver>",
+  "approved_at": null,
+  "scope": "oracle_outbox_precreation_only",
+  "manual_approval_required": true,
+  "remote_write_executed": false,
+  "systemd_changes_planned": false,
+  "oracle_live_bot_modified": false,
+  "order_execution_allowed": false,
+  "notes": "Template only. Fill manually after reviewing the final approval packet."
+}

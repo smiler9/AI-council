@@ -17,6 +17,16 @@ scripts/run_oracle_outbox_precreation_dryrun.sh
 
 The dry-run writes only local ignored files under `tmp/oracle_outbox_precreation/`.
 
+## Phase 24M Final Approval Gate
+
+After this pre-creation dry-run, generate the final manual approval packet:
+
+```bash
+scripts/run_oracle_final_approval_dryrun.sh
+```
+
+The final approval packet defaults to `approved=false`, reviews manual commands for active dangerous lines, and still does not connect to Oracle or create directories.
+
 ## Manual Safety Rules
 
 - Oracle server files are not modified by these tools.

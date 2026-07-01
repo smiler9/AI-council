@@ -1,0 +1,14 @@
+{
+  "approved": false,
+  "approved_by": "<manual-approver>",
+  "approved_at": null,
+  "scope": "oracle_outbox_precreation_only",
+  "manual_approval_required": true,
+  "remote_write_executed": false,
+  "remote_delete": false,
+  "remote_move": false,
+  "systemd_changes_planned": false,
+  "oracle_live_bot_modified": false,
+  "order_execution_allowed": false,
+  "notes": "Template only. Do not change approved to true unless a separate manual approval has been recorded outside Git."
+}

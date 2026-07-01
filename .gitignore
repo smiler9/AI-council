@@ -44,3 +44,6 @@ examples/oracle_outbox_approval/.state/
 tmp/oracle_outbox_precreation/
 examples/oracle_outbox_precreation/output/
 examples/oracle_outbox_precreation/.state/
+tmp/oracle_final_approval/
+examples/oracle_final_approval/output/
+examples/oracle_final_approval/.state/

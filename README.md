@@ -1909,6 +1909,42 @@ scripts/run_oracle_outbox_precreation_dryrun.sh
 - `remote_move=false`
 - `order_execution_allowed=false`
 
+## Phase 24M Oracle Final Approval Gate
+
+Phase 24M은 Oracle outbox 디렉터리를 실제로 만들기 직전, 사람이 수동으로 검토할 최종 승인 패킷을 준비합니다. read-only precheck 명령과 주석 처리된 manual write 후보 명령을 분리하고, `approved=false` 기본 승인 기록과 위험 명령 검증기를 제공합니다.
+
+추가 파일:
+
+- `docs/US_TRADER_ORACLE_FINAL_APPROVAL_GATE.md`
+- `examples/oracle_final_approval/build_final_approval_packet.py`
+- `examples/oracle_final_approval/review_manual_commands.py`
+- `examples/oracle_final_approval/verify_final_approval_packet.py`
+- `examples/oracle_final_approval/templates/`
+- `scripts/build_oracle_final_approval_packet.sh`
+- `scripts/review_oracle_manual_commands.sh`
+- `scripts/verify_oracle_final_approval_packet.sh`
+- `scripts/run_oracle_final_approval_dryrun.sh`
+
+Dry-run:
+
+```bash
+cd ~/AI-council
+scripts/run_oracle_final_approval_dryrun.sh
+```
+
+안전 원칙:
+
+- 실제 Oracle 접속 없음
+- 실제 원격 쓰기 없음
+- final approval packet은 `tmp/oracle_final_approval/`에만 생성
+- `approved=false`가 기본값
+- active `mkdir`, `chmod`, `chown`, `rm`, `mv`, `systemctl` 명령 없음
+- Oracle live bot 미수정
+- 실제 주문 없음
+- 브로커 API 연결 없음
+- `remote_write_executed=false`
+- `order_execution_allowed=false`
+
 ## 테스트
 
 ```bash

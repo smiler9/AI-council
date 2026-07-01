@@ -1,0 +1,11 @@
+{
+  "approved": false,
+  "rejected": true,
+  "rejected_by": "<manual-reviewer>",
+  "rejected_at": null,
+  "scope": "oracle_outbox_precreation_only",
+  "reason": "<manual-reason>",
+  "next_action": "Do not create Oracle outbox directories until the issue is resolved.",
+  "remote_write_executed": false,
+  "order_execution_allowed": false
+}
