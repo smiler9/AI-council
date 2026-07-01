@@ -62,3 +62,6 @@ examples/oracle_outbox_creation_result/.state/
 tmp/oracle_preview_signal_write/
 examples/oracle_preview_signal_write/output/
 examples/oracle_preview_signal_write/.state/
+tmp/oracle_operations/
+examples/oracle_operations/output/
+examples/oracle_operations/.state/

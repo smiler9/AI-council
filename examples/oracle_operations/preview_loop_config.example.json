@@ -1,0 +1,26 @@
+{
+  "base_url": "http://127.0.0.1:8000",
+  "profile": "us_trader_oracle_v1",
+  "mode": "run_once",
+  "oracle": {
+    "host": "<oracle-host>",
+    "user": "<oracle-user>",
+    "ssh_key": "<path-to-private-key>",
+    "outbox_dir": "<oracle-outbox-dir>"
+  },
+  "local_inbox": "tmp/oracle_pull/inbox",
+  "state_path": "tmp/oracle_operations/preview_loop_state.json",
+  "log_path": "tmp/oracle_operations/preview_loop.log",
+  "paper_portfolio_name": "Oracle Preview Paper Portfolio",
+  "paper_policy": {
+    "simulation_policy": "risk_gate_conservative",
+    "max_notional_per_trade": 100,
+    "allow_only_decision": false
+  },
+  "remote_delete": false,
+  "remote_move": false,
+  "systemd_changes_allowed": false,
+  "live_bot_modification_allowed": false,
+  "simulation_only": true,
+  "order_execution_allowed": false
+}

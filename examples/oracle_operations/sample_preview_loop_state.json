@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "updated_at": "2026-01-01T00:01:00+00:00",
+  "processed_signal_ids": [
+    "us_trader_oracle_manual_preview:manual_preview_001"
+  ],
+  "processed": [
+    {
+      "signal_identity": "us_trader_oracle_manual_preview:manual_preview_001",
+      "file": "us_trader_preview_signal.json",
+      "processed_at": "2026-01-01T00:01:00+00:00",
+      "trade_review_id": "<trade-review-id>",
+      "paper_portfolio_id": "<paper-portfolio-id>",
+      "paper_trade_ids": [
+        "<paper-trade-id>"
+      ],
+      "simulation_actions": [
+        "simulated_skip"
+      ],
+      "order_execution_allowed": false,
+      "simulation_only": true
+    }
+  ],
+  "skipped_duplicates": [],
+  "failed": [],
+  "remote_delete_performed": false,
+  "remote_move_performed": false,
+  "order_execution_allowed": false,
+  "simulation_only": true
+}
