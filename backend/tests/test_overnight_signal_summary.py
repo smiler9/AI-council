@@ -76,6 +76,28 @@ def test_entries_in_window_filters_by_timestamp():
     assert len(kept) == 1
 
 
+def test_load_env_file_strips_export_and_quotes(tmp_path, monkeypatch):
+    module = load_module()
+    env_file = tmp_path / "test.env"
+    env_file.write_text(
+        'export QUOTED_TOKEN="123:abc"\n'
+        "PLAIN_VALUE=hello\n"
+        "SINGLE_QUOTED='world'\n",
+        encoding="utf-8",
+    )
+    for key in ("QUOTED_TOKEN", "PLAIN_VALUE", "SINGLE_QUOTED"):
+        monkeypatch.delenv(key, raising=False)
+
+    module.load_env_file(env_file)
+
+    import os
+    assert os.environ["QUOTED_TOKEN"] == "123:abc"
+    assert os.environ["PLAIN_VALUE"] == "hello"
+    assert os.environ["SINGLE_QUOTED"] == "world"
+    for key in ("QUOTED_TOKEN", "PLAIN_VALUE", "SINGLE_QUOTED"):
+        monkeypatch.delenv(key, raising=False)
+
+
 def test_summary_message_never_enables_orders():
     module = load_module()
     source = MODULE_PATH.read_text(encoding="utf-8")
