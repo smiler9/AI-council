@@ -64,6 +64,24 @@ Identical problem alerts (same reason, file, stage, and error) are suppressed fo
 - The JSONL log rotates to `<name>.log.1` when it reaches 5 MB, and idle passes (nothing new processed, skipped, or failed) are not appended to it.
 - With `--compact-idle` (or `ORACLE_PREVIEW_LOOP_COMPACT_IDLE=true`), idle passes print a one-line compact summary to stdout instead of the full JSON, which keeps screen logs small.
 
+## Launchd Operation (Mac autonomy)
+
+For unattended operation the loop and the AI Council backend run as user LaunchAgents instead of screen sessions. Agents restart on crash (`KeepAlive`) and start at login (`RunAtLoad`); the loop is wrapped in `caffeinate -s` so the Mac does not sleep while on AC power. A lid-closed MacBook still sleeps unless it is in clamshell mode.
+
+- `com.ai-council.backend` — uvicorn on 127.0.0.1:8000, env from `tmp/ai_council_backend.env`
+- `com.ai-council.oracle-preview-loop` — runs `scripts/run_oracle_preview_loop_forever.sh` under `caffeinate -s`
+- `com.ai-council.daily-risk-brief` — POSTs `/api/operations/risk-brief/telegram/send` daily at 05:10 local time (after US market close)
+
+Plists live in `~/Library/LaunchAgents/` (paths are machine-specific and not committed). Manage with:
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ai-council.<name>.plist
+launchctl bootout gui/$(id -u)/com.ai-council.<name>
+launchctl kickstart -k gui/$(id -u)/com.ai-council.<name>
+```
+
+`scripts/run_oracle_preview_loop_forever.sh` sources `tmp/oracle_operations/oracle_preview_loop.env` (override with `ORACLE_PREVIEW_LOOP_ENV`) and runs one preview pass every `ORACLE_PREVIEW_LOOP_INTERVAL_SECONDS` (default 60).
+
 ## Safety Boundary
 
 - `order_execution_allowed=false` is enforced before and after every API call.
