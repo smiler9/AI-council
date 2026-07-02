@@ -64,6 +64,27 @@ Identical problem alerts (same reason, file, stage, and error) are suppressed fo
 - The JSONL log rotates to `<name>.log.1` when it reaches 5 MB, and idle passes (nothing new processed, skipped, or failed) are not appended to it.
 - With `--compact-idle` (or `ORACLE_PREVIEW_LOOP_COMPACT_IDLE=true`), idle passes print a one-line compact summary to stdout instead of the full JSON, which keeps screen logs small.
 
+## Oracle Server Deployment (Mac-independent operation)
+
+The backend and preview loop can run directly on the Oracle server so the pipeline works without the Mac. On the server the trading bot outbox is a local directory, so the loop needs no SSH values: leave `ORACLE_HOST`/`ORACLE_USER`/`ORACLE_SSH_KEY`/`ORACLE_OUTBOX_DIR` unset and point `ORACLE_PULL_LOCAL_INBOX` at the bot outbox directory. The loop reads outbox JSON in place and never deletes, moves, or modifies those files.
+
+Layout on the server:
+
+- repo cloned at `~/AI-council`, venv at `~/AI-council/.venv` (run `backend/tests` once after install)
+- `/etc/systemd/system/ai-council-backend.service` — uvicorn on `127.0.0.1:8100` (loopback only; not exposed publicly), `EnvironmentFile=tmp/ai_council_backend.env`
+- `/etc/systemd/system/ai-council-preview-loop.service` — runs `scripts/run_oracle_preview_loop_forever.sh` with `ORACLE_PREVIEW_LOOP_ENV` pointing at the server loop env; `After=ai-council-backend.service`, `Restart=always`
+- cron `10 5 * * *` POSTs `/api/operations/risk-brief/telegram/send?limit=20` for the daily Telegram brief after US market close
+- env files are `chmod 600` and never committed
+
+View the dashboard from a Mac with an SSH tunnel:
+
+```bash
+ssh -i <path-to-private-key> -L 8100:127.0.0.1:8100 <oracle-user>@<oracle-host>
+VITE_API_BASE_URL=http://127.0.0.1:8100 npm run dev   # in frontend/
+```
+
+The safety boundary is unchanged on the server: read-only signal intake, review + paper simulation only, `order_execution_allowed=false` everywhere, and the loop still never touches the live bot, its systemd units, or broker APIs.
+
 ## Launchd Operation (Mac autonomy)
 
 For unattended operation the loop and the AI Council backend run as user LaunchAgents instead of screen sessions. Agents restart on crash (`KeepAlive`) and start at login (`RunAtLoad`); the loop is wrapped in `caffeinate -s` so the Mac does not sleep while on AC power. A lid-closed MacBook still sleeps unless it is in clamshell mode.
